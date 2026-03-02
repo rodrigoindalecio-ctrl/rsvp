@@ -322,7 +322,7 @@ export function detectDuplicatesWithExisting(
       // Critério: Nome + Telefone (se ambos tiverem telefone)
       // Ou apenas Nome se um deles não tiver telefone (fallback)
       const nameMatch = existing.name.toLowerCase() === newGuest.name.toLowerCase()
-      const phoneMatch = existing.email === newGuest.telefone || newGuest.telefone === ''
+      const phoneMatch = existing.telefone === newGuest.telefone || newGuest.telefone === ''
 
       if (nameMatch && phoneMatch && newGuest.telefone) {
         return true

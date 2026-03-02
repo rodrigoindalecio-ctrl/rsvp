@@ -124,21 +124,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
     const [eventSettings, setEventSettings] = useState<EventSettings>(DEFAULT_EVENT_SETTINGS)
     const [loading, setLoading] = useState(false)
 
-    // Log para depuração
-    useEffect(() => {
-        if (!adminLoading && user) {
-            console.log('[EventProvider] Status:', {
-                email: user.email,
-                eventsCount: events.length,
-                eventId
-            });
-            if (!eventId) {
-                console.warn('[EventProvider] Atenção: Nenhum evento encontrado para o usuário:', user.email);
-            } else {
-                console.log('[EventProvider] Evento Ativo:', events.find(e => e.id === eventId)?.slug);
-            }
-        }
-    }, [eventId, events, user, adminLoading]);
 
     useEffect(() => {
         const currentEvent = events.find(e => e.id === eventId || e.slug === slug)
@@ -215,10 +200,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }), [guests])
 
     async function addGuest(data: Omit<Guest, 'id' | 'updatedAt' | 'status'>) {
-        if (!eventId) {
-            console.error('[addGuest] Falha: eventId não encontrado.');
-            return false
-        }
+        if (!eventId) return false
         const newId = Math.random().toString(36).substr(2, 9)
         const newGuest: Guest = {
             ...data,
@@ -253,8 +235,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
     async function addGuestsBatch(dataList: Omit<Guest, 'id' | 'updatedAt' | 'status'>[]) {
         if (!eventId) {
-            console.error('[addGuestsBatch] Falha: eventId não encontrado para este usuário.');
-            return { imported: 0, duplicates: [], error: 'Nenhum evento encontrado para você. Fale com a administradora.' }
+            return { imported: 0, duplicates: [], error: 'Nenhum evento encontrado para o usuário atual.' }
         }
         const duplicates: string[] = []
         const toImport: any[] = []
@@ -280,7 +261,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
                     updated_at: now.toISOString()
                 }
 
-                console.log('[addGuestsBatch] Preparando convidado:', guestDataToInsert);
 
                 toImport.push(guestDataToInsert)
                 newGuests.push({
@@ -295,7 +275,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
         if (toImport.length > 0) {
             try {
-                console.log(`[addGuestsBatch] Enviando ${toImport.length} convidados para o Supabase (EventId: ${eventId})`);
                 const { error } = await supabase.from('guests').insert(toImport)
                 if (error) throw error
                 setGuests(prev => [...newGuests, ...prev])

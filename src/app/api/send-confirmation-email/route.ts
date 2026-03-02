@@ -3,8 +3,8 @@ import nodemailer from 'nodemailer'
 
 // Função para parsear data ISO sem problemas de timezone
 function parseDateString(dateString: string): Date {
-  const [year, month, day] = dateString.split('-').map(Number)
-  return new Date(year, month - 1, day)
+    const [year, month, day] = dateString.split('-').map(Number)
+    return new Date(year, month - 1, day)
 }
 
 // Criar transportador SMTP com Outlook/Hotmail
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
         const eventTime = eventSettings.eventTime || '00:00'
         const [hours, minutes] = eventTime.split(':')
         eventDate.setHours(parseInt(hours), parseInt(minutes))
-        
+
         const formattedDate = eventDate.toLocaleDateString('pt-BR', {
             weekday: 'long',
             year: 'numeric',
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
         })
 
         // Criar URL do Waze (se não houver, usar localização genérica)
-        const wazeURL = eventSettings.wazeLocation 
+        const wazeURL = eventSettings.wazeLocation
             ? `https://waze.com/ul?q=${encodeURIComponent(eventSettings.wazeLocation)}`
             : `https://waze.com/ul?q=${encodeURIComponent(eventSettings.eventLocation)}`
 
@@ -268,11 +268,11 @@ export async function POST(request: NextRequest) {
                     <h4>Confirmados:</h4>
                     <ul>
                         ${confirmedDetails.map((detail: any) => {
-                            const categoryLabel = detail.category === 'adult_paying' ? 'Adulto Pagante' : 
-                                                detail.category === 'child_paying' ? 'Criança Pagante' : 
-                                                'Criança Não Pagante'
-                            return `<li>${detail.name} <span style="font-size: 12px; color: #999;">(${categoryLabel})</span></li>`
-                        }).join('')}
+            const categoryLabel = detail.category === 'adult_paying' ? 'Adulto Pagante' :
+                detail.category === 'child_paying' ? 'Criança Pagante' :
+                    'Criança Não Pagante'
+            return `<li>${detail.name} <span style="font-size: 12px; color: #999;">(${categoryLabel})</span></li>`
+        }).join('')}
                     </ul>
                 </div>
                 ` : confirmedNames && confirmedNames.length > 0 ? `
@@ -339,11 +339,7 @@ export async function POST(request: NextRequest) {
         // Enviar email via SMTP Hostinger
         try {
             const transporter = createTransporter()
-            
-            // Verificar configurações de email
-            console.log(`[EMAIL] Usando SMTP: ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}`)
-            console.log(`[EMAIL] De: ${process.env.SMTP_FROM_EMAIL}`)
-            console.log(`[EMAIL] Para: ${email}`)
+
 
             // Enviar email
             const result = await transporter.sendMail({
@@ -354,15 +350,11 @@ export async function POST(request: NextRequest) {
                 replyTo: process.env.SMTP_FROM_EMAIL
             })
 
-            console.log(`[EMAIL] ✅ Email enviado com sucesso!`)
-            console.log(`[EMAIL] Message ID: ${result.messageId}`)
-            console.log(`[EMAIL] Destinatário: ${guestName}`)
-            console.log(`[EMAIL] Confirmados: ${confirmedCompanions} pessoa(s)`)
 
             // Retornar sucesso
             return NextResponse.json(
-                { 
-                    success: true, 
+                {
+                    success: true,
                     message: 'Email enviado com sucesso',
                     email: email,
                     guestName: guestName,
