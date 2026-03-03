@@ -14,6 +14,18 @@ function UsersManagementContent() {
   const [newUser, setNewUser] = useState({ name: '', email: '', type: 'noivos' as 'noivos' | 'admin' })
   const [editingUser, setEditingUser] = useState<any>(null)
 
+  // Função para gerar iniciais inteligentes (ex: Isabella e Felipe -> I&F)
+  const getUserInitials = (name: string) => {
+    if (!name) return '?'
+    // Limpar prefixos comuns
+    const cleanName = name.replace(/^(?:Casamento|Debutante|15 Anos|Evento|Festa)\s+/i, '').trim()
+    const coupleParts = cleanName.split(/\s+(?:e|&)\s+/i)
+    if (coupleParts.length >= 2) {
+      return `${coupleParts[0].trim().charAt(0)}&${coupleParts[1].trim().charAt(0)}`.toUpperCase()
+    }
+    return cleanName.charAt(0).toUpperCase()
+  }
+
   const filteredUsers = users.filter(u =>
     u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.email.toLowerCase().includes(searchTerm.toLowerCase())
@@ -165,16 +177,23 @@ function UsersManagementContent() {
               <div className="p-8 pb-6 flex-1">
                 <div className="flex items-start justify-between mb-8">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-bg-light flex items-center justify-center text-text-muted font-black text-xl uppercase shadow-inner group-hover:scale-110 transition-transform">
-                      {u.name.charAt(0)}
+                    <div className={`w-14 h-14 rounded-2xl bg-bg-light flex items-center justify-center text-text-muted font-black uppercase shadow-inner group-hover:scale-110 transition-transform ${getUserInitials(u.name).length > 2 ? 'text-sm' : 'text-xl'}`}>
+                      {getUserInitials(u.name)}
                     </div>
                     <div>
                       <h4 className="text-lg font-serif font-black text-text-primary tracking-tight leading-tight mb-1">{u.name}</h4>
                       <div className={`badge ${u.type === 'admin'
                         ? 'badge-success'
-                        : 'badge-primary'
+                        : u.name.toLowerCase().includes('debutante') || u.name.toLowerCase().includes('15 anos')
+                          ? 'bg-warning-light text-warning-dark border-warning/20'
+                          : 'badge-primary'
                         }`}>
-                        {u.type === 'admin' ? '👑 Administrador' : '❤️ Equipe Noivos'}
+                        {u.type === 'admin'
+                          ? '👑 Administrador'
+                          : u.name.toLowerCase().includes('debutante') || u.name.toLowerCase().includes('15 anos')
+                            ? '💃 Debutante'
+                            : '💒 Casamento'
+                        }
                       </div>
                     </div>
                   </div>
@@ -209,8 +228,8 @@ function UsersManagementContent() {
                   <span className="text-[9px] font-black text-brand-pale uppercase tracking-widest">Eventos</span>
                   <span className="text-sm font-black text-white">{u.eventsCount}</span>
                 </div>
-                <div className="flex items-center gap-1 text-[9px] font-black text-brand-light/50 uppercase tracking-widest">
-                  Ativo <span className="w-1.5 h-1.5 bg-success rounded-full animate-pulse shadow-[0_0_8px_rgba(107,165,131,0.5)]"></span>
+                <div className="flex items-center gap-2 text-[10px] font-black text-success uppercase tracking-widest">
+                  Ativo <span className="w-2 h-2 bg-success rounded-full animate-pulse shadow-[0_0_10px_rgba(107,165,131,0.6)]"></span>
                 </div>
               </div>
             </div>

@@ -1,8 +1,9 @@
 'use client'
 
 import { useAuth } from '@/lib/auth-context'
+import { useEvent } from '@/lib/event-context'
 import { useRouter, usePathname } from 'next/navigation'
-import React, { useState } from 'react'
+import React, { useState, useContext } from 'react'
 
 // ── SVG Outline Icons ──────────────────────────────────────────
 const IconHome = () => (
@@ -84,7 +85,34 @@ export function SharedLayout({
     const pathname = usePathname()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
 
+    // Tentar pegar os nomes do casal do contexto de evento (para o avatar)
+    let eventContext: any = null
+    try {
+        eventContext = useEvent()
+    } catch (e) {
+        // useEvent pode falhar se estiver fora do provider
+    }
+
     if (!user) return null
+
+    // Iniciais personalizadas para o Avatar (ex: Isabella e Felipe -> I&F)
+    const getInitials = (name: string) => {
+        if (!name) return '?'
+        // Limpar prefixos comuns para eventos
+        const cleanName = name.replace(/^(?:Casamento|Debutante|15 Anos|Evento|Festa)\s+/i, '').trim()
+        const parts = cleanName.split(/\s+(?:e|&|E|&)\s+/i)
+        if (parts.length >= 2) {
+            return `${parts[0].trim().charAt(0)}&${parts[1].trim().charAt(0)}`.toUpperCase()
+        }
+        return cleanName.charAt(0).toUpperCase()
+    }
+
+    // Se for um usuário (noivos) e tivermos nomes do casal no evento, priorizamos isso
+    const sourceName = (role === 'user' && eventContext?.eventSettings?.coupleNames && eventContext.eventSettings.coupleNames !== 'Nome do Casal')
+        ? eventContext.eventSettings.coupleNames
+        : user.name
+
+    const initials = getInitials(sourceName)
 
     const adminLinks: LinkItem[] = [
         { href: '/admin/dashboard', label: 'Dashboard', icon: <IconBarChart /> },
@@ -140,10 +168,10 @@ export function SharedLayout({
                     <div className="flex items-center gap-4 flex-1 justify-end">
                         <button
                             onClick={() => setIsMenuOpen(!isMenuOpen)}
-                            className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center font-black text-sm uppercase shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all border-2 border-white"
+                            className={`w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center font-black uppercase shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all border-2 border-white ${initials.length > 2 ? 'text-[10px]' : 'text-sm'}`}
                             title={user.name}
                         >
-                            {user.name.charAt(0)}
+                            {initials}
                         </button>
                     </div>
                 </div>
@@ -164,8 +192,8 @@ export function SharedLayout({
                         {/* User info */}
                         <div className="p-6 border-b border-border-soft bg-bg-light/30">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-brand text-white flex items-center justify-center font-black text-sm uppercase shadow-inner">
-                                    {user.name.charAt(0)}
+                                <div className={`w-10 h-10 rounded-xl bg-brand text-white flex items-center justify-center font-black uppercase shadow-inner ${initials.length > 2 ? 'text-[10px]' : 'text-sm'}`}>
+                                    {initials}
                                 </div>
                                 <div className="min-w-0">
                                     <p className="text-xs font-black text-text-primary truncate">{user.name}</p>

@@ -567,7 +567,9 @@ export default function DashboardPage() {
                           {person.name}
                         </h4>
                         <p className="text-[9px] font-bold text-text-muted uppercase tracking-widest truncate">
-                          {person.groupName}
+                          {person.groupName} • {person.category === 'adult_paying' ? 'Adulto' :
+                            person.category === 'child_paying' ? 'Criança Pagante' :
+                              'Criança Isenta'}
                         </p>
                       </div>
                     </div>
