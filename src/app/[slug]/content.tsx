@@ -10,7 +10,7 @@ interface EventContentProps {
 }
 
 export default function EventContent({ slug }: EventContentProps) {
-    const { eventSettings, guests, updateGuest } = useEvent()
+    const { eventSettings, guests, updateGuest, ownerEmail } = useEvent()
     const [step, setStep] = useState<'landing' | 'search' | 'results' | 'group' | 'success'>('landing')
     const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -52,13 +52,14 @@ export default function EventContent({ slug }: EventContentProps) {
 
     const handleSelectGuest = (guest: Guest) => {
         setSelectedGuest(guest)
-        setIsMainGuestConfirmed(guest.status === 'confirmed')
+        // Sempre marcar como true ao selecionar inicialmente para facilitar o RSVP
+        setIsMainGuestConfirmed(true)
         setGuestEmail('')
 
-        // Initialize companions confirmations
+        // Initialize companions confirmations as true by default
         const initialComps: { [key: number]: boolean } = {}
-        guest.companionsList.forEach((comp, idx) => {
-            initialComps[idx] = comp.isConfirmed
+        guest.companionsList.forEach((_, idx) => {
+            initialComps[idx] = true
         })
         setGroupConfirmations(initialComps)
         setStep('group')
@@ -82,7 +83,7 @@ export default function EventContent({ slug }: EventContentProps) {
                 confirmedAt: new Date()
             })
 
-            // Disparar o envio de email de confirmação
+            // Disparar o envio de email de confirmação para o convidado
             if (isMainGuestConfirmed || updatedCompanions.some(c => c.isConfirmed)) {
                 try {
                     const confirmedComps = updatedCompanions.filter(c => c.isConfirmed)
@@ -108,7 +109,30 @@ export default function EventContent({ slug }: EventContentProps) {
                         })
                     })
                 } catch (emailError) {
-                    console.error('Erro ao disparar email:', emailError)
+                    console.error('Erro ao disparar email para o convidado:', emailError)
+                }
+            }
+
+            // Notificação para o Proprietário (Chave Liga/Desliga)
+            if (eventSettings.notifyOwnerOnRSVP !== false) {
+                try {
+                    const confirmedNames = []
+                    if (isMainGuestConfirmed) confirmedNames.push(selectedGuest.name)
+                    updatedCompanions.filter(c => c.isConfirmed).forEach(c => confirmedNames.push(c.name))
+
+                    await fetch('/api/send-owner-notification', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ownerEmail: ownerEmail,
+                            guestName: selectedGuest.name,
+                            eventSettings: eventSettings,
+                            confirmedNames: confirmedNames,
+                            status: isMainGuestConfirmed ? 'confirmed' : 'declined'
+                        })
+                    })
+                } catch (ownerEmailError) {
+                    console.error('Erro ao notificar proprietário:', ownerEmailError)
                 }
             }
 
@@ -255,7 +279,14 @@ export default function EventContent({ slug }: EventContentProps) {
 
                 <div className="mb-10">
                     <h2 className="text-3xl font-serif text-text-primary mb-2">Quem irá comparecer?</h2>
-                    <p className="text-text-secondary text-sm">Selecione quem do seu grupo poderá prestigiar este momento.</p>
+                    <p className="text-text-secondary text-sm">Confirmamos todos do seu grupo por padrão para facilitar sua resposta.</p>
+
+                    <div className="mt-6 p-4 bg-brand-pale/30 border border-brand/10 rounded-2xl flex gap-3 items-start animate-in fade-in slide-in-from-top-2 duration-500">
+                        <div className="w-5 h-5 bg-brand text-white rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold mt-0.5">!</div>
+                        <p className="text-[11px] text-text-primary leading-relaxed">
+                            <strong>Dica:</strong> Caso alguém da lista não possa comparecer, basta clicar no nome para desmarcar. Os nomes desmarcados serão registrados como <strong>ausentes</strong>.
+                        </p>
+                    </div>
                 </div>
 
                 <form onSubmit={handleConfirm} className="space-y-8">
@@ -366,13 +397,26 @@ export default function EventContent({ slug }: EventContentProps) {
                                 </span>
                             </div>
                             {/* Local */}
-                            <div className="flex items-center gap-3 drop-shadow-lg">
+                            <div className="flex items-center gap-3 drop-shadow-lg group">
                                 <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-lg flex items-center justify-center border border-white/20">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
                                 </div>
-                                <span className="text-xs md:text-sm font-black uppercase tracking-[0.2em] truncate max-w-[250px]">
-                                    {eventSettings.eventLocation?.split(',')[0]}
-                                </span>
+                                <div className="flex flex-col">
+                                    <span className="text-xs md:text-sm font-black uppercase tracking-[0.2em] truncate max-w-[250px]">
+                                        {eventSettings.eventLocation?.split(',')[0]}
+                                    </span>
+                                    {eventSettings.wazeLocation && (
+                                        <a
+                                            href={eventSettings.wazeLocation}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[10px] font-black uppercase tracking-widest text-white/80 hover:text-white transition-all flex items-center gap-1.5 mt-0.5"
+                                        >
+                                            <span className="border-b border-white/40 group-hover:border-white">Ver Mapa</span>
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                                        </a>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -390,7 +434,7 @@ export default function EventContent({ slug }: EventContentProps) {
                     </div>
 
                     <div className="space-y-6">
-                        <h1 className="text-4xl md:text-6xl font-serif text-text-primary leading-tight lowercase">
+                        <h1 className="text-4xl md:text-6xl font-serif text-text-primary leading-tight capitalize">
                             {eventSettings.coupleNames}
                         </h1>
                         <div className="w-16 h-px bg-brand/10 mx-auto" />
@@ -406,9 +450,9 @@ export default function EventContent({ slug }: EventContentProps) {
                         >
                             Confirmar Minha Presença
                         </button>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-text-muted/60">
+                        <p className="text-xs md:text-sm font-black uppercase tracking-widest text-text-muted">
                             {eventSettings.confirmationDeadline ? (
-                                <>Por favor, responda até <strong className="text-text-primary">{formatDate(eventSettings.confirmationDeadline, { day: '2-digit', month: '2-digit' })}</strong></>
+                                <>Por favor, responda até <strong className="text-brand border-b-2 border-brand/20 pb-0.5">{formatDate(eventSettings.confirmationDeadline, { day: '2-digit', month: '2-digit' })}</strong></>
                             ) : 'Confirmação antecipada é apreciada'}
                         </p>
                     </div>
@@ -434,20 +478,7 @@ export default function EventContent({ slug }: EventContentProps) {
                     </div>
                 )}
 
-                {/* ── BOTÕES AUXILIARES (GPS) ─────────────────────────────── */}
-                {eventSettings.wazeLocation && (
-                    <div className="flex justify-center pt-8">
-                        <a
-                            href={eventSettings.wazeLocation}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 px-6 py-3 bg-bg-light border border-border-soft rounded-full text-[9px] font-black uppercase tracking-widest text-text-muted hover:text-brand transition-all"
-                        >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-                            Ver Mapa do Local
-                        </a>
-                    </div>
-                )}
+                {/* ── FOOTER ─────────────────────────────────────────────── */}
 
                 <footer className="py-24 text-center space-y-6">
                     <div className="flex flex-col items-center gap-4 opacity-40 hover:opacity-100 transition-opacity duration-700">

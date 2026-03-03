@@ -13,7 +13,7 @@ import Link from 'next/link'
 
 export default function DashboardPage() {
   const { user, loading, logout } = useAuth()
-  const { guests, eventSettings, metrics, updateGuestStatus, removeGuest, removeCompanion, updateGuest } = useEvent()
+  const { guests, eventSettings, metrics, updateGuestStatus, removeGuest, removeCompanion, updateGuest, refreshData } = useEvent()
   const router = useRouter()
 
   // States for UX
@@ -31,8 +31,10 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login')
+    } else if (user) {
+      refreshData()
     }
-  }, [user, loading, router])
+  }, [user, loading, router, refreshData])
 
   if (loading) {
     return (
@@ -108,7 +110,7 @@ export default function DashboardPage() {
       type: 'Acompanhante',
       category: c.category || 'adult_paying',
       groupName: g.grupo || g.name,
-      status: c.isConfirmed ? 'confirmed' : (g.status === 'declined' ? 'declined' : 'pending'),
+      status: c.isConfirmed ? 'confirmed' : (g.status === 'pending' ? 'pending' : 'declined'),
       updatedAt: g.updatedAt
     }))
 

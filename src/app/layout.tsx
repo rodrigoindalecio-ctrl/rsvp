@@ -42,6 +42,8 @@ export const metadata: Metadata = {
   },
 }
 
+import { Toaster } from 'sonner'
+
 export default function RootLayout({
   children,
 }: {
@@ -56,6 +58,7 @@ export default function RootLayout({
               <main className="flex-1">
                 {children}
               </main>
+              <Toaster position="top-center" richColors />
             </EventProvider>
           </AuthProvider>
         </AdminProvider>

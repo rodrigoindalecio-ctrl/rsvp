@@ -115,9 +115,9 @@ export function SharedLayout({
     const initials = getInitials(sourceName)
 
     const adminLinks: LinkItem[] = [
-        { href: '/admin/dashboard', label: 'Dashboard', icon: <IconBarChart /> },
+        { href: '/admin/dashboard', label: 'Eventos', icon: <IconHome /> },
         { href: '/admin/users', label: 'Usuários', icon: <IconUsers /> },
-        { href: '/admin/novo-evento', label: 'Novo Evento', icon: <IconCalendarPlus /> },
+        { href: '/admin/reports', label: 'Relatórios', icon: <IconBarChart /> },
     ]
 
     const userLinks: LinkItem[] = [

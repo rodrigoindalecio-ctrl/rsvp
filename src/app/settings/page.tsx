@@ -27,6 +27,7 @@ export default function SettingsPage() {
     const [coverImagePosition, setCoverImagePosition] = useState(eventSettings.coverImagePosition || 50)
     const [coverImageScale, setCoverImageScale] = useState(eventSettings.coverImageScale || 1)
     const [customMessage, setCustomMessage] = useState(eventSettings.customMessage)
+    const [notifyOwnerOnRSVP, setNotifyOwnerOnRSVP] = useState(eventSettings.notifyOwnerOnRSVP ?? true)
 
     const [saved, setSaved] = useState(false)
     const [slugEdited, setSlugEdited] = useState(false) // Track if user manually edited slug
@@ -263,7 +264,8 @@ export default function SettingsPage() {
             coverImage,
             coverImagePosition,
             coverImageScale,
-            customMessage
+            customMessage,
+            notifyOwnerOnRSVP
         })
         setSaved(true)
         setTimeout(() => setSaved(false), 3000)
@@ -316,6 +318,26 @@ export default function SettingsPage() {
                                     className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
                                 />
                             </div>
+                        </div>
+
+                        {/* Notificações */}
+                        <div className="p-6 bg-bg-light rounded-[2rem] border border-border-soft flex items-center justify-between group hover:border-brand/20 transition-all">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-text-muted transition-transform group-hover:scale-110 shadow-sm border border-border-soft">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none mb-1.5">Avisos por E-mail</p>
+                                    <p className="text-xs font-bold text-text-primary">Receber confirmações no seu e-mail</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setNotifyOwnerOnRSVP(!notifyOwnerOnRSVP)}
+                                className={`w-14 h-8 rounded-full relative transition-all duration-300 ${notifyOwnerOnRSVP ? 'bg-brand' : 'bg-border-soft'}`}
+                            >
+                                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${notifyOwnerOnRSVP ? 'left-7' : 'left-1'}`} />
+                            </button>
                         </div>
 
                         {/* Slug (URL) */}

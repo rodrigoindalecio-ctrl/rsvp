@@ -88,10 +88,10 @@ function AdminDashboardContent() {
             👥 Usuários
           </button>
           <button
-            onClick={() => router.push('/admin/novo-evento')}
+            onClick={() => router.push('/admin/reports')}
             className="px-6 py-3 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-brand/20 hover:bg-brand/90 hover:-translate-y-1 transition-all flex items-center gap-2"
           >
-            ➕ Novo Evento
+            📊 Relatórios
           </button>
         </>
       }

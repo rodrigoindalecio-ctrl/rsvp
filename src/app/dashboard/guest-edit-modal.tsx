@@ -285,8 +285,8 @@ export function GuestEditModal({ guest, isOpen, onClose, onSave, onDelete }: Gue
                                         </label>
                                     </div>
                                     {companion.name && (
-                                        <span className={`text-[9px] font-black uppercase tracking-widest ${companion.isConfirmed ? 'text-success' : 'text-warning'}`}>
-                                            {companion.isConfirmed ? '✓ Confirmado' : '⏳ Pendente'}
+                                        <span className={`text-[9px] font-black uppercase tracking-widest ${companion.isConfirmed ? 'text-success' : (formData.status === 'pending' ? 'text-warning' : 'text-danger')}`}>
+                                            {companion.isConfirmed ? '✓ Confirmado' : (formData.status === 'pending' ? '⏳ Pendente' : '✗ Ausente')}
                                         </span>
                                     )}
                                 </div>

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { useAdmin } from './admin-context'
 import { useAuth } from './auth-context'
 import { supabase } from './supabase'
+import { toast } from 'sonner'
 
 export type GuestStatus = 'confirmed' | 'pending' | 'declined'
 export type GuestCategory = 'adult_paying' | 'child_paying' | 'child_not_paying'
@@ -44,11 +45,13 @@ export type EventSettings = {
     customMessage: string
     giftList?: string
     giftListLinks?: { name: string; url: string }[]
+    notifyOwnerOnRSVP?: boolean
 }
 
 type EventContextType = {
     guests: Guest[]
     eventSettings: EventSettings
+    ownerEmail?: string
     loading: boolean
     metrics: {
         total: number
@@ -76,6 +79,7 @@ type EventContextType = {
     removeCompanion: (guestId: string, companionIndex: number) => Promise<void>
     updateEventSettings: (settings: Partial<EventSettings>) => Promise<void>
     submitRSVP: (rsvpData: Omit<Guest, 'id' | 'updatedAt'>) => Promise<void>
+    refreshData: () => Promise<void>
 }
 
 const DEFAULT_EVENT_SETTINGS: EventSettings = {
@@ -92,7 +96,8 @@ const DEFAULT_EVENT_SETTINGS: EventSettings = {
     coverImageScale: 1,
     customMessage: 'Ficamos muito felizes em receber a sua confirmação de presença.',
     giftList: '',
-    giftListLinks: []
+    giftListLinks: [],
+    notifyOwnerOnRSVP: true
 }
 
 const EventContext = createContext<EventContextType | undefined>(undefined)
@@ -131,6 +136,11 @@ export function EventProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(false)
 
 
+    const ownerEmail = useMemo(() => {
+        const found = events.find(e => e.id === eventId || e.slug === slug)
+        return found?.createdBy
+    }, [eventId, slug, events])
+
     useEffect(() => {
         const currentEvent = events.find(e => e.id === eventId || e.slug === slug)
         if (currentEvent) {
@@ -138,42 +148,93 @@ export function EventProvider({ children }: { children: ReactNode }) {
         }
     }, [eventId, slug, events])
 
-    useEffect(() => {
+    async function loadGuests() {
         if (!eventId) return
+        setLoading(true)
+        try {
+            const { data, error } = await supabase
+                .from('guests')
+                .select('*')
+                .eq('event_id', eventId)
+                .order('updated_at', { ascending: false })
 
-        async function loadGuests() {
-            setLoading(true)
-            try {
-                const { data, error } = await supabase
-                    .from('guests')
-                    .select('*')
-                    .eq('event_id', eventId)
-                    .order('updated_at', { ascending: false })
+            if (error) throw error
 
-                if (error) throw error
-
-                setGuests((data || []).map(g => ({
-                    id: g.id,
-                    name: g.name,
-                    email: g.email || '',
-                    telefone: g.telefone || '',
-                    grupo: g.grupo || '',
-                    companions: g.companions_list?.length || 0,
-                    companionsList: g.companions_list || [],
-                    status: g.status as GuestStatus,
-                    category: g.category as GuestCategory,
-                    updatedAt: new Date(g.updated_at),
-                    confirmedAt: g.confirmed_at ? new Date(g.confirmed_at) : undefined
-                })))
-            } catch (error) {
-                console.error('Erro ao carregar convidados:', error)
-            } finally {
-                setLoading(false)
-            }
+            setGuests((data || []).map(g => ({
+                id: g.id,
+                name: g.name,
+                email: g.email || '',
+                telefone: g.telefone || '',
+                grupo: g.grupo || '',
+                companions: g.companions_list?.length || 0,
+                companionsList: g.companions_list || [],
+                status: g.status as GuestStatus,
+                category: g.category as GuestCategory,
+                updatedAt: new Date(g.updated_at),
+                confirmedAt: g.confirmed_at ? new Date(g.confirmed_at) : undefined
+            })))
+        } catch (error) {
+            console.error('Erro ao carregar convidados:', error)
+        } finally {
+            setLoading(false)
         }
+    }
 
+    useEffect(() => {
         loadGuests()
     }, [eventId])
+
+    const refreshData = async () => {
+        await loadGuests()
+    }
+
+    // REAL-TIME UPDATES
+    useEffect(() => {
+        if (!eventId || !user) return
+
+        const channel = supabase
+            .channel(`guests-realtime-${eventId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'guests',
+                    filter: `event_id=eq.${eventId}`
+                },
+                (payload) => {
+                    const newGuest = payload.new as any
+                    const oldGuest = payload.old as any
+
+                    // Verificamos se o status mudou e se não é um status pendente
+                    // Nota: payload.old pode ser parcial dependendo da replica identity
+                    if (newGuest.status !== 'pending') {
+                        const isConfirmed = newGuest.status === 'confirmed'
+
+                        toast.success(
+                            <div className="flex flex-col gap-1">
+                                <span className="font-black text-xs uppercase tracking-widest block">
+                                    {isConfirmed ? '🔔 Nova Confirmação!' : '✗ Nova Ausência'}
+                                </span>
+                                <span className="text-sm">
+                                    <strong>{newGuest.name}</strong> {isConfirmed ? 'confirmou' : 'recusou'} presença.
+                                </span>
+                            </div>,
+                            {
+                                duration: 5000,
+                                icon: isConfirmed ? '✅' : '❌'
+                            }
+                        )
+                        loadGuests()
+                    }
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [eventId, user])
 
     const metrics = useMemo(() => {
         const initial = {
@@ -225,9 +286,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
                     if (cat === 'adult_paying') acc.confirmedAdults += 1
                     else if (cat === 'child_paying') acc.confirmedChildrenPaying += 1
                     else if (cat === 'child_not_paying') acc.confirmedChildrenFree += 1
-                } else if (isPending || (isConfirmed && !comp.isConfirmed)) {
+                } else if (isPending) {
                     acc.pending += 1
-                } else if (isDeclined) {
+                } else if (isDeclined || (isConfirmed && !comp.isConfirmed)) {
                     acc.declined += 1
                 }
             })
@@ -437,6 +498,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         <EventContext.Provider value={{
             guests,
             eventSettings,
+            ownerEmail,
             loading,
             metrics,
             addGuest,
@@ -447,7 +509,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
             updateGuestCompanions,
             removeCompanion,
             updateEventSettings,
-            submitRSVP
+            submitRSVP,
+            refreshData
         }}>
             {children}
         </EventContext.Provider>
