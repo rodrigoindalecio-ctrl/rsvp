@@ -114,7 +114,7 @@ export async function parseGuestsList(file: File): Promise<ParseSheetResult> {
           .toLowerCase()
           .normalize('NFD')
           .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-          .replace(/\s+/g, '') // Remove espaços
+          .replace(/[^a-zA-Z0-9]/g, '') // Remove TUDO que não for letra ou número (incluindo / e espaços)
           .trim()
         normalized[normalizedKey] = String(value || '').trim()
       }
@@ -168,7 +168,8 @@ function processRows(rows: RawGuestRow[]): ParseSheetResult {
       return
     }
 
-    const nomePrincipal = normalizedRow['nomeprincipal']
+    // BUSCA PELAS CHAVES PADRONIZADAS (Exatas após normalização)
+    const nomePrincipal = normalizedRow['nomeconvidado']
     const telefone = normalizedRow['telefone']
 
     // Detectar duplicatas DENTRO da importação
@@ -187,8 +188,16 @@ function processRows(rows: RawGuestRow[]): ParseSheetResult {
     // --- PARSE ACOMPANHANTES (Lógica de 3 Baldes) ---
     const companionsList: any[] = []
 
-    const parseBucket = (colName: string, category: string) => {
-      const val = normalizedRow[colName] || ''
+    // Processa os 3 possíveis baldes de nomes (com variações de nomes de coluna)
+    const getVal = (keys: string[]) => {
+      for (const k of keys) {
+        if (normalizedRow[k]) return normalizedRow[k]
+      }
+      return ''
+    }
+
+    const parseBucket = (keys: string[], category: string) => {
+      const val = getVal(keys)
       if (val.trim()) {
         const names = parseCompanionsList(val)
         names.forEach(name => {
@@ -201,12 +210,9 @@ function processRows(rows: RawGuestRow[]): ParseSheetResult {
       }
     }
 
-    // Processa os 3 possíveis baldes de nomes
-    parseBucket('acompanhantesadultos', 'adult_paying')
-    parseBucket('criancaspagantes', 'child_paying')
-    parseBucket('criancaspagantes(6a11anos)', 'child_paying')
-    parseBucket('criancasnaopagantes', 'child_not_paying')
-    parseBucket('criancasnaopagantes(ate5anos)', 'child_not_paying')
+    parseBucket(['adultos'], 'adult_paying')
+    parseBucket(['criancaspagantes'], 'child_paying')
+    parseBucket(['criancasisentas'], 'child_not_paying')
 
     // Retrocompatibilidade com coluna única se as outras estiverem vazias
     if (companionsList.length === 0) {
@@ -218,25 +224,14 @@ function processRows(rows: RawGuestRow[]): ParseSheetResult {
       }
     }
 
-    // Parse categoria (validar e converter)
-    const categoriaStr = normalizedRow['categoria'] || 'adulto pagante'
-    let category = 'adult_paying' // Default
-    if (categoriaStr.toLowerCase().includes('criança') && categoriaStr.toLowerCase().includes('não')) {
-      category = 'child_not_paying'
-    } else if (categoriaStr.toLowerCase().includes('criança')) {
-      category = 'child_paying'
-    } else {
-      category = 'adult_paying'
-    }
-
-    // Montar guest
+    // Montar guest - O titular é SEMPRE Adulto Pagante por padrão
     const guest: ParsedGuest = {
       name: nomePrincipal,
       companions: companionsList.length,
       companionsList,
       telefone,
-      grupo: normalizedRow['grupo'] || undefined,
-      category: category,
+      grupo: normalizedRow['grupofamilia'] || undefined,
+      category: 'adult_paying',
     }
 
     convidados.push(guest)
@@ -251,28 +246,26 @@ function processRows(rows: RawGuestRow[]): ParseSheetResult {
   }
 }
 
-// ==========================================
-// VALIDATION
-// ==========================================
-
 export function validateGuestRow(row: Record<string, string>, linhaNum: number): ImportError[] {
   const errors: ImportError[] = []
 
   // Nome é obrigatório
-  if (!row.nomeprincipal || row.nomeprincipal.trim().length === 0) {
+  const nome = row.nomeconvidado
+  if (!nome || nome.trim().length === 0) {
     errors.push({
       linha: linhaNum,
-      campo: 'nomeprincipal',
-      mensagem: 'Nome principal é obrigatório'
+      campo: 'nome',
+      mensagem: 'Coluna "NOME_CONVIDADO" é obrigatória'
     })
   }
 
   // Telefone é obrigatório
-  if (!row.telefone || row.telefone.trim().length === 0) {
+  const tel = row.telefone
+  if (!tel || tel.trim().length === 0) {
     errors.push({
       linha: linhaNum,
       campo: 'telefone',
-      mensagem: 'Telefone é obrigatório (usado para detecção de duplicidade)'
+      mensagem: 'Coluna "TELEFONE" é obrigatória (usada para detecção de duplicidade)'
     })
   }
 
@@ -362,15 +355,12 @@ export async function generateImportTemplate(): Promise<Uint8Array> {
 
   // Definir colunas amigáveis
   worksheet.columns = [
-    { header: 'Nome do Convidado', key: 'nomeprincipal', width: 28 },
-    { header: 'Tipo Principal', key: 'categoria', width: 20 },
-    { header: 'WhatsApp / Telefone', key: 'telefone', width: 20 },
-    { header: 'Acompanhantes Adultos', key: 'adultos', width: 35 },
-    { header: 'Crianças Pagantes', key: 'criancas_pagantes', width: 25 },
-    { header: 'Crianças Não Pagantes', key: 'criancas_isentas', width: 25 },
-    { header: 'E-mail', key: 'email', width: 25 },
-    { header: 'Grupo / Família', key: 'grupo', width: 20 },
-    { header: 'Restrições Alimentares', key: 'restricoes', width: 25 },
+    { header: 'NOME_CONVIDADO', key: 'nomeconvidado', width: 25 },
+    { header: 'TELEFONE', key: 'telefone', width: 20 },
+    { header: 'ADULTOS', key: 'adultos', width: 35 },
+    { header: 'CRIANCAS_PAGANTES', key: 'criancas_pagantes', width: 25 },
+    { header: 'CRIANCAS_ISENTAS', key: 'criancas_isentas', width: 25 },
+    { header: 'GRUPO_FAMILIA', key: 'grupofamilia', width: 20 },
   ]
 
   // Estilo Premium (Burgundy)
@@ -397,22 +387,20 @@ export async function generateImportTemplate(): Promise<Uint8Array> {
   // Dados de Exemplo
   const templateData = [
     {
-      nomeprincipal: 'Carlos Alberto Ferreira',
-      categoria: 'Adulto Pagante',
+      nomeconvidado: 'Carlos Alberto Ferreira',
       telefone: '11988887777',
       adultos: 'Mariana Ferreira',
       criancas_pagantes: 'Pedro Ferreira',
       criancas_isentas: 'Bebê Theo',
-      grupo: 'Família Ferreira'
+      grupofamilia: 'Família Ferreira'
     },
     {
-      nomeprincipal: 'Bruna Oliveira',
-      categoria: 'Adulto Pagante',
+      nomeconvidado: 'Bruna Oliveira',
       telefone: '11977776666',
       adultos: 'Lucas Oliveira, Roberta Souza',
       criancas_pagantes: '',
       criancas_isentas: '',
-      grupo: 'Amigos Noiva'
+      grupofamilia: 'Amigos Noiva'
     }
   ]
 
@@ -457,13 +445,12 @@ export async function generateImportTemplate(): Promise<Uint8Array> {
   headerHelp.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } }
 
   const tips = [
-    ['Nome do Convidado', 'Nome da pessoa principal (ex: o Titular da Família).'],
-    ['Tipo Principal', 'Se o titular é Adulto ou Criança.'],
-    ['WhatsApp / Telefone', 'Obrigatório para identificação.'],
-    ['Acompanhantes Adultos', 'Apenas nomes separados por vírgula. Todos serão "Adultos Pagantes".'],
-    ['Crianças Pagantes', 'Nomes separados por vírgula. Serão classificadas como "Crianças Pagantes".'],
-    ['Crianças Não Pagantes', 'Nomes separados por vírgula. Serão classificadas como "Crianças NÃO Pagantes".'],
-    ['Grupo / Família', 'Como você quer agrupar (ex: Familia Noivo).']
+    ['NOME_CONVIDADO', 'Nome da pessoa principal (ex: o Titular da Família).'],
+    ['TELEFONE', 'Obrigatório para identificação (apenas números).'],
+    ['ADULTOS', 'Apenas nomes de acompanhantes ADULTOS separados por vírgula.'],
+    ['CRIANCAS_PAGANTES', 'Nomes de crianças PAGANTES separados por vírgula.'],
+    ['CRIANCAS_ISENTAS', 'Nomes de crianças NÃO PAGANTES (isentas) separados por vírgula.'],
+    ['GRUPO_FAMILIA', 'Como você quer agrupar (ex: Familia Noivo).']
   ]
 
   tips.forEach(tip => {

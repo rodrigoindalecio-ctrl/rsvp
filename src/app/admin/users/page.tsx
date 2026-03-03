@@ -6,35 +6,116 @@ import { useState } from 'react'
 import { SharedLayout } from '@/app/components/shared-layout'
 
 function UsersManagementContent() {
-  const { users, addUser } = useAdmin()
+  const { users, addUser, updateUser, removeUser, addEvent, createDefaultEventForUser } = useAdmin()
   const [searchTerm, setSearchTerm] = useState('')
   const [showInviteModal, setShowInviteModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [isSending, setIsSending] = useState(false)
   const [newUser, setNewUser] = useState({ name: '', email: '', type: 'noivos' as 'noivos' | 'admin' })
+  const [editingUser, setEditingUser] = useState<any>(null)
 
   const filteredUsers = users.filter(u =>
     u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.email.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const handleInviteUser = () => {
+  const handleInviteUser = async () => {
     if (!newUser.name || !newUser.email) {
       alert('Preencha todos os campos')
       return
     }
 
-    const userToInvite = {
-      id: Date.now().toString(),
-      name: newUser.name,
-      email: newUser.email,
-      type: newUser.type,
-      eventsCount: 0,
-      createdAt: new Date()
-    }
+    setIsSending(true)
 
-    addUser(userToInvite)
-    setNewUser({ name: '', email: '', type: 'noivos' })
-    setShowInviteModal(false)
-    alert('Usuário convidado com sucesso!')
+    try {
+      const userToInvite = {
+        id: crypto.randomUUID(),
+        name: newUser.name,
+        email: newUser.email,
+        type: newUser.type,
+        eventsCount: 0,
+        createdAt: new Date()
+      }
+
+      await addUser(userToInvite)
+
+      // Criar evento automático se for Noivos (usando a nova função centralizada do contexto)
+      if (newUser.type === 'noivos') {
+        await createDefaultEventForUser(newUser.email, newUser.name)
+      }
+
+      // Lógica de Onboarding Passo a Passo para o Email
+      const onboardingSteps = newUser.type === 'noivos' ? `
+1️⃣  Acesse o link: ${window.location.origin}/
+2️⃣  Faça seu cadastro utilizando este e-mail.
+3️⃣  Configure as informações (Data, Local e Fotos).
+4️⃣  Importe sua lista de convidados pelo modelo Excel.
+5️⃣  Acompanhe as confirmações em tempo real! 📊
+      ` : `
+1️⃣  Confirme seu acesso administrativo.
+2️⃣  Gerencie todos os eventos da plataforma.
+3️⃣  Acesse relatórios e métricas globais.
+      `
+
+      // Chamada para a nova API de e-mail automático (Hostinger SMTP)
+      const response = await fetch('/api/send-invite-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newUser.name,
+          email: newUser.email,
+          type: newUser.type,
+          onboardingSteps: onboardingSteps.trim()
+        })
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.details || 'Falha no envio do e-mail')
+
+      setNewUser({ name: '', email: '', type: 'noivos' })
+      setShowInviteModal(false)
+      alert('Usuário convidado e e-mail automático enviado! ✨')
+    } catch (error: any) {
+      console.error('Erro ao convidar usuário:', error)
+      alert(`Erro: ${error.message}\n\nO usuário foi cadastrado, mas o e-mail falhou.`)
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  const handleUpdateUser = async () => {
+    if (!editingUser) return
+    setIsSending(true)
+    try {
+      await updateUser(editingUser.id, {
+        name: editingUser.name,
+        email: editingUser.email,
+        type: editingUser.type
+      })
+      setShowEditModal(false)
+      setEditingUser(null)
+      alert('Usuário atualizado com sucesso!')
+    } catch (error) {
+      alert('Erro ao atualizar usuário')
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm('Tem certeza que deseja remover o acesso deste usuário? Esta ação não pode ser desfeita.')) return
+
+    setIsSending(true)
+    try {
+      await removeUser(id)
+      setShowEditModal(false)
+      setEditingUser(null)
+      alert('Usuário removido do sistema.')
+    } catch (error) {
+      alert('Erro ao remover usuário')
+    } finally {
+      setIsSending(false)
+    }
   }
 
   return (
@@ -99,7 +180,10 @@ function UsersManagementContent() {
                   </div>
 
                   <button
-                    onClick={() => alert('Funcionalidade em desenvolvimento')}
+                    onClick={() => {
+                      setEditingUser({ ...u })
+                      setShowEditModal(true)
+                    }}
                     className="w-10 h-10 bg-bg-light text-text-muted rounded-xl flex items-center justify-center hover:bg-brand hover:text-white transition-all shadow-inner"
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
@@ -134,59 +218,166 @@ function UsersManagementContent() {
         </div>
       )}
 
-      {/* INVITE MODAL */}
-      {showInviteModal && (
-        <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-[3rem] shadow-2xl border border-border-soft max-w-md w-full p-10">
-            <h3 className="text-xl font-serif font-black text-text-primary tracking-tight mb-6">Convidar Novo Usuário</h3>
+      {/* EDIT MODAL */}
+      {showEditModal && editingUser && (
+        <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
+          <div className="bg-surface rounded-[3.5rem] shadow-2xl border border-border-soft max-w-md w-full p-10 animate-in zoom-in-95 duration-300">
+            <h3 className="text-2xl font-serif font-black text-text-primary tracking-tight mb-8 italic text-center">Configurar Usuário</h3>
 
-            <div className="space-y-4 mb-6">
+            <div className="space-y-5 mb-10 text-left">
               <div>
-                <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2">Nome *</label>
+                <label className="block text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2.5 ml-1">Nome</label>
                 <input
                   type="text"
-                  value={newUser.name}
-                  onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                  placeholder="Fulano de Tal"
-                  className="w-full px-4 py-3 bg-bg-light border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-brand/20 shadow-inner text-text-primary transition-all outline-none placeholder:text-text-muted"
+                  value={editingUser.name}
+                  onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                  className="w-full px-6 py-4 bg-bg-light border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 shadow-inner text-text-primary outline-none"
                 />
               </div>
               <div>
-                <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2">Email *</label>
+                <label className="block text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2.5 ml-1">E-mail</label>
                 <input
                   type="email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  placeholder="usuario@email.com"
-                  className="w-full px-4 py-3 bg-bg-light border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-brand/20 shadow-inner text-text-primary transition-all outline-none placeholder:text-text-muted"
+                  value={editingUser.email}
+                  onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                  className="w-full px-6 py-4 bg-bg-light border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 shadow-inner text-text-primary outline-none"
                 />
               </div>
               <div>
-                <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2">Tipo de Usuário</label>
-                <select
-                  value={newUser.type}
-                  onChange={(e) => setNewUser({ ...newUser, type: e.target.value as 'noivos' | 'admin' })}
-                  className="w-full px-4 py-3 bg-bg-light border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-brand/20 shadow-inner text-text-primary transition-all outline-none appearance-none"
-                >
-                  <option value="noivos">❤️ Noivos</option>
-                  <option value="admin">👑 Admin</option>
-                </select>
+                <label className="block text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2.5 ml-1">Tipo de Acesso</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setEditingUser({ ...editingUser, type: 'noivos' })}
+                    className={`py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${editingUser.type === 'noivos' ? 'bg-brand text-white border-brand shadow-lg shadow-brand/20' : 'bg-surface text-text-muted border-border-soft hover:border-brand/20'}`}
+                  >
+                    ❤️ Noivos
+                  </button>
+                  <button
+                    onClick={() => setEditingUser({ ...editingUser, type: 'admin' })}
+                    className={`py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${editingUser.type === 'admin' ? 'bg-brand text-white border-brand shadow-lg shadow-brand/20' : 'bg-surface text-text-muted border-border-soft hover:border-brand/20'}`}
+                  >
+                    👑 Admin
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 px-4 py-4 bg-bg-light rounded-2xl text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-text-secondary transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleUpdateUser}
+                  disabled={isSending}
+                  className="flex-2 px-4 py-4 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-brand/30 hover:bg-brand-dark transition-all disabled:opacity-50"
+                >
+                  Salvar Alterações
+                </button>
+              </div>
               <button
-                onClick={() => setShowInviteModal(false)}
-                className="flex-1 px-6 py-3 bg-bg-light rounded-xl text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-text-secondary hover:bg-border-soft transition-all"
+                onClick={() => handleDeleteUser(editingUser.id)}
+                disabled={isSending}
+                className="w-full px-4 py-3 bg-danger-light/30 text-danger rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-danger-light transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                Cancelar
+                <span>⚠️</span> Remover Acesso Permanentemente
               </button>
-              <button
-                onClick={handleInviteUser}
-                className="flex-1 px-6 py-3 bg-brand text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-brand/20 hover:bg-brand-dark transition-all"
-              >
-                Enviar Convite
-              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* INVITE MODAL */}
+      {showInviteModal && (
+        <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
+          <div className="bg-surface rounded-[3.5rem] shadow-2xl border border-border-soft max-w-xl w-full overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col md:flex-row">
+
+            {/* Form Side */}
+            <div className="flex-1 p-8 md:p-12">
+              <h3 className="text-2xl font-serif font-black text-text-primary tracking-tight mb-8 italic">Convidar no App</h3>
+
+              <div className="space-y-5 mb-10">
+                <div>
+                  <label className="block text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2.5 ml-1">Nome Completo</label>
+                  <input
+                    type="text"
+                    value={newUser.name}
+                    onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                    placeholder="Fulano de Tal"
+                    className="w-full px-6 py-4 bg-bg-light border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 shadow-inner text-text-primary transition-all outline-none placeholder:text-text-muted/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2.5 ml-1">E-mail de Acesso</label>
+                  <input
+                    type="email"
+                    value={newUser.email}
+                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                    placeholder="usuario@email.com"
+                    className="w-full px-6 py-4 bg-bg-light border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 shadow-inner text-text-primary transition-all outline-none placeholder:text-text-muted/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2.5 ml-1">Nível de Permissão</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setNewUser({ ...newUser, type: 'noivos' })}
+                      className={`py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${newUser.type === 'noivos' ? 'bg-brand text-white border-brand shadow-lg shadow-brand/20' : 'bg-surface text-text-muted border-border-soft hover:border-brand/20'}`}
+                    >
+                      ❤️ Noivos
+                    </button>
+                    <button
+                      onClick={() => setNewUser({ ...newUser, type: 'admin' })}
+                      className={`py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${newUser.type === 'admin' ? 'bg-brand text-white border-brand shadow-lg shadow-brand/20' : 'bg-surface text-text-muted border-border-soft hover:border-brand/20'}`}
+                    >
+                      👑 Admin
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setShowInviteModal(false)}
+                  className="flex-1 px-4 py-4.5 bg-bg-light rounded-2xl text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-text-secondary transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleInviteUser}
+                  disabled={isSending}
+                  className="flex-3 px-8 py-4.5 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-brand/30 hover:bg-brand-dark hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center justify-center gap-2"
+                >
+                  {isSending ? 'Enviando...' : (
+                    <>
+                      Enviar Convite & Guia
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Info Path Side (Step by Step Preview) */}
+            <div className="hidden md:flex w-72 bg-bg-light border-l border-border-soft p-10 flex-col justify-center">
+              <p className="text-[10px] font-black text-brand uppercase tracking-[0.3em] mb-8">Guia de Boas-vindas</p>
+
+              <div className="space-y-8">
+                {[
+                  { step: '01', title: 'Habilitação', desc: 'O sistema libera o e-mail no banco de dados.' },
+                  { step: '02', title: 'E-mail Automático', desc: 'O disparo é feito com as instruções de login.' },
+                  { step: '03', title: 'Onboarding', desc: 'Apresentamos os 5 passos para configurar o evento.' },
+                  { step: '04', title: 'Sucesso', desc: 'O casal começa a receber confirmações.' }
+                ].map((s, i) => (
+                  <div key={i} className="relative">
+                    <span className="text-[9px] font-black text-brand-dark/20 absolute -left-6 top-1 tracking-widest">{s.step}</span>
+                    <h5 className="text-[11px] font-black text-text-primary uppercase tracking-widest mb-1.5">{s.title}</h5>
+                    <p className="text-[10px] font-medium text-text-muted leading-relaxed">{s.desc}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

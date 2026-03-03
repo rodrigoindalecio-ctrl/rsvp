@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from './supabase'
+import { useAdmin } from './admin-context'
 
 type User = {
   name: string
@@ -29,6 +30,7 @@ const ADMIN_CREDENTIALS = {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const adminContext = useAdmin() // Usar contexto admin para criar eventos
 
   // Initialize state from localStorage once mounted
   useEffect(() => {
@@ -94,13 +96,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('rsvp_auth_user', JSON.stringify(newUser))
 
     try {
+      const userId = crypto.randomUUID()
       await supabase.from('admin_users').insert({
-        id: Date.now().toString(),
+        id: userId,
         name,
         email,
         type: 'noivos',
         created_at: new Date().toISOString()
       })
+
+      // Criar evento automático ao se registrar
+      if (adminContext) {
+        await adminContext.createDefaultEventForUser(email, name)
+      }
     } catch (err) {
       console.error('Erro ao registrar no Supabase:', err)
     }

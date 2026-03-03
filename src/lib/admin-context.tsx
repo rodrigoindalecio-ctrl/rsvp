@@ -44,6 +44,7 @@ type AdminContextType = {
     totalPending: number
     confirmationRate: number
   }
+  createDefaultEventForUser: (userEmail: string, userName: string) => Promise<void>
 }
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined)
@@ -75,6 +76,15 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           createdBy: e.created_by
         }))
 
+        // Mapear contagem de eventos por email
+        const eventCounts: Record<string, number> = {}
+        formattedEvents.forEach(e => {
+          if (e.createdBy) {
+            const email = e.createdBy.toLowerCase()
+            eventCounts[email] = (eventCounts[email] || 0) + 1
+          }
+        })
+
         // Buscar Usuários
         const { data: usersData, error: usersError } = await supabase
           .from('admin_users')
@@ -88,7 +98,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           name: u.name,
           email: u.email,
           type: u.type,
-          eventsCount: 0,
+          eventsCount: eventCounts[u.email.toLowerCase()] || 0,
           createdAt: new Date(u.created_at)
         }))
 
@@ -142,6 +152,14 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       if (error) throw error
 
       setEvents(prev => prev.map(e => e.id === id ? { ...e, ...eventData } : e))
+
+      // Se o slug mudou, atualizar também no eventSettings
+      if (eventData.slug) {
+        setEvents(prev => prev.map(e => e.id === id ? {
+          ...e,
+          eventSettings: { ...e.eventSettings, slug: eventData.slug! }
+        } : e))
+      }
     } catch (error) {
       console.error('Erro ao atualizar evento:', error)
     }
@@ -160,16 +178,49 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       setUsers(prev => [user, ...prev])
     } catch (error) {
       console.error('Erro ao adicionar usuário:', error)
+      alert('Erro ao salvar usuário no banco de dados.')
     }
   }
 
   async function removeUser(id: string) {
     try {
-      const { error } = await supabase.from('admin_users').delete().eq('id', id)
-      if (error) throw error
+      // Buscar o usuário antes para ter o email
+      const userToRemove = users.find(u => u.id === id)
+      if (!userToRemove) return
+
+      // 1. Buscar os eventos criados por este usuário (por ID ou Email)
+      const { data: userEvents, error: fetchError } = await supabase
+        .from('events')
+        .select('id')
+        .or(`created_by.eq.${id},created_by.eq.${userToRemove.email}`)
+
+      if (fetchError) throw fetchError
+
+      // 2. Excluir os eventos deste usuário
+      const { error: eventsDeleteError } = await supabase
+        .from('events')
+        .delete()
+        .or(`created_by.eq.${id},created_by.eq.${userToRemove.email}`)
+
+      if (eventsDeleteError) throw eventsDeleteError
+
+      // 3. Excluir o usuário
+      const { error: userDeleteError } = await supabase
+        .from('admin_users')
+        .delete()
+        .eq('id', id)
+
+      if (userDeleteError) throw userDeleteError
+
+      // 4. Atualizar estados locais
       setUsers(prev => prev.filter(u => u.id !== id))
+      if (userEvents && userEvents.length > 0) {
+        const eventIdsToRemove = userEvents.map(e => e.id)
+        setEvents(prev => prev.filter(e => !eventIdsToRemove.includes(e.id)))
+      }
     } catch (error) {
-      console.error('Erro ao remover usuário:', error)
+      console.error('Erro ao remover usuário e seus dados:', error)
+      throw error
     }
   }
 
@@ -231,6 +282,41 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function createDefaultEventForUser(userEmail: string, userName: string) {
+    try {
+      const eventId = crypto.randomUUID()
+      const defaultSlug = userName.toLowerCase().replace(/\s+/g, '-') + '-' + Math.random().toString(36).substr(2, 4)
+
+      const newEvent: AdminEvent = {
+        id: eventId,
+        slug: defaultSlug,
+        eventSettings: {
+          coupleNames: userName,
+          slug: defaultSlug,
+          eventType: 'casamento',
+          eventDate: new Date().toISOString().split('T')[0],
+          eventTime: '19:00',
+          confirmationDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          eventLocation: 'Espaço e Buffet - Endereço',
+          coverImage: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=2069&auto=format&fit=crop',
+          coverImagePosition: 50,
+          coverImageScale: 1.0,
+          customMessage: 'Ficamos muito felizes em receber a sua confirmação de presença.'
+        },
+        guests: [],
+        createdAt: new Date(),
+        createdBy: userEmail
+      }
+
+      await addEvent(newEvent)
+
+      // Atualizar contagem no estado local se o usuário já estiver listado
+      setUsers(prev => prev.map(u => u.email.toLowerCase() === userEmail.toLowerCase() ? { ...u, eventsCount: 1 } : u))
+    } catch (error) {
+      console.error('Erro ao criar evento padrão:', error)
+    }
+  }
+
   return (
     <AdminContext.Provider value={{
       events,
@@ -243,7 +329,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       removeUser,
       updateUser,
       getEventById,
-      getTotalMetrics
+      getTotalMetrics,
+      createDefaultEventForUser
     }}>
       {children}
     </AdminContext.Provider>

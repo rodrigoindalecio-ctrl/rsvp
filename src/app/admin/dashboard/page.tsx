@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase'
 
 function AdminDashboardContent() {
   const { user } = useAuth()
-  const { events, getTotalMetrics, loading: adminLoading } = useAdmin()
+  const { events, getTotalMetrics, removeEvent, loading: adminLoading } = useAdmin()
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   const [guestCounts, setGuestCounts] = useState<Record<string, any>>({})
@@ -57,6 +57,18 @@ function AdminDashboardContent() {
     fetchCounts()
   }, [events])
 
+  const handleDeleteEvent = async (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation() // Evita abrir o evento ao clicar no lixo
+    if (confirm(`⚠️ ATENÇÃO: Tem certeza que deseja excluir permanentemente o evento "${name}"?\n\nIsso removerá TODOS os convidados e dados vinculados.`)) {
+      try {
+        await removeEvent(id)
+        alert('Evento removido com sucesso.')
+      } catch (err) {
+        alert('Erro ao remover evento.')
+      }
+    }
+  }
+
   const filteredEvents = events.filter(event =>
     event.eventSettings.coupleNames.toLowerCase().includes(searchTerm.toLowerCase()) ||
     event.slug.toLowerCase().includes(searchTerm.toLowerCase())
@@ -84,31 +96,39 @@ function AdminDashboardContent() {
         </>
       }
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-        <div className="bg-surface rounded-[2.5rem] border border-border-soft p-8 shadow-sm">
-          <p className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-2">Total de Eventos</p>
-          <p className="text-4xl font-serif font-black text-text-primary tracking-tight">{events.length}</p>
-        </div>
-        <div className="bg-surface rounded-[2.5rem] border border-border-soft p-8 shadow-sm">
-          <p className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-2">Total de Convidados</p>
-          <p className="text-4xl font-serif font-black text-brand tracking-tight">
-            {Object.values(guestCounts).reduce((acc, curr) => acc + curr.total, 0)}
-          </p>
-        </div>
-        <div className="bg-surface rounded-[2.5rem] border border-border-soft p-8 shadow-sm">
-          <p className="text-[9px] font-black text-success uppercase tracking-widest mb-2">Confirmados</p>
-          <p className="text-4xl font-serif font-black text-success-dark tracking-tight">
-            {Object.values(guestCounts).reduce((acc, curr) => acc + curr.confirmed, 0)}
-          </p>
-        </div>
-        <div className="bg-surface rounded-[2.5rem] border border-border-soft p-8 shadow-sm flex items-center justify-center bg-brand-pale/50">
-          <div className="text-center">
-            <p className="text-[9px] font-black text-brand uppercase tracking-widest mb-1">Taxa Média</p>
-            <p className="text-3xl font-serif font-black text-brand">
-              {Object.values(guestCounts).length > 0
-                ? Math.round((Object.values(guestCounts).reduce((acc, curr) => acc + curr.confirmed, 0) / Object.values(guestCounts).reduce((acc, curr) => acc + curr.total, 0)) * 100)
-                : 0}%
+      <div className="bg-surface rounded-[3rem] border border-border-soft p-10 mb-12 shadow-sm relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-brand-pale/20 rounded-full -mr-32 -mt-32 blur-3xl transition-all group-hover:bg-brand-pale/30" />
+
+        <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-4 divide-y md:divide-y-0 md:divide-x divide-border-soft/50">
+          <div className="text-center md:px-4 pt-4 md:pt-0">
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-3">Total de Eventos</p>
+            <p className="text-4xl font-black text-text-primary tracking-tighter">{events.length}</p>
+          </div>
+
+          <div className="text-center md:px-4 pt-4 md:pt-0">
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-3">Total Convidados</p>
+            <p className="text-4xl font-black text-brand tracking-tighter">
+              {Object.values(guestCounts).reduce((acc, curr) => acc + curr.total, 0)}
             </p>
+          </div>
+
+          <div className="text-center md:px-4 pt-4 md:pt-0 border-none">
+            <p className="text-[10px] font-black text-success-dark uppercase tracking-[0.2em] mb-3">Confirmados</p>
+            <p className="text-4xl font-black text-success-dark tracking-tighter">
+              {Object.values(guestCounts).reduce((acc, curr) => acc + curr.confirmed, 0)}
+            </p>
+          </div>
+
+          <div className="text-center md:px-4 pt-4 md:pt-0">
+            <p className="text-[10px] font-black text-brand uppercase tracking-[0.2em] mb-3">Taxa Média</p>
+            <div className="flex items-center justify-center gap-1">
+              <p className="text-4xl font-black text-brand tracking-tighter">
+                {Object.values(guestCounts).length > 0
+                  ? Math.round((Object.values(guestCounts).reduce((acc, curr) => acc + curr.confirmed, 0) / Object.values(guestCounts).reduce((acc, curr) => acc + curr.total, 0)) * 100)
+                  : 0}
+              </p>
+              <span className="text-xl font-bold text-brand-light/50">%</span>
+            </div>
           </div>
         </div>
       </div>
@@ -143,9 +163,18 @@ function AdminDashboardContent() {
                       <div className="w-16 h-16 bg-brand-pale rounded-2xl flex items-center justify-center text-3xl shadow-inner group-hover:scale-110 transition-transform">
                         {event.eventSettings.eventType === 'casamento' ? '💒' : '👑'}
                       </div>
-                      <div className="text-right">
-                        <p className="text-[9px] font-black text-brand uppercase tracking-widest">{rate}% Confirmado</p>
-                        <p className="text-[8px] font-bold text-text-muted uppercase mt-1">{count.total} convidados</p>
+                      <div className="flex flex-col items-end gap-3">
+                        <div className="text-right">
+                          <p className="text-[9px] font-black text-brand uppercase tracking-widest">{rate}% Confirmado</p>
+                          <p className="text-[8px] font-bold text-text-muted uppercase mt-1">{count.total} convidados</p>
+                        </div>
+                        <button
+                          onClick={(e) => handleDeleteEvent(e, event.id, event.eventSettings.coupleNames)}
+                          className="w-8 h-8 rounded-lg bg-danger/5 text-danger flex items-center justify-center hover:bg-danger hover:text-white transition-all border border-danger/10 group/trash"
+                          title="Excluir Evento"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                        </button>
                       </div>
                     </div>
 

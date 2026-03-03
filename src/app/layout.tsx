@@ -50,15 +50,15 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={`${manrope.variable} ${lora.variable}`}>
       <body className="bg-background text-textPrimary font-sans antialiased min-h-screen flex flex-col">
-        <AuthProvider>
-          <AdminProvider>
+        <AdminProvider>
+          <AuthProvider>
             <EventProvider>
               <main className="flex-1">
                 {children}
               </main>
             </EventProvider>
-          </AdminProvider>
-        </AuthProvider>
+          </AuthProvider>
+        </AdminProvider>
       </body>
     </html>
   )

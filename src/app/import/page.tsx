@@ -533,6 +533,47 @@ export default function ImportPage() {
                             </div>
                         </div>
                     )}
+
+                    {step === 'error' && (
+                        <div className="max-w-2xl mx-auto py-12 animate-in zoom-in-95 duration-500">
+                            <div className="bg-surface p-12 rounded-[3rem] border-2 border-danger/20 shadow-2xl shadow-danger/5 text-center">
+                                <div className="w-20 h-20 bg-danger/10 rounded-2xl flex items-center justify-center text-danger mx-auto mb-8">
+                                    <XCircleRedIcon />
+                                </div>
+                                <h2 className="text-2xl font-black text-text-primary tracking-tight mb-4">Ops! Algo deu errado</h2>
+                                <p className="text-text-muted font-bold text-sm uppercase tracking-widest leading-relaxed mb-8">
+                                    {errorMessage || 'Não foi possível processar o seu arquivo. Verifique se ele segue o modelo oficial.'}
+                                </p>
+
+                                {duplicatesList.length > 0 && (
+                                    <div className="mb-8 p-6 bg-danger/5 rounded-2xl border border-danger/10 text-left">
+                                        <p className="text-[10px] font-black text-danger uppercase tracking-widest mb-3">Nomes Duplicados Encontrados:</p>
+                                        <ul className="space-y-1.5">
+                                            {duplicatesList.slice(0, 5).map((dup, i) => (
+                                                <li key={i} className="text-xs font-bold text-text-muted flex items-center gap-2">
+                                                    <span className="w-1 h-1 bg-danger rounded-full" /> {dup}
+                                                </li>
+                                            ))}
+                                            {duplicatesList.length > 5 && (
+                                                <li className="text-[10px] font-black text-text-muted italic mt-2">... e mais {duplicatesList.length - 5} duplicados</li>
+                                            )}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => {
+                                        setStep('choose')
+                                        setMethod(null)
+                                        setImportStatus('idle')
+                                    }}
+                                    className="w-full py-4 bg-brand text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-brand/20 hover:scale-[1.02] transition-all"
+                                >
+                                    Tentar Novamente
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </main>
             )}
         </SharedLayout>
@@ -548,3 +589,4 @@ const UploadCloudIcon = () => <svg width="24" height="24" viewBox="0 0 24 24" fi
 const DownloadIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
 const CheckIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
 const CheckIconBig = () => <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+const XCircleRedIcon = () => <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6" /><path d="m9 9 6 6" /></svg>

@@ -334,114 +334,98 @@ export default function EventContent({ slug }: EventContentProps) {
     }
 
     return (
-        <div className="min-h-screen bg-background">
-            {/* Header / Hero */}
-            <div className="relative h-[65vh] md:h-[70vh] overflow-hidden">
-                <Image
-                    src={eventSettings.coverImage}
-                    alt="Cover"
-                    fill
-                    priority
-                    className="object-cover transition-all duration-1000"
-                    style={{
-                        objectPosition: `50% ${eventSettings.coverImagePosition || 50}%`,
-                        transform: `scale(${eventSettings.coverImageScale || 1})`
-                    }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-8 md:p-16 text-white text-center">
-                    <div className="max-w-4xl mx-auto animate-in slide-in-from-bottom duration-1000">
-                        <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.4em] mb-4 text-brand/80 drop-shadow-md">Celebração de Amor</p>
-                        <h1 className="text-4xl md:text-7xl font-serif mb-8 leading-tight capitalize drop-shadow-xl">{eventSettings.coupleNames}</h1>
-                        <div className="flex flex-wrap items-center justify-center gap-8 text-[10px] md:text-xs font-bold uppercase tracking-[0.2em]">
-                            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-6 py-3 rounded-full border border-white/10">
-                                <svg className="text-brand" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                                <span>{formatDate(eventSettings.eventDate, { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+        <div className="min-h-screen bg-[#faf8f6] py-12 px-6 md:py-24">
+            <div className="max-w-2xl mx-auto space-y-10">
+
+                {/* ── CARD 1: BANNER HERO (Estilo Página Noivos) ──────────────── */}
+                <div className="relative h-64 md:h-80 rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white animate-in fade-in slide-in-from-top-12 duration-1000">
+                    <Image
+                        src={eventSettings.coverImage && eventSettings.coverImage !== 'https://...' ? eventSettings.coverImage : 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=2069&auto=format&fit=crop'}
+                        alt="Event Cover"
+                        fill
+                        priority
+                        className="object-cover transition-all duration-300"
+                        style={{
+                            objectPosition: `50% ${eventSettings.coverImagePosition || 50}%`,
+                            transform: `scale(${eventSettings.coverImageScale || 1})`
+                        }}
+                    />
+                    {/* Overlay Gradiente */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-8 md:p-12" />
+
+                    {/* Informações sobre a foto */}
+                    <div className="absolute inset-x-0 bottom-0 p-8 md:p-12 space-y-4 text-white">
+                        <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
+                            {/* Data */}
+                            <div className="flex items-center gap-3 drop-shadow-lg">
+                                <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-lg flex items-center justify-center border border-white/20">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="18" height="18" x="3" y="4" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /></svg>
+                                </div>
+                                <span className="text-xs md:text-sm font-black uppercase tracking-[0.2em]">
+                                    {formatDate(eventSettings.eventDate, { day: '2-digit', month: 'long', year: 'numeric' })}
+                                </span>
                             </div>
-                            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-6 py-3 rounded-full border border-white/10">
-                                <svg className="text-brand" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-                                <span>{eventSettings.eventLocation}</span>
+                            {/* Local */}
+                            <div className="flex items-center gap-3 drop-shadow-lg">
+                                <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-lg flex items-center justify-center border border-white/20">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
+                                </div>
+                                <span className="text-xs md:text-sm font-black uppercase tracking-[0.2em] truncate max-w-[250px]">
+                                    {eventSettings.eventLocation?.split(',')[0]}
+                                </span>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            {/* Messages / Invitation */}
-            <div className="max-w-4xl mx-auto py-24 px-6 text-center">
-                <div className="mb-20 animate-in fade-in duration-1000 delay-300">
-                    <div className="w-16 h-px bg-border-soft mx-auto mb-12" />
-                    <p className="font-serif text-2xl md:text-3xl text-text-primary leading-relaxed italic max-w-2xl mx-auto drop-shadow-sm">
-                        "{eventSettings.customMessage || 'Nossa história ganha um novo capítulo e ficaremos muito felizes em ter você ao nosso lado para celebrar este momento único.'}"
-                    </p>
-                    <div className="w-16 h-px bg-border-soft mx-auto mt-12" />
+
                 </div>
 
-                <div className="space-y-6 mb-24">
-                    <button
-                        onClick={() => setStep('search')}
-                        className="w-full max-w-md py-6 bg-brand text-white rounded-full font-black uppercase tracking-[0.25em] text-sm shadow-[0_20px_50px_rgba(123,45,61,0.2)] hover:scale-105 active:scale-95 transition-all duration-300"
-                    >
-                        Confirmar Presença
-                    </button>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-text-muted">
-                        {eventSettings.confirmationDeadline ? (
-                            `Sua resposta é importante até ${formatDate(eventSettings.confirmationDeadline, { day: '2-digit', month: '2-digit' })}`
-                        ) : 'Confirmação antecipada é muito apreciada'}
-                    </p>
-                </div>
+                {/* ── CARD 2: O CONVITE ────────────────────────────────────────── */}
+                <div className="bg-white rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.05)] border border-border-soft p-10 md:p-16 text-center space-y-10 animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-200">
 
-                {/* Info Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10 text-left mb-24">
-                    <div className="p-10 bg-surface rounded-[3rem] border border-border-soft backdrop-blur-sm group hover:bg-surface hover:shadow-2xl hover:shadow-brand/5 transition-all duration-500">
-                        <div className="w-12 h-12 bg-bg-light rounded-2xl flex items-center justify-center text-brand shadow-sm mb-8 group-hover:bg-brand group-hover:text-white transition-all duration-500">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                    <div className="flex justify-center">
+                        <div className="w-16 h-16 bg-brand-pale/50 rounded-3xl flex items-center justify-center text-brand animate-bounce duration-[3s]">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>
                         </div>
-                        <h3 className="font-black text-xs uppercase tracking-[0.3em] text-text-primary mb-4">Data e Horário</h3>
-                        <p className="text-base text-text-secondary leading-relaxed">
-                            A cerimônia começará pontualmente às <strong>{eventSettings.eventTime || '21:00'}h</strong>. <br />
-                            Aguardamos sua chegada com 30min de antecedência.
+                    </div>
+
+                    <div className="space-y-6">
+                        <h1 className="text-4xl md:text-6xl font-serif text-text-primary leading-tight lowercase">
+                            {eventSettings.coupleNames}
+                        </h1>
+                        <div className="w-16 h-px bg-brand/10 mx-auto" />
+                        <p className="font-serif text-xl md:text-2xl text-text-secondary leading-relaxed italic max-w-lg mx-auto opacity-70">
+                            {eventSettings.customMessage || "Nossa história ganha um novo capítulo e ficaremos imensamente felizes em tê-lo ao nosso lado."}
                         </p>
                     </div>
-                    {eventSettings.wazeLocation && (
-                        <div className="p-10 bg-surface rounded-[3rem] border border-border-soft backdrop-blur-sm group hover:bg-surface hover:shadow-2xl hover:shadow-brand/5 transition-all duration-500">
-                            <div className="w-12 h-12 bg-bg-light rounded-2xl flex items-center justify-center text-brand shadow-sm mb-8 group-hover:bg-brand group-hover:text-white transition-all duration-500">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>
-                            </div>
-                            <h3 className="font-black text-xs uppercase tracking-[0.3em] text-text-primary mb-4">Como Chegar</h3>
-                            <p className="text-base text-text-secondary mb-6 line-clamp-2">{eventSettings.eventLocation}</p>
-                            <a
-                                href={eventSettings.wazeLocation}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.2em] text-brand hover:gap-5 transition-all font-bold"
-                            >
-                                Abrir GPS
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" /></svg>
-                            </a>
-                        </div>
-                    )}
+
+                    <div className="pt-6 space-y-6">
+                        <button
+                            onClick={() => setStep('search')}
+                            className="w-full max-w-sm py-6 bg-brand text-white rounded-full font-black uppercase tracking-[0.25em] text-[11px] shadow-2xl shadow-brand/20 hover:scale-[1.03] active:scale-95 transition-all duration-300"
+                        >
+                            Confirmar Minha Presença
+                        </button>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-text-muted/60">
+                            {eventSettings.confirmationDeadline ? (
+                                <>Por favor, responda até <strong className="text-text-primary">{formatDate(eventSettings.confirmationDeadline, { day: '2-digit', month: '2-digit' })}</strong></>
+                            ) : 'Confirmação antecipada é apreciada'}
+                        </p>
+                    </div>
                 </div>
 
-                {/* Gifts section */}
+                {/* ── SEÇÃO DE PRESENTES (SE HOUVER) ───────────────────────── */}
                 {(eventSettings.giftList || (eventSettings.giftListLinks && eventSettings.giftListLinks.length > 0)) && (
-                    <div className="pt-10 border-t border-border-soft">
-                        <div className="w-16 h-16 bg-brand-pale rounded-3xl flex items-center justify-center text-brand mx-auto mb-8 shadow-inner">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H4v4M3 20h18L19 8H5L3 20zM12 22V8M8 12l4-4 4 4" /></svg>
-                        </div>
-                        <h2 className="text-4xl font-serif text-text-primary mb-8">Lista de Presentes</h2>
-                        <p className="text-text-secondary text-base mb-12 max-w-xl mx-auto leading-relaxed italic">
-                            {eventSettings.giftList || 'Sua presença é o nosso maior presente, mas se desejar nos presentear de outra forma, aqui estão nossas sugestões:'}
-                        </p>
-
-                        <div className="flex flex-wrap justify-center gap-6">
+                    <div className="pt-6 text-center space-y-8">
+                        <h2 className="text-2xl font-serif text-text-secondary lowercase">Presentes</h2>
+                        <div className="flex flex-wrap justify-center gap-4">
                             {eventSettings.giftListLinks?.map((link, idx) => (
                                 <a
                                     key={idx}
                                     href={link.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="group px-10 py-5 bg-surface border border-border-soft rounded-[2rem] text-[11px] font-black uppercase tracking-[0.2em] text-text-secondary shadow-lg shadow-brand/5 hover:bg-brand hover:text-white hover:border-brand hover:translate-y-[-5px] transition-all duration-500"
+                                    className="px-8 py-4 bg-white border border-brand/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-text-primary shadow-sm hover:shadow-xl hover:shadow-brand/10 hover:border-brand hover:-translate-y-1 transition-all duration-300"
                                 >
                                     {link.name}
                                 </a>
@@ -449,20 +433,34 @@ export default function EventContent({ slug }: EventContentProps) {
                         </div>
                     </div>
                 )}
-            </div>
 
-            {/* Footer */}
-            <footer className="py-20 px-6 text-center border-t border-border-soft bg-bg-light/30">
-                <div className="max-w-4xl mx-auto space-y-6">
-                    <p className="text-[10px] font-black uppercase tracking-[0.5em] text-brand/40 mb-4">Desenvolvido por</p>
-                    <p className="text-xs font-serif text-text-muted opacity-60">Vanessa Bidinotti & Rodrigo</p>
-                    <div className="flex justify-center gap-4 mt-8 opacity-20">
-                        <div className="w-2 h-2 rounded-full bg-brand" />
-                        <div className="w-2 h-2 rounded-full bg-brand" />
-                        <div className="w-2 h-2 rounded-full bg-brand" />
+                {/* ── BOTÕES AUXILIARES (GPS) ─────────────────────────────── */}
+                {eventSettings.wazeLocation && (
+                    <div className="flex justify-center pt-8">
+                        <a
+                            href={eventSettings.wazeLocation}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 px-6 py-3 bg-bg-light border border-border-soft rounded-full text-[9px] font-black uppercase tracking-widest text-text-muted hover:text-brand transition-all"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                            Ver Mapa do Local
+                        </a>
                     </div>
-                </div>
-            </footer>
+                )}
+
+                <footer className="py-24 text-center space-y-6">
+                    <div className="flex flex-col items-center gap-4 opacity-40 hover:opacity-100 transition-opacity duration-700">
+                        <div className="w-12 h-12 rounded-xl overflow-hidden grayscale brightness-110 border border-brand/10">
+                            <img src="/Logo-03.jpg" alt="Logo Vanessa Bidinotti" className="w-full h-full object-cover" />
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-[9px] font-black uppercase tracking-[0.4em] text-brand">RSVP • Vanessa Bidinotti</p>
+                            <p className="text-[7px] font-bold uppercase tracking-[0.2em] text-text-muted">Assessoria e Cerimonial</p>
+                        </div>
+                    </div>
+                </footer>
+            </div>
         </div>
     )
 }

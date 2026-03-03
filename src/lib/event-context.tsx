@@ -56,6 +56,12 @@ type EventContextType = {
         pending: number
         declined: number
         totalPeople: number
+        adults: number
+        childrenPaying: number
+        childrenFree: number
+        confirmedAdults: number
+        confirmedChildrenPaying: number
+        confirmedChildrenFree: number
     }
     addGuest: (guest: Omit<Guest, 'id' | 'updatedAt' | 'status'>) => Promise<boolean>
     addGuestsBatch: (dataList: Omit<Guest, 'id' | 'updatedAt' | 'status'>[]) => Promise<{
@@ -74,14 +80,14 @@ type EventContextType = {
 
 const DEFAULT_EVENT_SETTINGS: EventSettings = {
     eventType: 'casamento',
-    coupleNames: 'Vanessa e Rodrigo',
-    slug: 'vanessaerodrigo',
-    eventDate: '2026-11-19',
-    eventTime: '21:00',
-    confirmationDeadline: '2026-11-13',
-    eventLocation: 'Mansão Capricho - Av Nova Cantareira',
+    coupleNames: 'Nome do Casal',
+    slug: 'meu-evento',
+    eventDate: new Date().toISOString().split('T')[0],
+    eventTime: '19:00',
+    confirmationDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    eventLocation: 'Espaço e Buffet - Endereço',
     wazeLocation: '',
-    coverImage: 'https://...',
+    coverImage: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=2069&auto=format&fit=crop',
     coverImagePosition: 50,
     coverImageScale: 1,
     customMessage: 'Ficamos muito felizes em receber a sua confirmação de presença.',
@@ -169,35 +175,67 @@ export function EventProvider({ children }: { children: ReactNode }) {
         loadGuests()
     }, [eventId])
 
-    const metrics = useMemo(() => ({
-        total: guests.reduce((acc, curr) => acc + 1 + (curr.companionsList?.length || 0), 0),
-        confirmed: guests.reduce((acc, curr) => {
-            if (curr.status === 'confirmed') {
-                const confirmedCompanions = curr.companionsList ? curr.companionsList.filter(c => c.isConfirmed).length : 0
-                return acc + 1 + confirmedCompanions
+    const metrics = useMemo(() => {
+        const initial = {
+            total: 0,
+            confirmed: 0,
+            pending: 0,
+            declined: 0,
+            totalPeople: 0, // Alias para confirmed
+            adults: 0,
+            childrenPaying: 0,
+            childrenFree: 0,
+            confirmedAdults: 0,
+            confirmedChildrenPaying: 0,
+            confirmedChildrenFree: 0
+        }
+
+        return guests.reduce((acc, guest) => {
+            const isConfirmed = guest.status === 'confirmed'
+            const isPending = guest.status === 'pending'
+            const isDeclined = guest.status === 'declined'
+
+            // Convidado Principal
+            acc.total += 1
+            if (guest.category === 'adult_paying' || !guest.category) acc.adults += 1
+            else if (guest.category === 'child_paying') acc.childrenPaying += 1
+            else if (guest.category === 'child_not_paying') acc.childrenFree += 1
+
+            if (isConfirmed) {
+                acc.confirmed += 1
+                if (guest.category === 'adult_paying' || !guest.category) acc.confirmedAdults += 1
+                else if (guest.category === 'child_paying') acc.confirmedChildrenPaying += 1
+                else if (guest.category === 'child_not_paying') acc.confirmedChildrenFree += 1
+            } else if (isPending) {
+                acc.pending += 1
+            } else if (isDeclined) {
+                acc.declined += 1
             }
+
+            // Acompanhantes
+            guest.companionsList?.forEach(comp => {
+                acc.total += 1
+                const cat = comp.category || 'adult_paying'
+                if (cat === 'adult_paying') acc.adults += 1
+                else if (cat === 'child_paying') acc.childrenPaying += 1
+                else if (cat === 'child_not_paying') acc.childrenFree += 1
+
+                if (isConfirmed && comp.isConfirmed) {
+                    acc.confirmed += 1
+                    if (cat === 'adult_paying') acc.confirmedAdults += 1
+                    else if (cat === 'child_paying') acc.confirmedChildrenPaying += 1
+                    else if (cat === 'child_not_paying') acc.confirmedChildrenFree += 1
+                } else if (isPending || (isConfirmed && !comp.isConfirmed)) {
+                    acc.pending += 1
+                } else if (isDeclined) {
+                    acc.declined += 1
+                }
+            })
+
+            acc.totalPeople = acc.confirmed // Sincroniza alias
             return acc
-        }, 0),
-        pending: guests.reduce((acc, curr) => {
-            if (curr.status === 'pending') {
-                const unconfirmedCompanions = curr.companionsList ? curr.companionsList.filter(c => !c.isConfirmed).length : 0
-                return acc + 1 + unconfirmedCompanions
-            }
-            return acc
-        }, 0),
-        declined: guests.reduce((acc, curr) => {
-            if (curr.status === 'declined') {
-                return acc + 1 + (curr.companionsList?.length || 0)
-            }
-            return acc
-        }, 0),
-        totalPeople: guests
-            .filter(g => g.status === 'confirmed')
-            .reduce((acc, curr) => {
-                const confirmedCompanions = curr.companionsList ? curr.companionsList.filter(c => c.isConfirmed).length : 0
-                return acc + 1 + confirmedCompanions
-            }, 0)
-    }), [guests])
+        }, initial)
+    }, [guests])
 
     async function addGuest(data: Omit<Guest, 'id' | 'updatedAt' | 'status'>) {
         if (!eventId) return false

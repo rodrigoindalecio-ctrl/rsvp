@@ -18,7 +18,10 @@ export default function DashboardPage() {
 
   // States for UX
   const [copied, setCopied] = useState(false)
-  const [filter, setFilter] = useState<'all' | GuestStatus>('all')
+  const [filter, setFilter] = useState<'all' | 'confirmed' | 'pending' | 'declined'>('all')
+  const [activeCategory, setActiveCategory] = useState<'all' | 'adult_paying' | 'child_paying' | 'child_not_paying'>('all')
+  const [showStats, setShowStats] = useState(false)
+  const [showCategoryMenu, setShowCategoryMenu] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -77,6 +80,7 @@ export default function DashboardPage() {
     companionIndex?: number
     name: string
     type: 'Principal' | 'Acompanhante'
+    category: GuestCategory
     groupName: string
     status: GuestStatus
     updatedAt: Date
@@ -89,6 +93,7 @@ export default function DashboardPage() {
       guestId: g.id,
       name: g.name,
       type: 'Principal',
+      category: g.category,
       groupName: g.grupo || g.name,
       status: g.status,
       updatedAt: g.updatedAt
@@ -101,6 +106,7 @@ export default function DashboardPage() {
       companionIndex: idx,
       name: c.name,
       type: 'Acompanhante',
+      category: c.category || 'adult_paying',
       groupName: g.grupo || g.name,
       status: c.isConfirmed ? 'confirmed' : (g.status === 'declined' ? 'declined' : 'pending'),
       updatedAt: g.updatedAt
@@ -113,7 +119,8 @@ export default function DashboardPage() {
   const filteredPeople = allPeople.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.groupName.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesFilter = filter === 'all' || p.status === filter
-    return matchesSearch && matchesFilter
+    const matchesCategory = activeCategory === 'all' || p.category === activeCategory
+    return matchesSearch && matchesFilter && matchesCategory
   })
 
   const handleCopyLink = () => {
@@ -131,154 +138,96 @@ export default function DashboardPage() {
     }
 
     try {
-      // Dynamic import para evitar problemas de módulo no Next.js client
       const ExcelJS = (await import('exceljs')).default
-
       const workbook = new ExcelJS.Workbook()
+      const worksheet = workbook.addWorksheet('Lista de Convidados')
 
-      // ===== PREPARAR DADOS ABA 1 (COM ACOMPANHANTES) =====
-      const aba1Rows = guests.map((guest: any) => {
-        const row: any = {
-          nomePrincipal: guest.name,
-          categoria: guest.category === 'adult_paying' ? 'Adulto Pagante' : guest.category === 'child_paying' ? 'Criança Pagante' : 'Criança Não Pagante',
-          grupo: guest.grupo || '-',
-          telefone: guest.telefone || '',
-          status: guest.status === 'confirmed' ? 'Confirmado' : guest.status === 'pending' ? 'Pendente' : 'Declinou',
-          confirmadoEm: guest.status === 'confirmed' ? new Date().toLocaleDateString('pt-BR') : '',
-          acompanhante1: '',
-          categoriaAcomp1: '',
-          acompanhante2: '',
-          categoriaAcomp2: '',
-          acompanhante3: '',
-          categoriaAcomp3: '',
-          acompanhante4: '',
-          categoriaAcomp4: '',
-          acompanhante5: '',
-          categoriaAcomp5: ''
+      // 1. Estilização do Cabeçalho
+      const headerRow = worksheet.addRow([
+        'NOME COMPLETO',
+        'CATEGORIA',
+        'GRUPO / FAMÍLIA',
+        'TELEFONE',
+        'STATUS',
+        'ACOMPANHANTES',
+        'DATA CONFIRMAÇÃO'
+      ])
+
+      headerRow.eachCell((cell) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF8B2D4F' } // Cor Brand
         }
-
-        // Adicionar até 5 acompanhantes com suas categorias
-        if (guest.companionsList && guest.companionsList.length > 0) {
-          for (let i = 0; i < Math.min(5, guest.companionsList.length); i++) {
-            const companion = guest.companionsList[i]
-            if (companion && companion.name && companion.name.trim()) {
-              row[`acompanhante${i + 1}`] = companion.name
-              row[`categoriaAcomp${i + 1}`] = companion.category === 'adult_paying' ? 'Adulto Pagante' : companion.category === 'child_paying' ? 'Criança Pagante' : 'Criança Não Pagante'
-            }
-          }
+        cell.font = {
+          bold: true,
+          color: { argb: 'FFFFFFFF' },
+          size: 11
         }
-
-        return row
+        cell.alignment = { vertical: 'middle', horizontal: 'center' }
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        }
       })
 
-      // ===== PREPARAR DADOS ABA 2 =====
-      const aba2Rows: any[] = []
+      worksheet.getRow(1).height = 30
 
-      guests.forEach((guest: any) => {
+      // 2. Mapeamento de Categorias
+      const categoryLabel = (cat: string) => {
+        if (cat === 'adult_paying') return 'Adulto'
+        if (cat === 'child_paying') return 'Criança (Pagante)'
+        if (cat === 'child_not_paying') return 'Criança (Isenta)'
+        return 'Adulto'
+      }
+
+      // 3. Adicionar dados
+      guests.forEach(guest => {
+        const row = worksheet.addRow([
+          guest.name.toUpperCase(),
+          categoryLabel(guest.category),
+          guest.grupo || '-',
+          guest.telefone || '-',
+          guest.status === 'confirmed' ? 'CONFIRMADO' : (guest.status === 'declined' ? 'RECUSADO' : 'PENDENTE'),
+          guest.companionsList?.map(c => `${c.name} (${categoryLabel(c.category || 'adult_paying')})`).join(', ') || 'Nenhum',
+          guest.confirmedAt ? formatDate(guest.confirmedAt.toISOString(), { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'
+        ])
+
+        // Estilo condicional para Status
+        const statusCell = row.getCell(5)
         if (guest.status === 'confirmed') {
-          aba2Rows.push({
-            nome: guest.name,
-            categoria: guest.category === 'adult_paying' ? 'Adulto Pagante' : guest.category === 'child_paying' ? 'Criança Pagante' : 'Criança Não Pagante',
-            grupo: guest.grupo || '-'
-          })
+          statusCell.font = { color: { argb: 'FF107C10' }, bold: true }
+        } else if (guest.status === 'declined') {
+          statusCell.font = { color: { argb: 'FFA50000' }, bold: true }
         }
 
-        if (guest.companionsList && guest.companionsList.length > 0) {
-          guest.companionsList.forEach((companion: any) => {
-            if (companion.isConfirmed && companion.name.trim()) {
-              aba2Rows.push({
-                nome: companion.name,
-                categoria: companion.category === 'adult_paying' ? 'Adulto Pagante' : companion.category === 'child_paying' ? 'Criança Pagante' : 'Criança Não Pagante',
-                grupo: guest.grupo || '-'
-              })
-            }
-          })
-        }
+        row.eachCell((cell) => {
+          cell.alignment = { vertical: 'middle', horizontal: 'left' }
+          cell.border = {
+            bottom: { style: 'thin', color: { argb: 'FFE0E0E0' } }
+          }
+        })
       })
 
-      // ===== CRIAR ABA 1 =====
-      const ws1 = workbook.addWorksheet('Convidados')
-
-      ws1.columns = [
-        { header: 'Nome Principal', key: 'nomePrincipal', width: 20 },
-        { header: 'Categoria', key: 'categoria', width: 15 },
-        { header: 'Grupo / Família', key: 'grupo', width: 22 },
-        { header: 'Telefone', key: 'telefone', width: 20 },
-        { header: 'Status', key: 'status', width: 12 },
-        { header: 'Confirmado Em', key: 'confirmadoEm', width: 12 },
-        { header: 'Acompanhante 1', key: 'acompanhante1', width: 18 },
-        { header: 'Categoria', key: 'categoriaAcomp1', width: 15 },
-        { header: 'Acompanhante 2', key: 'acompanhante2', width: 18 },
-        { header: 'Categoria', key: 'categoriaAcomp2', width: 15 },
-        { header: 'Acompanhante 3', key: 'acompanhante3', width: 18 },
-        { header: 'Categoria', key: 'categoriaAcomp3', width: 15 },
-        { header: 'Acompanhante 4', key: 'acompanhante4', width: 18 },
-        { header: 'Categoria', key: 'categoriaAcomp4', width: 15 },
-        { header: 'Acompanhante 5', key: 'acompanhante5', width: 18 },
-        { header: 'Categoria', key: 'categoriaAcomp5', width: 15 }
-      ]
-
-      // Formatação do header
-      const headerRow1 = ws1.getRow(1)
-      headerRow1.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
-      headerRow1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } }
-      headerRow1.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
-      headerRow1.height = 30
-
-      // Adicionar dados
-      aba1Rows.forEach((row: any, index: number) => {
-        const newRow = ws1.addRow(row)
-        newRow.font = { size: 10 }
-        newRow.alignment = { horizontal: 'left', vertical: 'middle' }
-        if ((index + 2) % 2 === 0) {
-          newRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } }
-        }
+      // 4. Ajustar largura das colunas
+      worksheet.columns.forEach((column) => {
+        let maxLength = 0
+        column.eachCell?.({ includeEmpty: true }, (cell) => {
+          const columnLength = cell.value ? cell.value.toString().length : 10
+          if (columnLength > maxLength) maxLength = columnLength
+        })
+        column.width = Math.min(Math.max(maxLength + 5, 15), 50)
       })
 
-      // ===== CRIAR ABA 2 =====
-      const ws2 = workbook.addWorksheet('Convidados Confirmados')
-
-      ws2.columns = [
-        { header: 'Nome', key: 'nome', width: 25 },
-        { header: 'Categoria', key: 'categoria', width: 18 },
-        { header: 'Grupo', key: 'grupo', width: 15 }
-      ]
-
-      // Formatação do header
-      const headerRow2 = ws2.getRow(1)
-      headerRow2.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
-      headerRow2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2F7D32' } }
-      headerRow2.alignment = { horizontal: 'center', vertical: 'middle' }
-      headerRow2.height = 25
-
-      // Adicionar dados
-      aba2Rows.forEach((row: any, index: number) => {
-        const newRow = ws2.addRow(row)
-        newRow.font = { size: 10 }
-        newRow.alignment = { horizontal: 'left', vertical: 'middle' }
-        if ((index + 2) % 2 === 0) {
-          newRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } }
-        }
-      })
-
-      // ===== GERAR ARQUIVO =====
+      // 5. Gerar o arquivo
       const buffer = await workbook.xlsx.writeBuffer()
-
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-
-      const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
-      const filename = `convidados_${new Date().toISOString().split('T')[0]}.xlsx`
-      link.href = url
-      link.download = filename
-
-      document.body.appendChild(link)
+      link.href = URL.createObjectURL(blob)
+      link.download = `Lista_Convidados_${eventSettings.coupleNames.replace(/\s+/g, '_')}.xlsx`
       link.click()
-      document.body.removeChild(link)
-
-      setTimeout(() => {
-        URL.revokeObjectURL(url)
-      }, 100)
     } catch (error) {
       console.error('❌ ERRO na exportação:', error)
       alert('Erro ao exportar: ' + (error instanceof Error ? error.message : String(error)))
@@ -345,12 +294,6 @@ export default function DashboardPage() {
       subtitle={`${eventSettings.eventType === 'casamento' ? '💒' : '👑'} ${eventSettings.eventType === 'casamento' ? 'Casamento' : 'Debutante'}`}
       headerActions={
         <>
-          <Link
-            href="/import"
-            className="flex items-center gap-2 px-4 py-2.5 bg-brand/5 text-brand border border-brand/10 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-brand/10 transition-all"
-          >
-            <UploadIcon className="w-4 h-4" /> Importar
-          </Link>
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-brand/20 hover:bg-brand-dark transition-all"
@@ -368,8 +311,8 @@ export default function DashboardPage() {
       }
     >
       {/* HERO SECTION - Cover Image */}
-      {eventSettings.coverImage && eventSettings.coverImage !== 'https://...' && (
-        <div className="relative h-48 md:h-72 rounded-[2.5rem] overflow-hidden mb-10 shadow-xl border-4 border-white">
+      {eventSettings.coverImage && (
+        <div className="relative h-64 md:h-80 rounded-[2.5rem] overflow-hidden mb-10 shadow-xl border-4 border-white animate-in fade-in duration-1000">
           <Image
             src={eventSettings.coverImage}
             alt="Event Cover"
@@ -381,15 +324,25 @@ export default function DashboardPage() {
               transform: `scale(${eventSettings.coverImageScale || 1})`
             }}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent flex items-end p-8">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-6 text-white text-[10px] font-bold uppercase tracking-[0.2em]">
-              <div className="flex items-center gap-2 drop-shadow-md">
-                <CalendarIcon />
+          {/* Liquid Glass Gradient Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10" />
+
+          <div className="absolute inset-x-0 bottom-0 p-8 flex items-end">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-8 text-white text-[10px] font-black uppercase tracking-[0.2em]">
+              {/* Badge Data */}
+              <div className="flex items-center gap-3 drop-shadow-lg">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/20">
+                  <CalendarIcon />
+                </div>
                 <span>{formatDate(eventSettings.eventDate, { day: '2-digit', month: 'long', year: 'numeric' })}</span>
               </div>
-              <div className="flex items-center gap-2 drop-shadow-md">
-                <PinIcon />
-                <span className="truncate max-w-[200px]">{eventSettings.eventLocation}</span>
+
+              {/* Badge Local */}
+              <div className="flex items-center gap-3 drop-shadow-lg">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/20">
+                  <PinIcon />
+                </div>
+                <span className="truncate max-w-[250px]">{eventSettings.eventLocation}</span>
               </div>
             </div>
           </div>
@@ -398,7 +351,7 @@ export default function DashboardPage() {
 
       {/* SHARE CARD */}
       <div className="bg-surface border border-border-soft rounded-[2rem] p-6 mb-10 shadow-sm relative overflow-hidden group">
-        <div className="absolute -right-10 -top-10 w-40 h-40 bg-brand-pale rounded-full blur-3xl group-hover:bg-brand-pale/80 transition-colors" />
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-brand-pale rounded-full blur-3xl opacity-50 group-hover:bg-brand-pale/80 transition-all" />
         <div className="flex flex-col md:flex-row items-center gap-6">
           <div className="w-16 h-16 bg-brand-pale rounded-2xl flex items-center justify-center text-brand flex-shrink-0 animate-pulse">
             <ShareIcon />
@@ -425,39 +378,155 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* KPI CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
-        <KPICard
-          label="Total"
-          value={metrics.total.toString()}
-          icon={<UsersIcon />}
-          isActive={filter === 'all'}
-          onClick={() => setFilter('all')}
-        />
-        <KPICard
-          label="Confirmados"
-          value={metrics.confirmed.toString()}
-          icon={<CheckCircleIcon />}
-          status="success"
-          isActive={filter === 'confirmed'}
-          onClick={() => setFilter('confirmed')}
-        />
-        <KPICard
-          label="Pendentes"
-          value={metrics.pending.toString()}
-          icon={<ClockIcon />}
-          status="warning"
-          isActive={filter === 'pending'}
-          onClick={() => setFilter('pending')}
-        />
-        <KPICard
-          label="Recusados"
-          value={metrics.declined.toString()}
-          icon={<XCircleIcon />}
-          isActive={filter === 'declined'}
-          onClick={() => setFilter('declined')}
-        />
+      {/* FILTER ROW EXCLUSIVE STYLE (SYNCED WITH ADMIN) */}
+      <div className="flex flex-wrap items-center justify-center gap-3 mb-12">
+        <div className="relative">
+          <button
+            onClick={() => setShowCategoryMenu(!showCategoryMenu)}
+            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 border ${activeCategory !== 'all'
+              ? 'bg-brand text-white border-brand'
+              : 'bg-surface text-text-muted border-border-soft hover:border-brand-light/30 hover:text-brand'
+              }`}
+          >
+            {activeCategory === 'all' ? 'Categoria' :
+              activeCategory === 'adult_paying' ? 'Adultos' :
+                activeCategory === 'child_paying' ? 'Crianças Pagantes' : 'Crianças Isentas'} ▾
+          </button>
+
+          {showCategoryMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowCategoryMenu(false)} />
+              <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-border-soft p-2 z-20 animate-in fade-in slide-in-from-top-2">
+                {[
+                  { id: 'all', label: 'Todas Categorias' },
+                  { id: 'adult_paying', label: 'Adultos' },
+                  { id: 'child_paying', label: 'Crianças Pagantes' },
+                  { id: 'child_not_paying', label: 'Crianças Isentas' }
+                ].map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => {
+                      setActiveCategory(cat.id as any)
+                      setShowCategoryMenu(false)
+                    }}
+                    className={`w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat.id ? 'bg-brand/10 text-brand' : 'hover:bg-bg-light text-text-muted'}`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <FilterPill label="Pendentes" count={metrics.pending} active={filter === 'pending'} onClick={() => setFilter('pending')} />
+        <FilterPill label="Presentes" count={metrics.confirmed} active={filter === 'confirmed'} onClick={() => setFilter('confirmed')} />
+        <FilterPill label="Todos" count={metrics.total} active={filter === 'all'} onClick={() => setFilter('all')} />
+        <FilterPill label="Estatísticas" active={showStats} onClick={() => setShowStats(true)} />
+        <button
+          onClick={handleExportCSV}
+          className="px-6 py-2.5 bg-success-light text-success-dark border border-success/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 hover:bg-success/20"
+        >
+          <DownloadIcon />
+          Exportar Lista
+        </button>
       </div>
+
+      {/* DETAILED STATS MODAL */}
+      {showStats && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowStats(false)} />
+          <div className="relative w-full max-w-xl bg-white rounded-[3rem] shadow-2xl border border-white overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="p-8 md:p-12">
+              <div className="flex justify-between items-center mb-10">
+                <div>
+                  <h3 className="text-2xl font-serif text-text-primary tracking-tight italic">Estatísticas do Evento</h3>
+                  <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em]">Planejamento & Buffet</p>
+                </div>
+                <button
+                  onClick={() => setShowStats(false)}
+                  className="w-10 h-10 flex items-center justify-center bg-bg-light rounded-xl text-text-muted hover:text-brand transition-all"
+                >
+                  <XIcon />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="p-5 bg-surface border border-border-soft rounded-[1.5rem] flex items-center justify-between shadow-sm group hover:border-brand/30 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-brand-pale/50 backdrop-blur-md border border-brand/20 rounded-2xl flex items-center justify-center text-brand transition-transform group-hover:scale-110">
+                        <UsersIcon className="w-5 h-5" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none mb-1.5">Adultos</p>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedAdults}</span>
+                          <span className="text-[10px] font-bold text-text-muted">/ {metrics.adults}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-black text-brand-dark/20 uppercase tracking-[0.2em]">Confirmados</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-5 bg-surface border border-border-soft rounded-[1.5rem] flex items-center justify-between shadow-sm group hover:border-brand/30 transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-warning-light/50 backdrop-blur-md border border-warning/20 rounded-2xl flex items-center justify-center text-warning transition-transform group-hover:scale-110">
+                          <StarIcon className="w-5 h-5" />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none mb-1.5">Crianças Pagantes</p>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedChildrenPaying}</span>
+                            <span className="text-[10px] font-bold text-text-muted">/ {metrics.childrenPaying}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-5 bg-surface border border-border-soft rounded-[1.5rem] flex items-center justify-between shadow-sm group hover:border-brand/30 transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-success-light/50 backdrop-blur-md border border-success/20 rounded-2xl flex items-center justify-center text-success-dark transition-transform group-hover:scale-110">
+                          <HeartIcon className="w-5 h-5" />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none mb-1.5">Crianças Isentas</p>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedChildrenFree}</span>
+                            <span className="text-[10px] font-bold text-text-muted">/ {metrics.childrenFree}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-8 bg-bg-light rounded-[2rem] border border-border-soft">
+                  <div className="flex justify-between items-center mb-6">
+                    <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Adesão Total</span>
+                    <span className="text-xl font-black text-brand">{Math.round((metrics.confirmed / (metrics.total || 1)) * 100)}%</span>
+                  </div>
+                  <div className="w-full h-3 bg-white rounded-full overflow-hidden border border-border-soft shadow-inner">
+                    <div
+                      className="h-full bg-brand rounded-full transition-all duration-1000"
+                      style={{ width: `${(metrics.confirmed / (metrics.total || 1)) * 100}%` }}
+                    />
+                  </div>
+                  <div className="mt-4 text-center">
+                    <p className="text-[9px] font-black text-text-muted uppercase tracking-widest leading-relaxed">
+                      <strong className="text-text-primary">{metrics.confirmed}</strong> condidados confirmados<br />
+                      em uma lista total de <strong className="text-text-primary">{metrics.total}</strong> pessoas.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SEARCH AND FILTER */}
       <div className="bg-surface rounded-[2rem] border border-border-soft shadow-sm overflow-hidden mb-10">
@@ -578,6 +647,20 @@ function NavItem({ href, active, label, icon }: { href: string; active?: boolean
   )
 }
 
+function FilterPill({ label, count, active, onClick }: { label: string, count?: number, active: boolean, onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 border ${active
+        ? 'bg-brand text-white border-brand'
+        : 'bg-surface text-text-muted border-border-soft hover:border-brand-light/30 hover:text-brand'
+        }`}
+    >
+      {label} {count !== undefined && `(${count})`}
+    </button>
+  )
+}
+
 function KPICard({
   label,
   value,
@@ -606,23 +689,26 @@ function KPICard({
   return (
     <button
       onClick={onClick}
-      className={`bg-white p-4 lg:p-6 rounded-xl border border-brand/10 shadow-sm flex flex-col justify-between h-32 relative overflow-hidden group hover:-translate-y-1 transition-all duration-300 text-left ${isActive
-        ? 'border-brand/40 bg-brand/5'
-        : 'hover:border-brand/20'
+      className={`relative p-5 lg:p-6 rounded-[2.5rem] border transition-all duration-500 text-left h-36 flex flex-col justify-between group overflow-hidden ${isActive
+        ? 'bg-brand text-white border-brand shadow-xl shadow-brand/20 -translate-y-2'
+        : 'bg-white border-border-soft shadow-sm hover:border-brand/20 hover:shadow-xl hover:shadow-brand/[0.05] hover:-translate-y-1'
         }`}
     >
-      <div className="flex justify-between items-start">
-        <span className="text-[10px] text-text-muted font-black uppercase tracking-widest">{label}</span>
-        <div className={`p-2 rounded-xl text-brand`}>
+      <div className="flex justify-between items-start relative z-10">
+        <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${isActive ? 'text-white/70' : 'text-text-muted'}`}>{label}</span>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isActive ? 'bg-white/20 backdrop-blur-md text-white border border-white/20' : 'bg-brand-pale/50 text-brand group-hover:bg-brand group-hover:text-white group-hover:shadow-lg group-hover:shadow-brand/20'}`}>
           {icon}
         </div>
       </div>
-      <div>
-        <span className="text-3xl font-black text-text-primary tracking-tight">{value}</span>
+
+      <div className="relative z-10 space-y-1">
+        <div className="flex items-baseline gap-2">
+          <span className={`text-4xl font-black tracking-tighter ${isActive ? 'text-white' : 'text-text-primary'}`}>{value}</span>
+        </div>
         {subValue && (
-          <span className={`text-[10px] font-black uppercase tracking-widest ml-2 ${status === 'success' ? 'text-success' : status === 'warning' ? 'text-warning' : 'text-text-muted'}`}>
+          <p className={`text-[8px] font-black uppercase tracking-[0.3em] mt-1 ${isActive ? 'text-white/60' : (status === 'success' ? 'text-success' : status === 'warning' ? 'text-warning' : 'text-text-muted/60')}`}>
             {subValue}
-          </span>
+          </p>
         )}
       </div>
     </button>
@@ -670,3 +756,7 @@ const UserIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="non
 const UsersIconMini = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
 const DownloadIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
 const TrashIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+const BarChartIcon = ({ className = "" }: { className?: string }) => <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
+const XIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+const StarIcon = ({ className = "" }: { className?: string }) => <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+const HeartIcon = ({ className = "" }: { className?: string }) => <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>
