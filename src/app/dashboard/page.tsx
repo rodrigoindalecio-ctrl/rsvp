@@ -616,7 +616,7 @@ export default function DashboardPage() {
                             {person.name.charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
-                            <h4 className="text-sm font-black text-text-primary tracking-tight truncate max-w-[120px]" title={person.name}>
+                            <h4 className="text-sm font-black text-text-primary tracking-tight truncate max-w-[140px] sm:max-w-[180px]" title={person.name}>
                               {person.name}
                             </h4>
                             <p className="text-[9px] font-bold text-text-muted uppercase tracking-widest truncate">
@@ -626,7 +626,9 @@ export default function DashboardPage() {
                             </p>
                           </div>
                         </div>
-                        <StatusBadge status={person.status} mobile />
+                        <div className="flex-shrink-0 ml-2">
+                          <StatusBadge status={person.status} />
+                        </div>
                       </div>
 
                       <div className="flex items-center justify-between pt-4 border-t border-border-soft">
@@ -779,7 +781,7 @@ function KPICard({
 
 function StatusBadge({ status, mobile }: { status: GuestStatus; mobile?: boolean }) {
   const config = {
-    confirmed: { label: 'Confirmado', icon: '✓', class: 'bg-success-light text-success-dark border-success/20' },
+    confirmed: { label: 'Presença', icon: '✓', class: 'bg-success-light text-success-dark border-success/20' },
     pending: { label: 'Pendente', icon: '⏳', class: 'bg-warning-light text-warning border-warning/20' },
     declined: { label: 'Recusado', icon: '✗', class: 'bg-danger-light text-danger-dark border-danger/20' }
   }
@@ -787,8 +789,8 @@ function StatusBadge({ status, mobile }: { status: GuestStatus; mobile?: boolean
   const { label, icon, class: className } = config[status]
 
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border shadow-inner text-brand font-black uppercase tracking-widest ${className} ${mobile ? 'text-[8px] px-1.5 py-0.5' : 'text-[9px]'}`}>
-      <span className="scale-90">{icon}</span> {label}
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border shadow-sm font-black uppercase tracking-widest whitespace-nowrap ${className} ${mobile ? 'text-[8px] px-2 py-0.5' : 'text-[10px] md:text-[11px]'}`}>
+      <span className="opacity-70 scale-110">{icon}</span> {label}
     </span>
   )
 }
