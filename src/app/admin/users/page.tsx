@@ -11,7 +11,7 @@ function UsersManagementContent() {
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [isSending, setIsSending] = useState(false)
-  const [newUser, setNewUser] = useState({ name: '', email: '', type: 'noivos' as 'noivos' | 'admin' })
+  const [newUser, setNewUser] = useState({ name: '', email: '', type: 'noivos' as 'noivos' | 'admin', password: '' })
   const [editingUser, setEditingUser] = useState<any>(null)
 
   // Função para gerar iniciais inteligentes (ex: Isabella e Felipe -> I&F)
@@ -32,8 +32,8 @@ function UsersManagementContent() {
   )
 
   const handleInviteUser = async () => {
-    if (!newUser.name || !newUser.email) {
-      alert('Preencha todos os campos')
+    if (!newUser.name || !newUser.email || !newUser.password) {
+      alert('Preencha todos os campos, incluindo a senha inicial.')
       return
     }
 
@@ -46,7 +46,8 @@ function UsersManagementContent() {
         email: newUser.email,
         type: newUser.type,
         eventsCount: 0,
-        createdAt: new Date()
+        createdAt: new Date(),
+        password_hash: newUser.password  // salvo na API do admin-context
       }
 
       await addUser(userToInvite)
@@ -72,11 +73,14 @@ function UsersManagementContent() {
       // Chamada para a nova API de e-mail automático (Hostinger SMTP)
       const response = await fetch('/api/send-invite-email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
           name: newUser.name,
           email: newUser.email,
           type: newUser.type,
+          password: newUser.password,  // incluir senha no e-mail de boas-vindas
           onboardingSteps: onboardingSteps.trim()
         })
       })
@@ -84,7 +88,7 @@ function UsersManagementContent() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.details || 'Falha no envio do e-mail')
 
-      setNewUser({ name: '', email: '', type: 'noivos' })
+      setNewUser({ name: '', email: '', type: 'noivos', password: '' })
       setShowInviteModal(false)
       alert('Usuário convidado e e-mail automático enviado! ✨')
     } catch (error: any) {
@@ -354,6 +358,17 @@ function UsersManagementContent() {
                       👑 Admin
                     </button>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2.5 ml-1">Senha Inicial de Acesso</label>
+                  <input
+                    type="text"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                    placeholder="Ex: Casamento2025"
+                    className="w-full px-6 py-4 bg-bg-light border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 shadow-inner text-text-primary transition-all outline-none placeholder:text-text-muted/50"
+                  />
+                  <p className="text-[9px] text-text-muted mt-2 ml-1">Será enviada por e-mail ao casal. Eles usarão para o primeiro acesso.</p>
                 </div>
               </div>
 

@@ -1,497 +1,468 @@
 'use client'
 
-import { useEvent, Guest, GuestCategory } from '@/lib/event-context'
-import { useEffect, useState } from 'react'
+import { useEvent } from '@/lib/event-context'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { formatDate } from '@/lib/date-utils'
 
-interface EventContentProps {
-    slug: string
+interface EventContentProps { slug: string }
+
+// ─── Countdown ──────────────────────────────────────────────
+function useCountdown(targetDate: string) {
+    const [t, setT] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 })
+    useEffect(() => {
+        const tick = () => {
+            const diff = new Date(targetDate).getTime() - Date.now()
+            if (diff > 0) setT({
+                days: Math.floor(diff / 86400000),
+                hours: Math.floor((diff / 3600000) % 24),
+                minutes: Math.floor((diff / 60000) % 60),
+                seconds: Math.floor((diff / 1000) % 60),
+            })
+        }
+        tick(); const id = setInterval(tick, 1000); return () => clearInterval(id)
+    }, [targetDate])
+    return t
 }
 
+// ─── Active Section ──────────────────────────────────────────
+function useActiveSection(ids: string[]) {
+    const [active, setActive] = useState(ids[0])
+    useEffect(() => {
+        const obs = new IntersectionObserver(
+            entries => entries.forEach(e => { if (e.isIntersecting) setActive(e.target.id) }),
+            { rootMargin: '-40% 0px -55% 0px' }
+        )
+        ids.forEach(id => { const el = document.getElementById(id); if (el) obs.observe(el) })
+        return () => obs.disconnect()
+    }, [ids])
+    return active
+}
+
+// ─── Carousel ────────────────────────────────────────────────
+const FALLBACK_SLIDES = [
+    'https://images.unsplash.com/photo-1519741497674-611481863552?w=1600&q=85',
+    'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=1600&q=85',
+    'https://images.unsplash.com/photo-1606800052052-a08af7148866?w=1600&q=85',
+]
+
 export default function EventContent({ slug }: EventContentProps) {
-    const { eventSettings, guests, updateGuest, ownerEmail } = useEvent()
-    const [step, setStep] = useState<'landing' | 'search' | 'results' | 'group' | 'success'>('landing')
-    const [isSubmitting, setIsSubmitting] = useState(false)
-
-    // Search & Selection state
-    const [searchTerm, setSearchTerm] = useState('')
-    const [searchResults, setSearchResults] = useState<Guest[]>([])
-    const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null)
-
-    // Confirmation state (for the group)
-    const [isMainGuestConfirmed, setIsMainGuestConfirmed] = useState(true)
-    const [groupConfirmations, setGroupConfirmations] = useState<{ [key: number]: boolean }>({})
-    const [guestEmail, setGuestEmail] = useState('')
-
-    // Validate if this is the correct event
+    const { eventSettings } = useEvent()
+    const [slide, setSlide] = useState(0)
+    const [navScrolled, setNavScrolled] = useState(false)
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+    const sections = ['inicio', 'historia', 'galeria', 'local', 'presentes-link']
+    const activeSection = useActiveSection(sections)
+    const timeLeft = useCountdown(eventSettings.eventDate)
     const isCorrectEvent = eventSettings.slug === slug
 
-    if (!isCorrectEvent) {
-        return (
-            <div className="min-h-screen bg-background flex items-center justify-center p-4">
-                <div className="text-center">
-                    <h1 className="text-2xl font-serif mb-2 text-text-primary">Evento não encontrado</h1>
-                    <p className="text-text-secondary">O link que você acessou pode estar incorreto.</p>
+    const slides = eventSettings.carouselImages && eventSettings.carouselImages.length > 0
+        ? eventSettings.carouselImages
+        : [
+            eventSettings.coverImage && eventSettings.coverImage !== 'https://...'
+                ? eventSettings.coverImage : FALLBACK_SLIDES[0],
+            FALLBACK_SLIDES[1],
+            FALLBACK_SLIDES[2],
+        ]
+
+    const nextSlide = useCallback(() => setSlide(s => (s + 1) % slides.length), [slides.length])
+    const prevSlide = useCallback(() => setSlide(s => (s - 1 + slides.length) % slides.length), [slides.length])
+
+    // Auto-play carousel
+    useEffect(() => {
+        const id = setInterval(nextSlide, 5000)
+        return () => clearInterval(id)
+    }, [nextSlide])
+
+    // Nav scroll effect
+    useEffect(() => {
+        const h = () => setNavScrolled(window.scrollY > 60)
+        window.addEventListener('scroll', h)
+        return () => window.removeEventListener('scroll', h)
+    }, [])
+
+    const scrollTo = (id: string) => {
+        setMobileMenuOpen(false)
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+
+    const mapsUrl = eventSettings.wazeLocation ||
+        (eventSettings.eventLocation
+            ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(eventSettings.eventLocation)}`
+            : null)
+
+    const navItems = [
+        { id: 'inicio', label: 'Início' },
+        { id: 'historia', label: 'Nossa História' },
+        ...(eventSettings.galleryImages && eventSettings.galleryImages.length > 0 ? [{ id: 'galeria', label: 'Galeria' }] : []),
+        { id: 'local', label: 'Local' },
+        ...(eventSettings.isGiftListEnabled !== false ? [{ id: 'presentes-link', label: 'Presentes' }] : []),
+    ]
+
+    if (!isCorrectEvent) return (
+        <div className="min-h-screen flex items-center justify-center">
+            <p className="text-text-secondary font-serif italic">Evento não encontrado.</p>
+        </div>
+    )
+
+    return (
+        <div className="min-h-screen bg-bg-light">
+
+            {/* ── NAVBAR ─────────────────────────────────────────────── */}
+            <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${navScrolled ? 'bg-surface/95 backdrop-blur-md shadow-lg border-b border-border-soft' : 'bg-transparent'}`}>
+                <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+                    <button onClick={() => scrollTo('inicio')} className={`font-serif text-lg transition-all duration-500 ${navScrolled ? 'text-text-primary' : 'text-white/0'}`}>
+                        {eventSettings.coupleNames}
+                    </button>
+                    <div className="hidden md:flex items-center gap-1">
+                        {navItems.map(item => (
+                            <button key={item.id} onClick={() => scrollTo(item.id)}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === item.id
+                                    ? (navScrolled ? 'bg-brand text-white shadow-md' : 'bg-white/20 text-white backdrop-blur')
+                                    : (navScrolled ? 'text-text-muted hover:text-brand hover:bg-brand-pale' : 'text-white/70 hover:text-white hover:bg-white/10')
+                                    }`}>
+                                {item.label}
+                            </button>
+                        ))}
+                        <Link href={`/${slug}/confirmar`}
+                            className="ml-3 px-5 py-2.5 bg-brand text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-brand-dark hover:-translate-y-0.5 transition-all">
+                            Confirmar Presença
+                        </Link>
+                    </div>
+                    {/* Mobile hamburger */}
+                    <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                        className={`md:hidden w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all ${navScrolled ? 'bg-bg-light border border-border-soft' : 'bg-white/20 backdrop-blur'}`}>
+                        <span className={`w-5 h-0.5 transition-all ${navScrolled ? 'bg-text-primary' : 'bg-white'} ${mobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`} />
+                        <span className={`w-5 h-0.5 transition-all ${navScrolled ? 'bg-text-primary' : 'bg-white'} ${mobileMenuOpen ? 'opacity-0' : ''}`} />
+                        <span className={`w-5 h-0.5 transition-all ${navScrolled ? 'bg-text-primary' : 'bg-white'} ${mobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`} />
+                    </button>
                 </div>
-            </div>
-        )
-    }
+                {mobileMenuOpen && (
+                    <div className="md:hidden bg-surface/98 backdrop-blur-md border-b border-border-soft p-4 flex flex-col gap-2 animate-in slide-in-from-top-2">
+                        {navItems.map(item => (
+                            <button key={item.id} onClick={() => scrollTo(item.id)}
+                                className={`text-left px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === item.id ? 'bg-brand text-white' : 'text-text-muted hover:bg-bg-light hover:text-brand'}`}>
+                                {item.label}
+                            </button>
+                        ))}
+                        <Link href={`/${slug}/confirmar`} className="px-5 py-4 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest text-center mt-1">
+                            Confirmar Presença
+                        </Link>
+                    </div>
+                )}
+            </nav>
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault()
-        if (searchTerm.length < 3) return
+            {/* ── HERO CAROUSEL + COUNTDOWN ──────────────────────────── */}
+            <section id="inicio" className="relative h-[85vh] md:h-screen min-h-[500px] md:min-h-[600px] overflow-hidden">
+                {/* Slides */}
+                {slides.map((src, i) => (
+                    <div key={i} className={`absolute inset-0 transition-opacity duration-1000 ${i === slide ? 'opacity-100' : 'opacity-0'}`}>
+                        <Image src={src} alt={`Slide ${i + 1}`} fill priority={i === 0}
+                            className="object-cover"
+                            style={{ objectPosition: i === 0 ? `50% ${eventSettings.coverImagePosition || 50}%` : '50% 50%' }}
+                        />
+                    </div>
+                ))}
+                <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/30 to-black/75" />
 
-        const results = guests.filter(g =>
-            g.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            g.grupo?.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-        setSearchResults(results)
-        setStep('results')
-    }
+                {/* Conteúdo centralizado */}
+                <div className="relative z-10 h-full flex flex-col items-center justify-center text-center text-white px-6 max-w-3xl mx-auto">
+                    <h1
+                        className="text-5xl md:text-7xl font-serif leading-tight mb-2 text-white animate-in fade-in slide-in-from-bottom-6 duration-700 delay-200"
+                        style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5), 0 0 40px rgba(0,0,0,0.3)' }}>
+                        {eventSettings.coupleNames}
+                    </h1>
+                    <p
+                        className="text-[10px] md:text-xs text-white/90 font-black uppercase tracking-[0.5em] mb-8 animate-in fade-in duration-700 delay-300"
+                        style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
+                        {eventSettings.customMessage && eventSettings.customMessage !== 'Ficamos muito felizes em receber a sua confirmação de presença.'
+                            ? eventSettings.customMessage
+                            : 'Bem-vindos ao nosso site de casamento'}
+                    </p>
+                    <div className="w-12 h-px bg-white/30 mx-auto mb-10 animate-in fade-in duration-700 delay-400" />
 
-    const handleSelectGuest = (guest: Guest) => {
-        setSelectedGuest(guest)
-        // Sempre marcar como true ao selecionar inicialmente para facilitar o RSVP
-        setIsMainGuestConfirmed(true)
-        setGuestEmail('')
-
-        // Initialize companions confirmations as true by default
-        const initialComps: { [key: number]: boolean } = {}
-        guest.companionsList.forEach((_, idx) => {
-            initialComps[idx] = true
-        })
-        setGroupConfirmations(initialComps)
-        setStep('group')
-    }
-
-    const handleConfirm = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!selectedGuest) return
-
-        setIsSubmitting(true)
-        try {
-            const updatedCompanions = selectedGuest.companionsList.map((comp, idx) => ({
-                ...comp,
-                isConfirmed: groupConfirmations[idx] || false
-            }))
-
-            await updateGuest(selectedGuest.id, {
-                status: isMainGuestConfirmed ? 'confirmed' : 'declined',
-                email: guestEmail,
-                companionsList: updatedCompanions,
-                confirmedAt: new Date()
-            })
-
-            // Disparar o envio de email de confirmação para o convidado
-            if (isMainGuestConfirmed || updatedCompanions.some(c => c.isConfirmed)) {
-                try {
-                    const confirmedComps = updatedCompanions.filter(c => c.isConfirmed)
-                    const confirmedNames = []
-                    if (isMainGuestConfirmed) confirmedNames.push(selectedGuest.name)
-                    confirmedComps.forEach(c => confirmedNames.push(c.name))
-
-                    const confirmedDetails = []
-                    if (isMainGuestConfirmed) confirmedDetails.push({ name: selectedGuest.name, category: selectedGuest.category })
-                    confirmedComps.forEach(c => confirmedDetails.push({ name: c.name, category: c.category }))
-
-                    await fetch('/api/send-confirmation-email', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            email: guestEmail,
-                            guestName: selectedGuest.name,
-                            eventSettings: eventSettings,
-                            confirmedCompanions: confirmedNames.length,
-                            confirmedNames: confirmedNames,
-                            confirmedDetails: confirmedDetails,
-                            giftListLinks: eventSettings.giftListLinks || []
-                        })
-                    })
-                } catch (emailError) {
-                    console.error('Erro ao disparar email para o convidado:', emailError)
-                }
-            }
-
-            // Notificação para o Proprietário (Chave Liga/Desliga)
-            if (eventSettings.notifyOwnerOnRSVP !== false) {
-                try {
-                    const confirmedNames = []
-                    if (isMainGuestConfirmed) confirmedNames.push(selectedGuest.name)
-                    updatedCompanions.filter(c => c.isConfirmed).forEach(c => confirmedNames.push(c.name))
-
-                    await fetch('/api/send-owner-notification', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            ownerEmail: ownerEmail,
-                            guestName: selectedGuest.name,
-                            eventSettings: eventSettings,
-                            confirmedNames: confirmedNames,
-                            status: isMainGuestConfirmed ? 'confirmed' : 'declined'
-                        })
-                    })
-                } catch (ownerEmailError) {
-                    console.error('Erro ao notificar proprietário:', ownerEmailError)
-                }
-            }
-
-            setStep('success')
-        } catch (error) {
-            alert('Erro ao confirmar presença. Tente novamente.')
-        } finally {
-            setIsSubmitting(false)
-        }
-    }
-
-    if (step === 'success') {
-        return (
-            <div className="max-w-xl mx-auto py-20 px-6 text-center animate-in fade-in zoom-in duration-700">
-                <div className="w-20 h-20 bg-success-light text-success-dark rounded-full flex items-center justify-center mx-auto mb-8">
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                </div>
-                <h1 className="text-3xl font-serif mb-4 text-text-primary">Confirmado!</h1>
-                <p className="text-text-secondary mb-10 leading-relaxed text-sm">
-                    Sua resposta foi salva com sucesso. <br />
-                    Mal podemos esperar para celebrar este momento com você!
-                </p>
-                <div className="p-6 bg-bg-light rounded-3xl border border-border-soft text-left mb-10">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-4 text-center">Resumo</p>
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-center bg-surface p-3 rounded-xl border border-border-soft">
-                            <span className="text-xs font-bold text-text-primary">{selectedGuest?.name}</span>
-                            <span className={`text-[10px] font-black uppercase ${isMainGuestConfirmed ? 'text-success-dark' : 'text-text-muted'}`}>
-                                {isMainGuestConfirmed ? 'Presença Confirmada' : 'Não Comparecerá'}
-                            </span>
-                        </div>
-                        {selectedGuest?.companionsList.map((comp, idx) => (
-                            <div key={idx} className="flex justify-between items-center bg-surface p-3 rounded-xl border border-border-soft opacity-80">
-                                <span className="text-xs font-medium text-text-secondary">{comp.name}</span>
-                                <span className={`text-[10px] font-black uppercase ${groupConfirmations[idx] ? 'text-success-dark' : 'text-text-muted'}`}>
-                                    {groupConfirmations[idx] ? 'Confirmado' : 'Ausente'}
-                                </span>
+                    {/* Countdown em cards de vidro */}
+                    <div className="flex justify-center gap-3 md:gap-4 mb-10 animate-in fade-in duration-700 delay-500">
+                        {[
+                            { v: timeLeft.days, l: 'Dias' },
+                            { v: timeLeft.hours, l: 'Horas' },
+                            { v: timeLeft.minutes, l: 'Min' },
+                            { v: timeLeft.seconds, l: 'Seg' },
+                        ].map(({ v, l }) => (
+                            <div key={l} className="bg-black/40 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3 md:px-5 md:py-4 text-center min-w-[60px] md:min-w-[72px]">
+                                <div className="text-2xl md:text-4xl font-black tabular-nums text-white leading-none">
+                                    {String(v).padStart(2, '0')}
+                                </div>
+                                <div className="text-[8px] font-black uppercase tracking-[0.25em] text-white/70 mt-1.5">{l}</div>
                             </div>
                         ))}
                     </div>
-                </div>
-                <button
-                    onClick={() => {
-                        setStep('landing')
-                        setSearchTerm('')
-                    }}
-                    className="text-brand font-black text-[10px] uppercase tracking-widest hover:opacity-70 transition-opacity"
-                >
-                    Voltar para o Início
-                </button>
-            </div>
-        )
-    }
 
-    if (step === 'search' || step === 'results') {
-        return (
-            <div className="max-w-xl mx-auto py-12 px-6 animate-in slide-in-from-bottom duration-700">
-                <button
-                    onClick={() => setStep('landing')}
-                    className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-brand mb-8 transition-colors group"
-                >
-                    <svg className="group-hover:-translate-x-1 transition-transform" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-                    Voltar
-                </button>
-
-                <div className="mb-10">
-                    <h2 className="text-3xl font-serif text-text-primary mb-2">Localizar Convite</h2>
-                    <p className="text-text-secondary text-sm">Digite seu nome conforme escrito no convite para encontrar sua reserva.</p>
-                </div>
-
-                <form onSubmit={handleSearch} className="space-y-6">
-                    <div className="relative">
-                        <input
-                            required
-                            autoFocus
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="Seu nome completo..."
-                            className="w-full px-6 py-4 bg-surface border border-border-soft rounded-2xl text-sm font-bold focus:ring-4 focus:ring-brand/10 focus:border-brand transition-all outline-none pr-14 shadow-sm placeholder:text-text-muted text-text-primary"
-                        />
-                        <button
-                            type="submit"
-                            className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-brand text-white rounded-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md shadow-brand/20"
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                        </button>
-                    </div>
-                </form>
-
-                {step === 'results' && (
-                    <div className="mt-12 space-y-4 animate-in fade-in duration-500">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-text-muted ml-1">
-                            {searchResults.length === 0 ? 'Nenhum convite encontrado' : `${searchResults.length} Convite(s) Encontrado(s)`}
-                        </p>
-
-                        {searchResults.length > 0 ? (
-                            <div className="space-y-3">
-                                {searchResults.map((guest) => (
-                                    <button
-                                        key={guest.id}
-                                        onClick={() => handleSelectGuest(guest)}
-                                        className="w-full text-left p-6 bg-surface border border-border-soft rounded-[2rem] hover:border-brand hover:shadow-xl hover:shadow-brand/5 transition-all group relative overflow-hidden"
-                                    >
-                                        <div className="relative z-10 flex items-center justify-between">
-                                            <div>
-                                                <p className="text-base font-serif text-text-primary group-hover:text-brand transition-colors">{guest.name}</p>
-                                                {guest.grupo && <p className="text-[9px] font-black uppercase tracking-widest text-text-muted mt-1">{guest.grupo}</p>}
-                                            </div>
-                                            <div className="w-8 h-8 rounded-full bg-bg-light flex items-center justify-center text-text-muted group-hover:bg-brand group-hover:text-white transition-all">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
-                                            </div>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="p-8 bg-bg-light rounded-3xl border border-dashed border-border-soft text-center">
-                                <p className="text-sm text-text-muted mb-4 italic">Não encontrou seu nome? Verifique se digitou corretamente ou entre em contato com os noivos.</p>
-                                <button
-                                    onClick={() => setSearchTerm('')}
-                                    className="text-[10px] font-black uppercase tracking-widest text-brand"
-                                >
-                                    Tentar outro nome
-                                </button>
+                    {/* Data badge */}
+                    <div className="flex flex-wrap justify-center gap-3 mb-10 animate-in fade-in duration-700 delay-600">
+                        <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/20 rounded-full px-5 py-2.5 text-xs font-black tracking-wider"
+                            style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
+                            📅 {formatDate(eventSettings.eventDate, { day: '2-digit', month: 'long', year: 'numeric' })}
+                            {eventSettings.eventTime && ` • ${eventSettings.eventTime}h`}
+                        </div>
+                        {eventSettings.eventLocation && (
+                            <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/20 rounded-full px-5 py-2.5 text-xs font-black tracking-wider"
+                                style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
+                                📍 {eventSettings.eventLocation.split(',')[0]}
                             </div>
                         )}
                     </div>
-                )}
-            </div>
-        )
-    }
 
-    if (step === 'group') {
-        return (
-            <div className="max-w-xl mx-auto py-12 px-6 animate-in slide-in-from-right duration-700">
-                <button
-                    onClick={() => setStep('results')}
-                    className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-brand mb-8 transition-colors"
-                >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-                    Voltar
+                    {/* CTAs */}
+                    <div className="flex flex-col sm:flex-row gap-3 animate-in fade-in duration-700 delay-700">
+                        <Link href={`/${slug}/confirmar`}
+                            className="px-8 py-4 bg-brand text-white rounded-full font-black uppercase tracking-[0.2em] text-[11px] shadow-2xl shadow-brand/40 hover:-translate-y-1 active:scale-95 transition-all">
+                            Confirmar Presença
+                        </Link>
+                        {eventSettings.isGiftListEnabled !== false && (
+                            <Link href={`/${slug}/presentes`}
+                                className="px-8 py-4 bg-white/15 backdrop-blur border border-white/30 text-white rounded-full font-black uppercase tracking-[0.2em] text-[11px] hover:bg-white/25 hover:-translate-y-1 transition-all">
+                                Lista de Presentes
+                            </Link>
+                        )}
+                    </div>
+                </div>
+
+                {/* Carousel controls */}
+                <button onClick={prevSlide} className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/10 hover:bg-white/25 backdrop-blur border border-white/20 rounded-full flex items-center justify-center text-white transition-all z-10">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6" /></svg>
+                </button>
+                <button onClick={nextSlide} className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/10 hover:bg-white/25 backdrop-blur border border-white/20 rounded-full flex items-center justify-center text-white transition-all z-10">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
                 </button>
 
-                <div className="mb-10">
-                    <h2 className="text-3xl font-serif text-text-primary mb-2">Quem irá comparecer?</h2>
-                    <p className="text-text-secondary text-sm">Confirmamos todos do seu grupo por padrão para facilitar sua resposta.</p>
-
-                    <div className="mt-6 p-4 bg-brand-pale/30 border border-brand/10 rounded-2xl flex gap-3 items-start animate-in fade-in slide-in-from-top-2 duration-500">
-                        <div className="w-5 h-5 bg-brand text-white rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold mt-0.5">!</div>
-                        <p className="text-[11px] text-text-primary leading-relaxed">
-                            <strong>Dica:</strong> Caso alguém da lista não possa comparecer, basta clicar no nome para desmarcar. Os nomes desmarcados serão registrados como <strong>ausentes</strong>.
-                        </p>
-                    </div>
+                {/* Dots */}
+                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+                    {slides.map((_, i) => (
+                        <button key={i} onClick={() => setSlide(i)}
+                            className={`transition-all rounded-full ${i === slide ? 'w-6 h-2 bg-white' : 'w-2 h-2 bg-white/40 hover:bg-white/70'}`}
+                        />
+                    ))}
                 </div>
+            </section>
 
-                <form onSubmit={handleConfirm} className="space-y-8">
-                    <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-text-muted ml-1">Confirmar Presença</label>
+            {/* ── NOSSA HISTÓRIA ─────────────────────────────────────── */}
+            <section id="historia" className="py-24 md:py-32 bg-surface">
+                <div className="max-w-2xl mx-auto px-6 text-center">
+                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">Nossa História</span>
+                    <h2 className="text-4xl font-serif text-text-primary mt-3 mb-6">Como Tudo Começou</h2>
+                    <div className="w-16 h-px bg-brand/20 mx-auto mb-10" />
+                    <p className={`text-text-secondary leading-relaxed ${eventSettings.brandFont === 'great-vibes' ? 'font-sans font-medium' : 'font-serif italic'} text-lg mb-16 whitespace-pre-line`}>
+                        {eventSettings.coupleStory ||
+                            'O destino nos colocou no mesmo caminho e, desde então, cada dia ao lado um do outro é uma nova página da história mais bonita que já vivemos. Com alegria e gratidão, convidamos você para celebrar conosco este momento tão especial — a união de duas almas que escolheram caminhar juntas para sempre.'}
+                    </p>
 
-                        {/* Convidado Principal */}
-                        <div
-                            onClick={() => setIsMainGuestConfirmed(!isMainGuestConfirmed)}
-                            className={`p-6 rounded-3xl border-2 cursor-pointer transition-all flex items-center justify-between ${isMainGuestConfirmed ? 'bg-brand-pale/50 border-brand' : 'bg-surface border-border-soft hover:border-brand-light/30'}`}
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isMainGuestConfirmed ? 'bg-brand border-brand text-white' : 'border-border-soft'}`}>
-                                    {isMainGuestConfirmed && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>}
+                    {/* Timeline */}
+                    <div className="flex flex-col gap-6 text-left">
+                        {(eventSettings.timelineEvents || [
+                            { emoji: '💫', title: 'O primeiro encontro', description: 'O começo de tudo' },
+                            { emoji: '💌', title: 'Nossa memória favorita', description: 'A decisão mais fácil das nossas vidas' },
+                            { emoji: '💍', title: 'O pedido de casamento', description: 'Uma surpresa guardada no coração' },
+                        ]).map((item, i) => (
+                            <div key={i} className="flex items-start gap-5 group">
+                                <div className="w-12 h-12 bg-brand-pale border border-brand/10 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform">
+                                    {item.emoji}
                                 </div>
-                                <span className={`text-sm font-bold ${isMainGuestConfirmed ? 'text-text-primary' : 'text-text-muted'}`}>{selectedGuest?.name}</span>
-                            </div>
-                            <span className={`text-[9px] font-black uppercase tracking-widest ${isMainGuestConfirmed ? 'text-brand' : 'text-text-muted'}`}>
-                                {isMainGuestConfirmed ? 'Eu Vou!' : 'Não Vou'}
-                            </span>
-                        </div>
-
-                        {/* Acompanhantes */}
-                        {selectedGuest?.companionsList.map((comp, idx) => (
-                            <div
-                                key={idx}
-                                onClick={() => setGroupConfirmations({ ...groupConfirmations, [idx]: !groupConfirmations[idx] })}
-                                className={`p-6 rounded-3xl border-2 cursor-pointer transition-all flex items-center justify-between ${groupConfirmations[idx] ? 'bg-brand-pale/50 border-brand' : 'bg-surface border-border-soft hover:border-brand-light/30'}`}
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${groupConfirmations[idx] ? 'bg-brand border-brand text-white' : 'border-border-soft'}`}>
-                                        {groupConfirmations[idx] && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>}
-                                    </div>
-                                    <span className={`text-sm font-semibold ${groupConfirmations[idx] ? 'text-text-primary' : 'text-text-muted'}`}>{comp.name}</span>
+                                <div className="pt-2 border-b border-border-soft pb-6 flex-1">
+                                    <h3 className="font-black text-text-primary text-sm uppercase tracking-wider">{item.title}</h3>
+                                    <p className="text-text-muted text-sm mt-1">{item.description}</p>
                                 </div>
-                                <span className={`text-[9px] font-black uppercase tracking-widest ${groupConfirmations[idx] ? 'text-brand' : 'text-text-muted'}`}>
-                                    {groupConfirmations[idx] ? 'Confirmado' : 'Ausente'}
-                                </span>
                             </div>
                         ))}
-                    </div>
-
-                    <div className="space-y-4 pt-4">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-brand ml-1 flex items-center gap-1">
-                            E-mail Obrigatório
-                            <span className="w-1 h-1 bg-brand rounded-full animate-pulse"></span>
-                        </label>
-                        <input
-                            required
-                            type="email"
-                            value={guestEmail}
-                            onChange={(e) => setGuestEmail(e.target.value)}
-                            placeholder="Seu melhor e-mail..."
-                            className="w-full px-6 py-4 bg-surface border border-border-soft rounded-2xl text-sm font-bold focus:ring-4 focus:ring-brand/10 focus:border-brand transition-all outline-none shadow-sm placeholder:text-text-muted text-text-primary"
-                        />
-                        <p className="text-[10px] text-text-muted font-medium ml-1">
-                            * Você receberá o resumo da confirmação, local e informações do evento neste e-mail.
-                        </p>
-                    </div>
-
-                    <div className="pt-4">
-                        <button
-                            disabled={isSubmitting}
-                            className="w-full py-5 bg-brand text-white rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-brand/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70"
-                        >
-                            {isSubmitting ? (
-                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            ) : (
-                                'Finalizar Confirmação'
-                            )}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        )
-    }
-
-    return (
-        <div className="min-h-screen bg-[#faf8f6] py-12 px-6 md:py-24">
-            <div className="max-w-2xl mx-auto space-y-10">
-
-                {/* ── CARD 1: BANNER HERO (Estilo Página Noivos) ──────────────── */}
-                <div className="relative h-64 md:h-80 rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white animate-in fade-in slide-in-from-top-12 duration-1000">
-                    <Image
-                        src={eventSettings.coverImage && eventSettings.coverImage !== 'https://...' ? eventSettings.coverImage : 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=2069&auto=format&fit=crop'}
-                        alt="Event Cover"
-                        fill
-                        priority
-                        className="object-cover transition-all duration-300"
-                        style={{
-                            objectPosition: `50% ${eventSettings.coverImagePosition || 50}%`,
-                            transform: `scale(${eventSettings.coverImageScale || 1})`
-                        }}
-                    />
-                    {/* Overlay Gradiente */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-8 md:p-12" />
-
-                    {/* Informações sobre a foto */}
-                    <div className="absolute inset-x-0 bottom-0 p-8 md:p-12 space-y-4 text-white">
-                        <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
-                            {/* Data */}
-                            <div className="flex items-center gap-3 drop-shadow-lg">
-                                <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-lg flex items-center justify-center border border-white/20">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="18" height="18" x="3" y="4" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /></svg>
-                                </div>
-                                <span className="text-xs md:text-sm font-black uppercase tracking-[0.2em]">
-                                    {formatDate(eventSettings.eventDate, { day: '2-digit', month: 'long', year: 'numeric' })}
-                                </span>
+                        <div className="flex items-start gap-5 group">
+                            <div className="w-12 h-12 bg-brand-pale border border-brand/10 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform">
+                                🎊
                             </div>
-                            {/* Local */}
-                            <div className="flex items-center gap-3 drop-shadow-lg group">
-                                <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-lg flex items-center justify-center border border-white/20">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-xs md:text-sm font-black uppercase tracking-[0.2em] truncate max-w-[250px]">
-                                        {eventSettings.eventLocation?.split(',')[0]}
-                                    </span>
-                                    {eventSettings.wazeLocation && (
-                                        <a
-                                            href={eventSettings.wazeLocation}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-[10px] font-black uppercase tracking-widest text-white/80 hover:text-white transition-all flex items-center gap-1.5 mt-0.5"
-                                        >
-                                            <span className="border-b border-white/40 group-hover:border-white">Ver Mapa</span>
-                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-                                        </a>
-                                    )}
-                                </div>
+                            <div className="pt-2 border-b border-border-soft pb-6 flex-1">
+                                <h3 className="font-black text-text-primary text-sm uppercase tracking-wider">Nosso Grande Dia</h3>
+                                <p className="text-text-muted text-sm mt-1">{formatDate(eventSettings.eventDate, { day: '2-digit', month: 'long', year: 'numeric' })}</p>
                             </div>
                         </div>
                     </div>
-
-
                 </div>
+            </section>
 
-                {/* ── CARD 2: O CONVITE ────────────────────────────────────────── */}
-                <div className="bg-white rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.05)] border border-border-soft p-10 md:p-16 text-center space-y-10 animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-200">
-
-                    <div className="flex justify-center">
-                        <div className="w-16 h-16 bg-brand-pale/50 rounded-3xl flex items-center justify-center text-brand animate-bounce duration-[3s]">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>
+            {/* ── GALERIA DE FOTOS ──────────────────────────────────────── */}
+            {eventSettings.galleryImages && eventSettings.galleryImages.length > 0 && (
+                <section id="galeria" className="py-24 md:py-32 bg-bg-light">
+                    <div className="max-w-6xl mx-auto px-6">
+                        <div className="text-center mb-16">
+                            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">Galeria</span>
+                            <h2 className="text-4xl font-serif text-text-primary mt-3">Alguns Momentos</h2>
+                            <div className="w-16 h-px bg-brand/20 mx-auto mt-6" />
                         </div>
-                    </div>
 
-                    <div className="space-y-6">
-                        <h1 className="text-4xl md:text-6xl font-serif text-text-primary leading-tight capitalize">
-                            {eventSettings.coupleNames}
-                        </h1>
-                        <div className="w-16 h-px bg-brand/10 mx-auto" />
-                        <p className="font-serif text-xl md:text-2xl text-text-secondary leading-relaxed italic max-w-lg mx-auto opacity-70">
-                            {eventSettings.customMessage || "Nossa história ganha um novo capítulo e ficaremos imensamente felizes em tê-lo ao nosso lado."}
-                        </p>
-                    </div>
-
-                    <div className="pt-6 space-y-6">
-                        <button
-                            onClick={() => setStep('search')}
-                            className="w-full max-w-sm py-6 bg-brand text-white rounded-full font-black uppercase tracking-[0.25em] text-[11px] shadow-2xl shadow-brand/20 hover:scale-[1.03] active:scale-95 transition-all duration-300"
-                        >
-                            Confirmar Minha Presença
-                        </button>
-                        <p className="text-xs md:text-sm font-black uppercase tracking-widest text-text-muted">
-                            {eventSettings.confirmationDeadline ? (
-                                <>Por favor, responda até <strong className="text-brand border-b-2 border-brand/20 pb-0.5">{formatDate(eventSettings.confirmationDeadline, { day: '2-digit', month: '2-digit' })}</strong></>
-                            ) : 'Confirmação antecipada é apreciada'}
-                        </p>
-                    </div>
-                </div>
-
-                {/* ── SEÇÃO DE PRESENTES (SE HOUVER) ───────────────────────── */}
-                {(eventSettings.giftList || (eventSettings.giftListLinks && eventSettings.giftListLinks.length > 0)) && (
-                    <div className="pt-6 text-center space-y-8">
-                        <h2 className="text-2xl font-serif text-text-secondary lowercase">Presentes</h2>
-                        <div className="flex flex-wrap justify-center gap-4">
-                            {eventSettings.giftListLinks?.map((link, idx) => (
-                                <a
-                                    key={idx}
-                                    href={link.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-8 py-4 bg-white border border-brand/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-text-primary shadow-sm hover:shadow-xl hover:shadow-brand/10 hover:border-brand hover:-translate-y-1 transition-all duration-300"
-                                >
-                                    {link.name}
-                                </a>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+                            {eventSettings.galleryImages.map((src, i) => (
+                                <div key={i} className={`relative aspect-[3/4] rounded-3xl overflow-hidden shadow-sm group hover:-translate-y-2 transition-all duration-500 ${i % 3 === 0 ? 'md:col-span-1 md:row-span-1' : ''}`}>
+                                    <Image
+                                        src={src}
+                                        alt={`Galeria ${i + 1}`}
+                                        fill
+                                        className="object-cover group-hover:scale-110 transition-transform duration-700"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
                             ))}
                         </div>
                     </div>
-                )}
+                </section>
+            )}
 
-                {/* ── FOOTER ─────────────────────────────────────────────── */}
-
-                <footer className="py-24 text-center space-y-6">
-                    <div className="flex flex-col items-center gap-4 opacity-40 hover:opacity-100 transition-opacity duration-700">
-                        <div className="w-12 h-12 rounded-xl overflow-hidden grayscale brightness-110 border border-brand/10">
-                            <img src="/Logo-03.jpg" alt="Logo Vanessa Bidinotti" className="w-full h-full object-cover" />
-                        </div>
-                        <div className="space-y-1">
-                            <p className="text-[9px] font-black uppercase tracking-[0.4em] text-brand">RSVP • Vanessa Bidinotti</p>
-                            <p className="text-[7px] font-bold uppercase tracking-[0.2em] text-text-muted">Assessoria e Cerimonial</p>
-                        </div>
+            {/* ── LOCAL ──────────────────────────────────────────────── */}
+            <section id="local" className="py-24 md:py-32 bg-bg-light">
+                <div className="max-w-2xl mx-auto px-6">
+                    <div className="text-center mb-16">
+                        <span className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">Onde Será</span>
+                        <h2 className="text-4xl font-serif text-text-primary mt-3">Local do Evento</h2>
+                        <div className="w-16 h-px bg-brand/20 mx-auto mt-6" />
                     </div>
-                </footer>
-            </div>
+                    <div className="bg-surface rounded-[2.5rem] border border-border-soft shadow-sm overflow-hidden">
+                        {eventSettings.eventLocation && (
+                            <div className="aspect-video bg-bg-light overflow-hidden">
+                                <iframe
+                                    src={`https://maps.google.com/maps?q=${encodeURIComponent(eventSettings.eventLocation)}&output=embed&z=16`}
+                                    className="w-full h-full border-0" loading="lazy"
+                                />
+                            </div>
+                        )}
+                        <div className="p-8 md:p-10 flex flex-col md:flex-row items-center gap-6">
+                            <div className="w-14 h-14 bg-brand-pale rounded-2xl flex items-center justify-center flex-shrink-0">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-brand"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
+                            </div>
+                            <div className="flex-1 text-center md:text-left">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-2">Endereço</p>
+                                <p className="text-text-primary font-bold leading-relaxed">{eventSettings.eventLocation || 'A confirmar'}</p>
+                                {eventSettings.eventTime && <p className="text-text-muted text-sm mt-2 font-bold">🕐 {eventSettings.eventTime}h</p>}
+                            </div>
+                            {mapsUrl && (
+                                <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-brand-dark hover:-translate-y-0.5 transition-all flex-shrink-0">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
+                                    Abrir no Maps
+                                </a>
+                            )}
+                        </div>
+
+                        {/* Informações de Estacionamento Display */}
+                        {eventSettings.parkingSettings?.hasParking && (
+                            <div className="px-8 pb-10 md:px-10 border-t border-border-soft/50 pt-8 animate-in fade-in slide-in-from-top-4 duration-700">
+                                <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+                                    <div className="w-12 h-12 bg-success/10 rounded-2xl flex items-center justify-center flex-shrink-0 text-success">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-1.1 0-2 .9-2 2v9c0 1.1.9 2 2 2h2" /><circle cx="7" cy="17" r="2" /><path d="M9 17h6" /><circle cx="17" cy="17" r="2" /></svg>
+                                    </div>
+                                    <div className="flex-1 text-center md:text-left">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-2">Estacionamento</p>
+                                        <p className="text-text-primary font-bold text-sm">
+                                            {eventSettings.parkingSettings.type === 'free' ? 'Gratuito no local para convidados' :
+                                                eventSettings.parkingSettings.type === 'valet' ? 'Serviço de Valet / Manobrista disponível' :
+                                                    'Estacionamento pago no local'}
+                                            {eventSettings.parkingSettings.price && ` (${eventSettings.parkingSettings.price})`}
+                                        </p>
+                                        {eventSettings.parkingSettings.address && (
+                                            <p className="text-text-muted text-xs mt-2 italic">📍 Endereço: {eventSettings.parkingSettings.address}</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Sugestão de Traje Display */}
+                        {eventSettings.dressCode && (
+                            <div className="px-8 pb-10 md:px-10 border-t border-border-soft/50 pt-8 animate-in fade-in slide-in-from-top-4 duration-700">
+                                <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+                                    <div className="w-12 h-12 bg-brand/10 rounded-2xl flex items-center justify-center flex-shrink-0 text-brand">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 1.88v6.52a2 2 0 0 0 1.05 1.76l8 4.38a2 2 0 0 0 1.9 0l8-4.38a2 2 0 0 0 1.05-1.76V5.34a2 2 0 0 0-1.34-1.88Z" /><path d="M12 22V12" /></svg>
+                                    </div>
+                                    <div className="flex-1 text-center md:text-left">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-2">Sugestão de Traje</p>
+                                        <p className="text-text-primary font-bold text-sm">
+                                            {eventSettings.dressCode}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </section>
+
+            {/* ── CTA CARDS — RSVP + PRESENTES ──────────────────────── */}
+            <section id="presentes-link" className="py-24 md:py-32 bg-surface">
+                <div className="max-w-3xl mx-auto px-6">
+                    <div className="text-center mb-16">
+                        <span className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">Próximos Passos</span>
+                        <h2 className="text-4xl font-serif text-text-primary mt-3">Como posso participar?</h2>
+                        <div className="w-16 h-px bg-brand/20 mx-auto mt-6" />
+                    </div>
+                    <div className={`grid grid-cols-1 ${eventSettings.isGiftListEnabled !== false ? 'md:grid-cols-2' : 'max-w-md mx-auto'} gap-6`}>
+
+                        {/* RSVP Card */}
+                        <Link href={`/${slug}/confirmar`}
+                            className="group block bg-brand rounded-[2.5rem] p-10 text-white overflow-hidden relative shadow-xl hover:shadow-2xl hover:-translate-y-2 transition-all duration-300" style={{ color: 'white' }}>
+                            <div className="absolute top-0 right-0 p-8 text-white/10 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500">
+                                <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                            </div>
+                            <div className="relative z-10">
+                                <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center mb-6">
+                                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                </div>
+                                <h3 className="text-2xl font-serif text-white mb-3">Confirmar Presença</h3>
+                                <p className="text-white/80 text-sm leading-relaxed mb-8">
+                                    Sua presença faz toda a diferença para nós. Confirme até{' '}
+                                    {eventSettings.confirmationDeadline
+                                        ? formatDate(eventSettings.confirmationDeadline, { day: '2-digit', month: 'long' })
+                                        : 'a data limite'}.
+                                </p>
+                                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white group-hover:gap-4 transition-all">
+                                    Confirmar Agora
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                                </div>
+                            </div>
+                        </Link>
+
+                        {/* Presentes Card */}
+                        {eventSettings.isGiftListEnabled !== false && (
+                            <Link href={`/${slug}/presentes`}
+                                className="group block bg-surface border border-border-soft rounded-[2.5rem] p-10 overflow-hidden relative shadow-sm hover:shadow-xl hover:-translate-y-2 hover:border-brand/30 transition-all duration-300">
+                                <div className="absolute top-0 right-0 p-8 text-brand/10 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500">
+                                    <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16M7 12v8h10v-8" /></svg>
+                                </div>
+                                <div className="relative z-10">
+                                    <div className="w-14 h-14 bg-brand-pale rounded-2xl flex items-center justify-center mb-6">
+                                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-brand"><path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16M7 12v8h10v-8" /></svg>
+                                    </div>
+                                    <h3 className="text-2xl font-serif text-text-primary mb-3">Lista de Presentes</h3>
+                                    <p className="text-text-muted text-sm leading-relaxed mb-8">
+                                        "Ter você ao nosso lado já é um presente. Mas, se quiser nos presentear, preparamos esta lista com muito carinho."
+                                    </p>
+                                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand group-hover:gap-4 transition-all">
+                                        Ver Presentes
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                                    </div>
+                                </div>
+                            </Link>
+                        )}
+                    </div>
+                </div>
+            </section>
+
+            {/* ── FOOTER ─────────────────────────────────────────────── */}
+            <footer className="py-16 bg-brand-dark text-center">
+                <div className="flex flex-col items-center gap-4 opacity-50 hover:opacity-100 transition-all duration-700">
+                    <div className="w-10 h-10 rounded-xl overflow-hidden grayscale brightness-200 border border-white/10">
+                        <img src="/Logo-03.jpg" alt="VB Assessoria" className="w-full h-full object-cover" />
+                    </div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.4em] text-white">RSVP • Vanessa Bidinotti</p>
+                    <p className="text-[7px] font-bold uppercase tracking-[0.2em] text-white/40">Assessoria e Cerimonial</p>
+                </div>
+            </footer>
         </div>
     )
 }

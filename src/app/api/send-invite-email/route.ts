@@ -20,11 +20,10 @@ const createTransporter = () => {
 
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json()
-        const { name, email, type, onboardingSteps } = body
+        
 
-        // Log of received data
-        console.log(`[INVITE API] 📧 Convidando usuário: ${name} (${email}) - ${type}`)
+        const body = await request.json()
+        const { name, email, type, onboardingSteps, password } = body
 
         // Template profissional de e-mail de convite
         const emailHTML = `
@@ -65,15 +64,24 @@ export async function POST(request: NextRequest) {
             </div>
 
             <div class="onboarding-box">
-                <span class="onboarding-title">Guia de Primeiros Passos:</span>
-                ${onboardingSteps.split('\n').filter((l: string) => l.trim()).map((line: string) => `
-                    <div class="step">
-                        <span class="step-text">${line.replace(/^[0-9️⃣]*/, '').trim()}</span>
-                    </div>
-                `).join('')}
+                <span class="onboarding-title">Seus Dados de Acesso:</span>
+                <div class="step">
+                    <span class="step-text"><strong>E-mail:</strong> ${email}</span>
+                </div>
+                <div class="step">
+                    <span class="step-text"><strong>Senha Temporária:</strong> ${password || 'Use a senha definida pelo administrador'}</span>
+                </div>
+                <div style="margin-top: 20px;">
+                    <span class="onboarding-title">Guia de Primeiros Passos:</span>
+                    ${onboardingSteps.split('\n').filter((l: string) => l.trim()).map((line: string) => `
+                        <div class="step">
+                            <span class="step-text">${line.replace(/^[0-9️⃣]*/, '').trim()}</span>
+                        </div>
+                    `).join('')}
+                </div>
             </div>
 
-            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/" class="cta-button">
+            <a href="${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/" class="cta-button">
                 Começar agora!
             </a>
         </div>
@@ -99,7 +107,6 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true, message: 'Email enviado com sucesso!' })
     } catch (error: any) {
-        console.error('[INVITE API ERROR]:', error)
         return NextResponse.json(
             { error: 'Falha ao enviar e-mail automático', details: error.message },
             { status: 500 }

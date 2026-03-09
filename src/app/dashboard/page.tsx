@@ -10,11 +10,14 @@ import { ConfirmDialog } from '@/app/components/confirm-dialog'
 import { formatDate } from '@/lib/date-utils'
 import { SharedLayout } from '@/app/components/shared-layout'
 import Link from 'next/link'
+import GiftManagementTab from '@/app/components/GiftManagementTab'
+import MuralMessagesTab from '@/app/components/MuralMessagesTab'
 
 export default function DashboardPage() {
   const { user, loading, logout } = useAuth()
-  const { guests, eventSettings, metrics, updateGuestStatus, removeGuest, removeCompanion, updateGuest, refreshData } = useEvent()
+  const { guests, eventSettings, metrics, updateGuestStatus, removeGuest, removeCompanion, updateGuest, refreshData, eventId } = useEvent()
   const router = useRouter()
+  const [activeTab, setActiveTab] = useState<'guests' | 'gifts' | 'messages'>('guests')
 
   // States for UX
   const [copied, setCopied] = useState(false)
@@ -35,6 +38,13 @@ export default function DashboardPage() {
       refreshData()
     }
   }, [user, loading, router, refreshData])
+
+  // Reset tab if module is disabled
+  useEffect(() => {
+    if (eventSettings.isGiftListEnabled === false && (activeTab === 'gifts' || activeTab === 'messages')) {
+      setActiveTab('guests')
+    }
+  }, [eventSettings.isGiftListEnabled, activeTab])
 
   if (loading) {
     return (
@@ -294,23 +304,6 @@ export default function DashboardPage() {
       role="user"
       title={eventSettings.coupleNames}
       subtitle={`${eventSettings.eventType === 'casamento' ? '💒' : '👑'} ${eventSettings.eventType === 'casamento' ? 'Casamento' : 'Debutante'}`}
-      headerActions={
-        <>
-          <button
-            onClick={handleExportCSV}
-            className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-brand/20 hover:bg-brand-dark transition-all"
-          >
-            <DownloadIcon /> XLSX
-          </button>
-          <button
-            onClick={handleDeleteAllGuests}
-            disabled={metrics.total === 0}
-            className="flex items-center gap-2 px-4 py-2.5 border border-danger/10 text-danger rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-danger-light transition-all disabled:opacity-50"
-          >
-            <TrashIcon /> Limpar Lista
-          </button>
-        </>
-      }
     >
       {/* HERO SECTION - Cover Image */}
       {eventSettings.coverImage && (
@@ -380,261 +373,328 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* FILTER ROW EXCLUSIVE STYLE (SYNCED WITH ADMIN) */}
-      <div className="flex flex-wrap items-center justify-center gap-3 mb-12">
-        <div className="relative">
-          <button
-            onClick={() => setShowCategoryMenu(!showCategoryMenu)}
-            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 border ${activeCategory !== 'all'
-              ? 'bg-brand text-white border-brand'
-              : 'bg-surface text-text-muted border-border-soft hover:border-brand-light/30 hover:text-brand'
-              }`}
-          >
-            {activeCategory === 'all' ? 'Categoria' :
-              activeCategory === 'adult_paying' ? 'Adultos' :
-                activeCategory === 'child_paying' ? 'Crianças Pagantes' : 'Crianças Isentas'} ▾
-          </button>
-
-          {showCategoryMenu && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowCategoryMenu(false)} />
-              <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-border-soft p-2 z-20 animate-in fade-in slide-in-from-top-2">
-                {[
-                  { id: 'all', label: 'Todas Categorias' },
-                  { id: 'adult_paying', label: 'Adultos' },
-                  { id: 'child_paying', label: 'Crianças Pagantes' },
-                  { id: 'child_not_paying', label: 'Crianças Isentas' }
-                ].map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => {
-                      setActiveCategory(cat.id as any)
-                      setShowCategoryMenu(false)
-                    }}
-                    className={`w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat.id ? 'bg-brand/10 text-brand' : 'hover:bg-bg-light text-text-muted'}`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
-        <FilterPill label="Pendentes" count={metrics.pending} active={filter === 'pending'} onClick={() => setFilter('pending')} />
-        <FilterPill label="Presentes" count={metrics.confirmed} active={filter === 'confirmed'} onClick={() => setFilter('confirmed')} />
-        <FilterPill label="Todos" count={metrics.total} active={filter === 'all'} onClick={() => setFilter('all')} />
-        <FilterPill label="Estatísticas" active={showStats} onClick={() => setShowStats(true)} />
+      {/* TABS MENU */}
+      <div className="flex justify-center mb-8 gap-4">
         <button
-          onClick={handleExportCSV}
-          className="px-6 py-2.5 bg-success-light text-success-dark border border-success/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 hover:bg-success/20"
+          onClick={() => setActiveTab('guests')}
+          className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'guests' ? 'bg-brand text-white shadow-xl' : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'}`}
         >
-          <DownloadIcon />
-          Exportar Lista
+          <UsersIconMini /> Lista de Convidados
+        </button>
+        <button
+          onClick={() => {
+            if (eventSettings.isGiftListEnabled === false) return;
+            setActiveTab('gifts');
+          }}
+          className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${eventSettings.isGiftListEnabled === false
+            ? 'bg-bg-light border border-dashed border-border-soft text-text-muted opacity-50 cursor-not-allowed'
+            : activeTab === 'gifts'
+              ? 'bg-brand text-white shadow-xl'
+              : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'
+            }`}
+          title={eventSettings.isGiftListEnabled === false ? "Este módulo está desativado nas configurações" : ""}
+        >
+          <HeartIcon /> Lista de Presentes {eventSettings.isGiftListEnabled === false && '🔒'}
+        </button>
+        <button
+          onClick={() => {
+            if (eventSettings.isGiftListEnabled === false) return;
+            setActiveTab('messages');
+          }}
+          className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${eventSettings.isGiftListEnabled === false
+            ? 'bg-bg-light border border-dashed border-border-soft text-text-muted opacity-50 cursor-not-allowed'
+            : activeTab === 'messages'
+              ? 'bg-brand text-white shadow-xl'
+              : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'
+            }`}
+          title={eventSettings.isGiftListEnabled === false ? "Este módulo está desativado nas configurações" : ""}
+        >
+          <MessageSquareIcon /> Mural de Recados {eventSettings.isGiftListEnabled === false && '🔒'}
         </button>
       </div>
 
-      {/* DETAILED STATS MODAL */}
-      {showStats && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowStats(false)} />
-          <div className="relative w-full max-w-xl bg-white rounded-[3rem] shadow-2xl border border-white overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="p-8 md:p-12">
-              <div className="flex justify-between items-center mb-10">
-                <div>
-                  <h3 className="text-2xl font-serif text-text-primary tracking-tight italic">Estatísticas do Evento</h3>
-                  <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em]">Planejamento & Buffet</p>
-                </div>
-                <button
-                  onClick={() => setShowStats(false)}
-                  className="w-10 h-10 flex items-center justify-center bg-bg-light rounded-xl text-text-muted hover:text-brand transition-all"
-                >
-                  <XIcon />
-                </button>
-              </div>
+      {activeTab === 'guests' ? (
+        <>
+          {/* FILTER ROW EXCLUSIVE STYLE (SYNCED WITH ADMIN) */}
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-12">
+            <div className="relative">
+              <button
+                onClick={() => setShowCategoryMenu(!showCategoryMenu)}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 border ${activeCategory !== 'all'
+                  ? 'bg-brand text-white border-brand'
+                  : 'bg-surface text-text-muted border-border-soft hover:border-brand-light/30 hover:text-brand'
+                  }`}
+              >
+                {activeCategory === 'all' ? 'Categoria' :
+                  activeCategory === 'adult_paying' ? 'Adultos' :
+                    activeCategory === 'child_paying' ? 'Crianças Pagantes' : 'Crianças Isentas'} ▾
+              </button>
 
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <div className="p-5 bg-surface border border-border-soft rounded-[1.5rem] flex items-center justify-between shadow-sm group hover:border-brand/30 transition-all">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-brand-pale/50 backdrop-blur-md border border-brand/20 rounded-2xl flex items-center justify-center text-brand transition-transform group-hover:scale-110">
-                        <UsersIcon className="w-5 h-5" />
-                      </div>
-                      <div className="text-left">
-                        <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none mb-1.5">Adultos</p>
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedAdults}</span>
-                          <span className="text-[10px] font-bold text-text-muted">/ {metrics.adults}</span>
-                        </div>
-                      </div>
+              {showCategoryMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowCategoryMenu(false)} />
+                  <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-border-soft p-2 z-20 animate-in fade-in slide-in-from-top-2">
+                    {[
+                      { id: 'all', label: 'Todas Categorias' },
+                      { id: 'adult_paying', label: 'Adultos' },
+                      { id: 'child_paying', label: 'Crianças Pagantes' },
+                      { id: 'child_not_paying', label: 'Crianças Isentas' }
+                    ].map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => {
+                          setActiveCategory(cat.id as any)
+                          setShowCategoryMenu(false)
+                        }}
+                        className={`w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat.id ? 'bg-brand/10 text-brand' : 'hover:bg-bg-light text-text-muted'}`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <FilterPill label="Pendentes" count={metrics.pending} active={filter === 'pending'} onClick={() => setFilter('pending')} />
+            <FilterPill label="Presentes" count={metrics.confirmed} active={filter === 'confirmed'} onClick={() => setFilter('confirmed')} />
+            <FilterPill label="Todos" count={metrics.total} active={filter === 'all'} onClick={() => setFilter('all')} />
+            <FilterPill label="Estatísticas" active={showStats} onClick={() => setShowStats(true)} />
+
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                onClick={() => router.push('/import')}
+                className="px-4 py-2 bg-brand/5 text-brand border border-brand/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 hover:bg-brand/10 whitespace-nowrap"
+              >
+                <UploadIcon className="w-3.5 h-3.5" />
+                Importar
+              </button>
+              <button
+                onClick={handleExportCSV}
+                className="px-4 py-2 bg-success-light text-success-dark border border-success/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 hover:bg-success/20 whitespace-nowrap"
+              >
+                <DownloadIcon />
+                Exportar
+              </button>
+              <button
+                onClick={handleDeleteAllGuests}
+                disabled={metrics.total === 0}
+                className="px-4 py-2 bg-danger/5 text-danger border border-danger/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 hover:bg-danger/10 disabled:opacity-30 whitespace-nowrap"
+              >
+                <TrashIcon />
+                Limpar Lista
+              </button>
+            </div>
+          </div>
+
+          {/* DETAILED STATS MODAL */}
+          {showStats && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowStats(false)} />
+              <div className="relative w-full max-w-xl bg-white rounded-[3rem] shadow-2xl border border-white overflow-hidden animate-in zoom-in-95 duration-300">
+                <div className="p-8 md:p-12">
+                  <div className="flex justify-between items-center mb-10">
+                    <div>
+                      <h3 className="text-2xl font-serif text-text-primary tracking-tight italic">Estatísticas do Evento</h3>
+                      <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em]">Planejamento & Buffet</p>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[10px] font-black text-brand-dark/20 uppercase tracking-[0.2em]">Confirmados</span>
-                    </div>
+                    <button
+                      onClick={() => setShowStats(false)}
+                      className="w-10 h-10 flex items-center justify-center bg-bg-light rounded-xl text-text-muted hover:text-brand transition-all"
+                    >
+                      <XIcon />
+                    </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-5 bg-surface border border-border-soft rounded-[1.5rem] flex items-center justify-between shadow-sm group hover:border-brand/30 transition-all">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-warning-light/50 backdrop-blur-md border border-warning/20 rounded-2xl flex items-center justify-center text-warning transition-transform group-hover:scale-110">
-                          <StarIcon className="w-5 h-5" />
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="p-5 bg-surface border border-border-soft rounded-[1.5rem] flex items-center justify-between shadow-sm group hover:border-brand/30 transition-all">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-brand-pale/50 backdrop-blur-md border border-brand/20 rounded-2xl flex items-center justify-center text-brand transition-transform group-hover:scale-110">
+                            <UsersIcon className="w-5 h-5" />
+                          </div>
+                          <div className="text-left">
+                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none mb-1.5">Adultos</p>
+                            <div className="flex items-baseline gap-1.5">
+                              <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedAdults}</span>
+                              <span className="text-[10px] font-bold text-text-muted">/ {metrics.adults}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-left">
-                          <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none mb-1.5">Crianças Pagantes</p>
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedChildrenPaying}</span>
-                            <span className="text-[10px] font-bold text-text-muted">/ {metrics.childrenPaying}</span>
+                        <div className="text-right">
+                          <span className="text-[10px] font-black text-brand-dark/20 uppercase tracking-[0.2em]">Confirmados</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-5 bg-surface border border-border-soft rounded-[1.5rem] flex items-center justify-between shadow-sm group hover:border-brand/30 transition-all">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-warning-light/50 backdrop-blur-md border border-warning/20 rounded-2xl flex items-center justify-center text-warning transition-transform group-hover:scale-110">
+                              <StarIcon className="w-5 h-5" />
+                            </div>
+                            <div className="text-left">
+                              <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none mb-1.5">Crianças Pagantes</p>
+                              <div className="flex items-baseline gap-1.5">
+                                <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedChildrenPaying}</span>
+                                <span className="text-[10px] font-bold text-text-muted">/ {metrics.childrenPaying}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-5 bg-surface border border-border-soft rounded-[1.5rem] flex items-center justify-between shadow-sm group hover:border-brand/30 transition-all">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-success-light/50 backdrop-blur-md border border-success/20 rounded-2xl flex items-center justify-center text-success-dark transition-transform group-hover:scale-110">
+                              <HeartIcon className="w-5 h-5" />
+                            </div>
+                            <div className="text-left">
+                              <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none mb-1.5">Crianças Isentas</p>
+                              <div className="flex items-baseline gap-1.5">
+                                <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedChildrenFree}</span>
+                                <span className="text-[10px] font-bold text-text-muted">/ {metrics.childrenFree}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="p-5 bg-surface border border-border-soft rounded-[1.5rem] flex items-center justify-between shadow-sm group hover:border-brand/30 transition-all">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-success-light/50 backdrop-blur-md border border-success/20 rounded-2xl flex items-center justify-center text-success-dark transition-transform group-hover:scale-110">
-                          <HeartIcon className="w-5 h-5" />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none mb-1.5">Crianças Isentas</p>
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedChildrenFree}</span>
-                            <span className="text-[10px] font-bold text-text-muted">/ {metrics.childrenFree}</span>
-                          </div>
-                        </div>
+                    <div className="p-8 bg-bg-light rounded-[2rem] border border-border-soft">
+                      <div className="flex justify-between items-center mb-6">
+                        <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Adesão Total</span>
+                        <span className="text-xl font-black text-brand">{Math.round((metrics.confirmed / (metrics.total || 1)) * 100)}%</span>
                       </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-8 bg-bg-light rounded-[2rem] border border-border-soft">
-                  <div className="flex justify-between items-center mb-6">
-                    <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Adesão Total</span>
-                    <span className="text-xl font-black text-brand">{Math.round((metrics.confirmed / (metrics.total || 1)) * 100)}%</span>
-                  </div>
-                  <div className="w-full h-3 bg-white rounded-full overflow-hidden border border-border-soft shadow-inner">
-                    <div
-                      className="h-full bg-brand rounded-full transition-all duration-1000"
-                      style={{ width: `${(metrics.confirmed / (metrics.total || 1)) * 100}%` }}
-                    />
-                  </div>
-                  <div className="mt-4 text-center">
-                    <p className="text-[9px] font-black text-text-muted uppercase tracking-widest leading-relaxed">
-                      <strong className="text-text-primary">{metrics.confirmed}</strong> condidados confirmados<br />
-                      em uma lista total de <strong className="text-text-primary">{metrics.total}</strong> pessoas.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SEARCH AND FILTER */}
-      <div className="bg-surface rounded-[2rem] border border-border-soft shadow-sm overflow-hidden mb-10">
-        <div className="p-4 md:p-6 border-b border-border-soft flex flex-col md:flex-row gap-4 items-center">
-          <div className="relative flex-1 w-full">
-            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" />
-            <input
-              type="text"
-              placeholder="Pesquisar convidado..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-6 py-4 bg-bg-light border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary"
-            />
-          </div>
-        </div>
-
-        {/* GUEST LIST - Unified Card Grid */}
-        <div className="p-4 md:p-8">
-          {filteredPeople.length === 0 ? (
-            <div className="py-20 flex flex-col items-center justify-center text-text-muted">
-              <UsersIcon className="w-16 h-16 mb-4 opacity-20" />
-              <p className="text-[10px] font-black uppercase tracking-widest">Nenhum convidado encontrado</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-              {filteredPeople.map((person) => (
-                <div
-                  key={person.uniqueId}
-                  className="bg-surface rounded-[2rem] border border-border-soft shadow-sm p-6 hover:-translate-y-1 hover:shadow-xl hover:shadow-brand/5 transition-all duration-300 group flex flex-col justify-between"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shadow-inner transform group-hover:scale-110 transition-transform ${person.status === 'confirmed' ? 'bg-success-light text-success-dark' : person.status === 'declined' ? 'bg-danger-light text-danger-dark' : 'bg-bg-light text-text-muted'}`}>
-                        {person.name.charAt(0).toUpperCase()}
+                      <div className="w-full h-3 bg-white rounded-full overflow-hidden border border-border-soft shadow-inner">
+                        <div
+                          className="h-full bg-brand rounded-full transition-all duration-1000"
+                          style={{ width: `${(metrics.confirmed / (metrics.total || 1)) * 100}%` }}
+                        />
                       </div>
-                      <div className="min-w-0">
-                        <h4 className="text-sm font-black text-text-primary tracking-tight truncate max-w-[120px]" title={person.name}>
-                          {person.name}
-                        </h4>
-                        <p className="text-[9px] font-bold text-text-muted uppercase tracking-widest truncate">
-                          {person.groupName} • {person.category === 'adult_paying' ? 'Adulto' :
-                            person.category === 'child_paying' ? 'Criança Pagante' :
-                              'Criança Isenta'}
+                      <div className="mt-4 text-center">
+                        <p className="text-[9px] font-black text-text-muted uppercase tracking-widest leading-relaxed">
+                          <strong className="text-text-primary">{metrics.confirmed}</strong> condidados confirmados<br />
+                          em uma lista total de <strong className="text-text-primary">{metrics.total}</strong> pessoas.
                         </p>
                       </div>
                     </div>
-                    <StatusBadge status={person.status} mobile />
-                  </div>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-border-soft">
-                    <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${person.type === 'Principal' ? 'bg-brand-pale text-brand' : 'bg-bg-light text-text-muted'}`}>
-                      {person.type}
-                    </span>
-                    <button
-                      onClick={() => handleEditClick(guests.find(g => g.id === person.guestId)!)}
-                      className="w-9 h-9 bg-bg-light text-text-muted rounded-xl flex items-center justify-center hover:bg-brand hover:text-white hover:scale-110 transition-all shadow-inner group-hover:text-text-primary"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                    </button>
                   </div>
                 </div>
-              ))}
+              </div>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Guest Edit Modal */}
-      <GuestEditModal
-        guest={editingGuest}
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSave={handleSaveEdit}
-        onDelete={handleDeleteGuest}
-      />
+          {/* SEARCH AND FILTER */}
+          <div className="bg-surface rounded-[2rem] border border-border-soft shadow-sm overflow-hidden mb-10">
+            <div className="p-4 md:p-6 border-b border-border-soft flex flex-col md:flex-row gap-4 items-center">
+              <div className="relative flex-1 w-full">
+                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar convidado..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-12 pr-6 py-4 bg-bg-light border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary"
+                />
+              </div>
+            </div>
 
-      {/* Confirm Dialogs */}
-      <ConfirmDialog
-        isOpen={deleteConfirmDialog.isOpen}
-        title={deleteConfirmDialog.person?.type === 'Principal' ? "Excluir Convidado" : "Excluir Acompanhante"}
-        message={deleteConfirmDialog.person?.type === 'Principal'
-          ? `Deseja excluir "${deleteConfirmDialog.person.name}" e todo o seu grupo?`
-          : `Deseja excluir o acompanhante "${deleteConfirmDialog.person?.name}"?`
-        }
-        confirmText="Excluir"
-        cancelText="Voltar"
-        isDangerous={true}
-        onConfirm={() => deleteConfirmDialog.person && confirmDeleteGuest(deleteConfirmDialog.person)}
-        onCancel={() => setDeleteConfirmDialog({ isOpen: false })}
-      />
+            {/* GUEST LIST - Unified Card Grid */}
+            <div className="p-4 md:p-8">
+              {filteredPeople.length === 0 ? (
+                <div className="py-20 flex flex-col items-center justify-center text-text-muted">
+                  <UsersIcon className="w-16 h-16 mb-4 opacity-20" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">Nenhum convidado encontrado</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                  {filteredPeople.map((person) => (
+                    <div
+                      key={person.uniqueId}
+                      className="bg-surface rounded-[2rem] border border-border-soft shadow-sm p-6 hover:-translate-y-1 hover:shadow-xl hover:shadow-brand/5 transition-all duration-300 group flex flex-col justify-between"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shadow-inner transform group-hover:scale-110 transition-transform ${person.status === 'confirmed' ? 'bg-success-light text-success-dark' : person.status === 'declined' ? 'bg-danger-light text-danger-dark' : 'bg-bg-light text-text-muted'}`}>
+                            {person.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-sm font-black text-text-primary tracking-tight truncate max-w-[120px]" title={person.name}>
+                              {person.name}
+                            </h4>
+                            <p className="text-[9px] font-bold text-text-muted uppercase tracking-widest truncate">
+                              {person.groupName} • {person.category === 'adult_paying' ? 'Adulto' :
+                                person.category === 'child_paying' ? 'Criança Pagante' :
+                                  'Criança Isenta'}
+                            </p>
+                          </div>
+                        </div>
+                        <StatusBadge status={person.status} mobile />
+                      </div>
 
-      <ConfirmDialog
-        isOpen={deleteAllConfirmDialog.isOpen}
-        title={deleteAllConfirmDialog.step === 1 ? "Limpar Toda a Lista" : "Confirmação Final"}
-        message={deleteAllConfirmDialog.step === 1
-          ? `Tem certeza que deseja excluir TODOS os ${metrics.total} convidados?`
-          : "Esta ação apagará permanentemente todos os dados. Continuar?"
-        }
-        confirmText={deleteAllConfirmDialog.step === 1 ? "Sim, Continuar" : "Apagar Tudo"}
-        isDangerous={true}
-        onConfirm={() => deleteAllConfirmDialog.step === 1 ? confirmDeleteAllFirstStep() : confirmDeleteAllGuests()}
-        onCancel={() => setDeleteAllConfirmDialog({ isOpen: false, step: 1 })}
-      />
+                      <div className="flex items-center justify-between pt-4 border-t border-border-soft">
+                        <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${person.type === 'Principal' ? 'bg-brand-pale text-brand' : 'bg-bg-light text-text-muted'}`}>
+                          {person.type}
+                        </span>
+                        <button
+                          onClick={() => handleEditClick(guests.find(g => g.id === person.guestId)!)}
+                          className="w-9 h-9 bg-bg-light text-text-muted rounded-xl flex items-center justify-center hover:bg-brand hover:text-white hover:scale-110 transition-all shadow-inner group-hover:text-text-primary"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Guest Edit Modal */}
+          <GuestEditModal
+            guest={editingGuest}
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            onSave={handleSaveEdit}
+            onDelete={handleDeleteGuest}
+          />
+
+          {/* Confirm Dialogs */}
+          <ConfirmDialog
+            isOpen={deleteConfirmDialog.isOpen}
+            title={deleteConfirmDialog.person?.type === 'Principal' ? "Excluir Convidado" : "Excluir Acompanhante"}
+            message={deleteConfirmDialog.person?.type === 'Principal'
+              ? `Deseja excluir "${deleteConfirmDialog.person.name}" e todo o seu grupo?`
+              : `Deseja excluir o acompanhante "${deleteConfirmDialog.person?.name}"?`
+            }
+            confirmText="Excluir"
+            cancelText="Voltar"
+            isDangerous={true}
+            onConfirm={() => deleteConfirmDialog.person && confirmDeleteGuest(deleteConfirmDialog.person)}
+            onCancel={() => setDeleteConfirmDialog({ isOpen: false })}
+          />
+
+          <ConfirmDialog
+            isOpen={deleteAllConfirmDialog.isOpen}
+            title={deleteAllConfirmDialog.step === 1 ? "Limpar Toda a Lista" : "Confirmação Final"}
+            message={deleteAllConfirmDialog.step === 1
+              ? `Tem certeza que deseja excluir TODOS os ${metrics.total} convidados?`
+              : "Esta ação apagará permanentemente todos os dados. Continuar?"
+            }
+            confirmText={deleteAllConfirmDialog.step === 1 ? "Sim, Continuar" : "Apagar Tudo"}
+            isDangerous={true}
+            onConfirm={() => deleteAllConfirmDialog.step === 1 ? confirmDeleteAllFirstStep() : confirmDeleteAllGuests()}
+            onCancel={() => setDeleteAllConfirmDialog({ isOpen: false, step: 1 })}
+          />
+        </>
+      ) : activeTab === 'gifts' ? (
+        eventId && <GiftManagementTab eventId={eventId} />
+      ) : (
+        eventId && <MuralMessagesTab eventId={eventId} />
+      )}
     </SharedLayout>
   )
 }
+
 
 function NavItem({ href, active, label, icon }: { href: string; active?: boolean; label: string; icon: React.ReactNode }) {
   return (
@@ -655,7 +715,7 @@ function FilterPill({ label, count, active, onClick }: { label: string, count?: 
   return (
     <button
       onClick={onClick}
-      className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 border ${active
+      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 border ${active
         ? 'bg-brand text-white border-brand'
         : 'bg-surface text-text-muted border-border-soft hover:border-brand-light/30 hover:text-brand'
         }`}
@@ -764,3 +824,4 @@ const BarChartIcon = ({ className = "" }: { className?: string }) => <svg classN
 const XIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 const StarIcon = ({ className = "" }: { className?: string }) => <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
 const HeartIcon = ({ className = "" }: { className?: string }) => <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>
+const MessageSquareIcon = ({ className = "" }: { className?: string }) => <svg className={`w-5 h-5 ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>

@@ -14,6 +14,7 @@ function AdminDashboardContent() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   const [guestCounts, setGuestCounts] = useState<Record<string, any>>({})
+  const [giftTotals, setGiftTotals] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
 
   // Carregar contagens de convidados para cada evento
@@ -57,6 +58,30 @@ function AdminDashboardContent() {
     fetchCounts()
   }, [events])
 
+  // Carregar totais de presentes por evento
+  useEffect(() => {
+    if (events.length === 0) return
+    async function fetchGiftTotals() {
+      try {
+        const { data, error } = await supabase
+          .from('gift_transactions')
+          .select('event_id, amount_net')
+          .eq('status', 'APPROVED')
+
+        if (error) throw error
+
+        const totals: Record<string, number> = {}
+          ; (data || []).forEach((t: any) => {
+            totals[t.event_id] = (totals[t.event_id] || 0) + Number(t.amount_net)
+          })
+        setGiftTotals(totals)
+      } catch (err) {
+        console.error('Erro ao buscar totais de presentes:', err)
+      }
+    }
+    fetchGiftTotals()
+  }, [events])
+
   const handleDeleteEvent = async (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation() // Evita abrir o evento ao clicar no lixo
     if (confirm(`⚠️ ATENÇÃO: Tem certeza que deseja excluir permanentemente o evento "${name}"?\n\nIsso removerá TODOS os convidados e dados vinculados.`)) {
@@ -86,6 +111,12 @@ function AdminDashboardContent() {
             className="px-6 py-3 bg-white border border-border-soft rounded-2xl text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-brand hover:border-brand/20 transition-all shadow-sm flex items-center gap-2"
           >
             👥 Usuários
+          </button>
+          <button
+            onClick={() => router.push('/admin/withdrawals')}
+            className="px-6 py-3 bg-white border border-border-soft rounded-2xl text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-brand hover:border-brand/20 transition-all shadow-sm flex items-center gap-2"
+          >
+            💰 Saques
           </button>
           <button
             onClick={() => router.push('/admin/reports')}
@@ -129,6 +160,13 @@ function AdminDashboardContent() {
               </p>
               <span className="text-xl font-bold text-brand-light/50">%</span>
             </div>
+          </div>
+
+          <div className="text-center md:px-4 pt-4 md:pt-0">
+            <p className="text-[10px] font-black text-success-dark uppercase tracking-[0.2em] mb-3">💰 Total Presentes</p>
+            <p className="text-2xl font-black text-success-dark tracking-tighter">
+              R$ {Object.values(giftTotals).reduce((a, b) => a + b, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </p>
           </div>
         </div>
       </div>
@@ -181,9 +219,19 @@ function AdminDashboardContent() {
                     <h3 className="text-xl font-serif font-black text-text-primary mb-2 group-hover:text-brand transition-colors tracking-tight leading-tight">
                       {event.eventSettings.coupleNames}
                     </h3>
-                    <p className="text-xs font-bold text-text-muted mb-8 uppercase tracking-widest italic">
+                    <p className="text-xs font-bold text-text-muted mb-6 uppercase tracking-widest italic">
                       {new Date(event.eventSettings.eventDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
                     </p>
+
+                    {/* Financeiro */}
+                    {giftTotals[event.id] > 0 && (
+                      <div className="mb-6 px-4 py-3 bg-success-light border border-success/20 rounded-2xl flex items-center justify-between">
+                        <span className="text-[9px] font-black text-success-dark uppercase tracking-widest">Presentes Recebidos</span>
+                        <span className="text-sm font-black text-success-dark">
+                          R$ {giftTotals[event.id].toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
 
                     <button
                       onClick={() => router.push(`/admin/evento/${event.id}`)}

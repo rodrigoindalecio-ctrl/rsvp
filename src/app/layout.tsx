@@ -1,6 +1,6 @@
 import './globals.css'
 import type { Metadata, Viewport } from 'next'
-import { Manrope, Lora } from 'next/font/google'
+import { Manrope, Lora, Playfair_Display, Inter, Outfit, Great_Vibes } from 'next/font/google'
 import { AuthProvider } from '@/lib/auth-context'
 import { EventProvider } from '@/lib/event-context'
 import { AdminProvider } from '@/lib/admin-context'
@@ -17,6 +17,31 @@ const lora = Lora({
   variable: '--font-lora',
   display: 'swap',
   weight: ['400', '500', '600', '700'],
+})
+
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-playfair',
+  display: 'swap',
+})
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+})
+
+const outfit = Outfit({
+  subsets: ['latin'],
+  variable: '--font-outfit',
+  display: 'swap',
+})
+
+const greatVibes = Great_Vibes({
+  weight: '400',
+  subsets: ['latin'],
+  variable: '--font-great-vibes',
+  display: 'swap',
 })
 
 
@@ -42,6 +67,7 @@ export const metadata: Metadata = {
   },
 }
 
+import { DynamicTheme } from '@/app/components/dynamic-theme'
 import { Toaster } from 'sonner'
 
 export default function RootLayout({
@@ -50,18 +76,19 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="pt-BR" className={`${manrope.variable} ${lora.variable}`}>
+    <html lang="pt-BR" className={`${manrope.variable} ${lora.variable} ${playfair.variable} ${inter.variable} ${outfit.variable} ${greatVibes.variable}`}>
       <body className="bg-background text-textPrimary font-sans antialiased min-h-screen flex flex-col">
-        <AdminProvider>
-          <AuthProvider>
+        <AuthProvider>
+          <AdminProvider>
             <EventProvider>
+              <DynamicTheme />
               <main className="flex-1">
                 {children}
               </main>
               <Toaster position="top-center" richColors />
             </EventProvider>
-          </AuthProvider>
-        </AdminProvider>
+          </AdminProvider>
+        </AuthProvider>
       </body>
     </html>
   )

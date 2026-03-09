@@ -43,12 +43,26 @@ export type EventSettings = {
     coverImagePosition: number
     coverImageScale: number
     customMessage: string
-    giftList?: string
     giftListLinks?: { name: string; url: string }[]
     notifyOwnerOnRSVP?: boolean
+    carouselImages?: string[]
+    coupleStory?: string
+    timelineEvents?: { emoji: string; title: string; description: string }[]
+    galleryImages?: string[]
+    dressCode?: string
+    parkingSettings?: {
+        hasParking: boolean
+        type: 'free' | 'valet' | 'paid'
+        price?: string
+        address?: string
+    }
+    brandColor?: string
+    brandFont?: string
+    isGiftListEnabled?: boolean
 }
 
 type EventContextType = {
+    eventId: string | null
     guests: Guest[]
     eventSettings: EventSettings
     ownerEmail?: string
@@ -94,10 +108,27 @@ const DEFAULT_EVENT_SETTINGS: EventSettings = {
     coverImage: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=2069&auto=format&fit=crop',
     coverImagePosition: 50,
     coverImageScale: 1,
-    customMessage: 'Ficamos muito felizes em receber a sua confirmação de presença.',
-    giftList: '',
+    customMessage: 'Sejam bem-vindos! Ficamos felizes em compartilhar este momento com vocês.',
     giftListLinks: [],
-    notifyOwnerOnRSVP: true
+    notifyOwnerOnRSVP: true,
+    carouselImages: [],
+    coupleStory: '',
+    timelineEvents: [
+        { emoji: '💫', title: 'O primeiro encontro', description: 'O começo de tudo' },
+        { emoji: '💌', title: 'Nossa memória favorita', description: 'A decisão mais fácil das nossas vidas' },
+        { emoji: '💍', title: 'O pedido de casamento', description: 'Uma surpresa guardada no coração' }
+    ],
+    galleryImages: [],
+    dressCode: '',
+    parkingSettings: {
+        hasParking: false,
+        type: 'free',
+        price: '',
+        address: ''
+    },
+    brandColor: '#7b2d3d',
+    brandFont: 'lora',
+    isGiftListEnabled: true
 }
 
 const EventContext = createContext<EventContextType | undefined>(undefined)
@@ -142,10 +173,39 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }, [eventId, slug, events])
 
     useEffect(() => {
-        const currentEvent = events.find(e => e.id === eventId || e.slug === slug)
-        if (currentEvent) {
-            setEventSettings(currentEvent.eventSettings)
+        async function fetchSettings() {
+            // 1. Tentar encontrar no contexto administrativo (já carregado)
+            const foundInAdmin = events.find(e =>
+                (eventId && e.id === eventId) ||
+                (slug && (e.slug?.toLowerCase() === slug.toLowerCase() || e.eventSettings.slug?.toLowerCase() === slug.toLowerCase()))
+            )
+
+            if (foundInAdmin) {
+                setEventSettings(foundInAdmin.eventSettings)
+                return
+            }
+
+            // 2. Se não estiver no contexto (Público ou logado como outro casal), buscar direto no Supabase
+            if (slug || eventId) {
+                setLoading(true)
+                try {
+                    let query = supabase.from('events').select('event_settings')
+                    if (eventId) query = query.eq('id', eventId)
+                    else query = query.eq('slug', slug)
+
+                    const { data, error } = await query.maybeSingle()
+                    if (data && data.event_settings) {
+                        setEventSettings(data.event_settings as EventSettings)
+                    }
+                } catch (err) {
+                    console.error('Erro ao buscar configurações do evento:', err)
+                } finally {
+                    setLoading(false)
+                }
+            }
         }
+
+        fetchSettings()
     }, [eventId, slug, events])
 
     async function loadGuests() {
@@ -496,6 +556,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
     return (
         <EventContext.Provider value={{
+            eventId,
             guests,
             eventSettings,
             ownerEmail,

@@ -27,7 +27,7 @@ function FilterPill({ label, count, active, onClick, color = 'brand' }: { label:
 
 function AdminEventoPageContent() {
   const { user } = useAuth()
-  const { events } = useAdmin()
+  const { events, updateEvent } = useAdmin()
   const { guests, loading: guestsLoading, removeGuest, addGuestsBatch, metrics, updateGuestStatus } = useEvent()
   const router = useRouter()
   const params = useParams()
@@ -38,6 +38,7 @@ function AdminEventoPageContent() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'confirmed' | 'declined'>('all')
   const [activeCategory, setActiveCategory] = useState<'all' | 'adult_paying' | 'child_paying' | 'child_not_paying'>('all')
   const [showStats, setShowStats] = useState(false)
+  const [showGuests, setShowGuests] = useState(false)
   const [showCategoryMenu, setShowCategoryMenu] = useState(false)
   const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{ isOpen: boolean; guestId?: string }>({ isOpen: false })
   const [deleteAllConfirmDialog, setDeleteAllConfirmDialog] = useState({ isOpen: false, step: 1 })
@@ -223,143 +224,253 @@ function AdminEventoPageContent() {
                 <span className="text-[10px] font-bold text-text-muted uppercase">Pessoas</span>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* FILTER ROW */}
-      <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
-        <div className="relative">
-          <button
-            onClick={() => setShowCategoryMenu(!showCategoryMenu)}
-            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 border ${activeCategory !== 'all'
-              ? 'bg-brand text-white border-brand'
-              : 'bg-surface text-text-muted border-border-soft hover:border-brand-light/30 hover:text-brand'
-              }`}
-          >
-            {activeCategory === 'all' ? 'Categoria' :
-              activeCategory === 'adult_paying' ? 'Adultos' :
-                activeCategory === 'child_paying' ? 'Crianças Pagantes' : 'Crianças Isentas'} ▾
-          </button>
-
-          {showCategoryMenu && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowCategoryMenu(false)} />
-              <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-border-soft p-2 z-20 animate-in fade-in slide-in-from-top-2">
-                {[
-                  { id: 'all', label: 'Todas Categorias' },
-                  { id: 'adult_paying', label: 'Adultos' },
-                  { id: 'child_paying', label: 'Crianças Pagantes' },
-                  { id: 'child_not_paying', label: 'Crianças Isentas' }
-                ].map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => {
-                      setActiveCategory(cat.id as any)
-                      setShowCategoryMenu(false)
-                    }}
-                    className={`w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat.id ? 'bg-brand/10 text-brand' : 'hover:bg-bg-light text-text-muted'}`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
-        <FilterPill label="Pendentes" count={metrics.pending} active={activeFilter === 'pending'} onClick={() => setActiveFilter('pending')} />
-        <FilterPill label="Presentes" count={metrics.confirmed} active={activeFilter === 'confirmed'} onClick={() => setActiveFilter('confirmed')} />
-        <FilterPill label="Todos" count={metrics.total} active={activeFilter === 'all'} onClick={() => setActiveFilter('all')} />
-        <FilterPill label="Estatísticas" active={showStats} onClick={() => setShowStats(true)} />
-        <button
-          onClick={handleExportExcel}
-          className="px-6 py-2.5 bg-success-light text-success-dark border border-success/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 hover:bg-success/20"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-          Exportar Lista
-        </button>
-      </div>
-
-      {/* SEARCH BAR */}
-      <div className="flex gap-4 mb-8">
-        <div className="flex-1 relative">
-          <input
-            type="text"
-            placeholder="Buscar por nome..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-8 py-4 bg-surface border border-border-soft rounded-2xl text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-brand/5 placeholder:text-text-muted transition-all text-text-primary"
-          />
-        </div>
-        <button
-          onClick={() => router.push(`/admin/evento/${eventId}/novo-convidado`)}
-          className="w-14 h-14 bg-brand text-white rounded-2xl flex items-center justify-center shadow-lg shadow-brand-dark/20 hover:scale-105 active:scale-95 transition-all"
-        >
-          <span className="text-2xl font-black">+</span>
-        </button>
-      </div>
-
-      {/* GUEST LIST */}
-      <div className="space-y-4">
-        {filteredGuests.length === 0 ? (
-          <div className="py-20 text-center bg-surface rounded-3xl border border-border-soft">
-            <p className="text-text-muted font-black uppercase tracking-widest text-[10px]">Nenhum convidado nesta listagem...</p>
-          </div>
-        ) : (
-          filteredGuests.map((guest: any) => (
-            <div
-              key={guest.id}
-              className="bg-surface rounded-[2rem] p-6 md:px-10 border border-border-soft flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-xl hover:shadow-brand/[0.02] transition-all group animate-in fade-in"
-            >
-              <div className="flex flex-col gap-1">
-                <h4 className="text-lg font-black text-text-primary tracking-tight">
-                  {guest.name}
-                </h4>
-                <div className="flex gap-2">
-                  <span className="px-3 py-1 bg-brand/5 text-[8px] font-black uppercase tracking-widest text-brand rounded-lg border border-brand/10">
-                    {guest.category === 'adult_paying' ? 'Adulto' : guest.category === 'child_paying' ? 'Criança Pagante' : 'Criança Isenta'}
-                  </span>
-                  {guest.grupo && (
-                    <span className="px-3 py-1 bg-bg-light text-[8px] font-black uppercase tracking-widest text-text-muted rounded-lg border border-border-soft">
-                      Grupo: {guest.grupo}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className={`px-4 py-2 border rounded-xl text-[9px] font-black uppercase tracking-widest ${guest.status === 'confirmed' ? 'bg-success/10 border-success/20 text-success-dark' : guest.status === 'declined' ? 'bg-danger/10 border-danger/20 text-danger' : 'bg-bg-light border-border-soft text-text-muted'}`}>
-                  {guest.status === 'confirmed' ? 'Confirmado' : guest.status === 'declined' ? 'Recusado' : 'Pendente'}
-                </div>
-
-                {guest.status !== 'confirmed' ? (
-                  <button
-                    onClick={() => updateGuestStatus(guest.id, 'confirmed')}
-                    className="px-8 py-3 bg-brand text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-brand-dark/20 hover:bg-brand-dark hover:-translate-y-0.5 transition-all"
-                  >
-                    Confirmar presença
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => updateGuestStatus(guest.id, 'pending')}
-                    className="px-8 py-3 bg-success-light text-success-dark border border-success/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-success/10 transition-all"
-                  >
-                    Presença Confirmada ✓
-                  </button>
-                )}
-
+            <div>
+              <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-3">MÓDULOS ATIVOS</p>
+              <div className="flex items-center gap-3">
                 <button
-                  onClick={() => handleDeleteGuest(guest.id)}
-                  className="w-10 h-10 flex items-center justify-center border border-border-soft bg-bg-light rounded-xl text-text-muted hover:text-danger hover:border-danger/20 transition-all group"
+                  onClick={async () => {
+                    const newValue = !(event.eventSettings.isGiftListEnabled ?? true);
+                    await updateEvent(eventId, {
+                      eventSettings: { ...event.eventSettings, isGiftListEnabled: newValue }
+                    });
+                  }}
+                  className={`w-10 h-5 rounded-full relative transition-all duration-300 ${event.eventSettings.isGiftListEnabled !== false ? 'bg-brand' : 'bg-border-soft'}`}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
+                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300 ${event.eventSettings.isGiftListEnabled !== false ? 'left-5.5' : 'left-0.5'}`} />
                 </button>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-text-primary leading-none mb-1">Lista Presentes</span>
+                  <span className={`text-[8px] font-bold uppercase ${event.eventSettings.isGiftListEnabled !== false ? 'text-success' : 'text-text-muted'}`}>
+                    {event.eventSettings.isGiftListEnabled !== false ? 'Habilitada' : 'Desativada'}
+                  </span>
+                </div>
               </div>
             </div>
-          ))
-        )}
+          </div>
+        </div>
       </div>
+
+      {/* TOGGLE GUEST LIST BUTTON */}
+      {!showGuests ? (
+        <div className="bg-surface rounded-[2.5rem] border border-border-soft shadow-sm overflow-hidden group hover:border-brand/20 transition-all cursor-pointer" onClick={() => setShowGuests(true)}>
+          <div className="p-8 md:p-12 flex flex-col items-center">
+            {/* Header do Mini Dashboard */}
+            <div className="flex flex-col items-center mb-10 text-center">
+              <div className="w-14 h-14 bg-brand-pale rounded-2xl flex items-center justify-center text-brand mb-4 group-hover:scale-110 transition-transform">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+              </div>
+              <p className="text-sm font-black text-text-primary uppercase tracking-widest mb-1">Resumo da Lista de Convidados</p>
+              <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest italic opacity-60">Status de confirmação em tempo real</p>
+            </div>
+
+            {/* Grid de Métricas Rápidas */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 w-full max-w-4xl mb-12">
+              {/* Confirmados Total % */}
+              <div className="bg-bg-light rounded-[2rem] p-6 flex flex-col items-center justify-center text-center border border-border-soft group-hover:bg-white transition-colors">
+                <p className="text-[9px] font-black text-brand uppercase tracking-[0.2em] mb-2">Total Confirmado</p>
+                <div className="flex flex-col items-center">
+                  <span className="text-4xl font-black text-brand tracking-tighter leading-none mb-1">{Math.round((metrics.confirmed / (metrics.total || 1)) * 100)}%</span>
+                  <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest leading-none">
+                    {metrics.confirmed} <span className="opacity-40">/</span> {metrics.total}
+                  </p>
+                </div>
+              </div>
+
+              {/* Adultos */}
+              <div className="bg-bg-light rounded-[2rem] p-6 border border-border-soft group-hover:bg-white transition-colors">
+                <p className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em] mb-4">Adultos</p>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedAdults}</span>
+                  <span className="text-xs font-bold text-text-muted">/ {metrics.adults}</span>
+                </div>
+                <div className="w-full h-1.5 bg-border-soft rounded-full mt-3 overflow-hidden">
+                  <div className="h-full bg-brand rounded-full" style={{ width: `${(metrics.confirmedAdults / (metrics.adults || 1)) * 100}%` }} />
+                </div>
+              </div>
+
+              {/* Crianças Pagantes */}
+              <div className="bg-bg-light rounded-[2rem] p-6 border border-border-soft group-hover:bg-white transition-colors">
+                <p className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em] mb-4">Crianças (Pag)</p>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedChildrenPaying}</span>
+                  <span className="text-xs font-bold text-text-muted">/ {metrics.childrenPaying}</span>
+                </div>
+                <div className="w-full h-1.5 bg-border-soft rounded-full mt-3 overflow-hidden">
+                  <div className="h-full bg-warning rounded-full" style={{ width: `${(metrics.confirmedChildrenPaying / (metrics.childrenPaying || 1)) * 100}%` }} />
+                </div>
+              </div>
+
+              {/* Crianças Isentas */}
+              <div className="bg-bg-light rounded-[2rem] p-6 border border-border-soft group-hover:bg-white transition-colors">
+                <p className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em] mb-4">Crianças (Isen)</p>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedChildrenFree}</span>
+                  <span className="text-xs font-bold text-text-muted">/ {metrics.childrenFree}</span>
+                </div>
+                <div className="w-full h-1.5 bg-border-soft rounded-full mt-3 overflow-hidden">
+                  <div className="h-full bg-success rounded-full" style={{ width: `${(metrics.confirmedChildrenFree / (metrics.childrenFree || 1)) * 100}%` }} />
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowGuests(true); }}
+              className="px-12 py-4.5 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl shadow-brand/20 hover:scale-105 active:scale-95 transition-all"
+            >
+              Gerenciar Lista de Convidados
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-brand rounded-full animate-pulse" />
+              <h3 className="text-lg font-black text-text-primary tracking-tight uppercase tracking-widest text-[11px]">Gerenciamento de Convidados</h3>
+            </div>
+            <button
+              onClick={() => setShowGuests(false)}
+              className="text-[10px] font-black text-brand uppercase tracking-widest hover:underline"
+            >
+              Ocultar Lista ✕
+            </button>
+          </div>
+
+          {/* FILTER ROW */}
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+            <div className="relative">
+              <button
+                onClick={() => setShowCategoryMenu(!showCategoryMenu)}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 border ${activeCategory !== 'all'
+                  ? 'bg-brand text-white border-brand'
+                  : 'bg-surface text-text-muted border-border-soft hover:border-brand-light/30 hover:text-brand'
+                  }`}
+              >
+                {activeCategory === 'all' ? 'Categoria' :
+                  activeCategory === 'adult_paying' ? 'Adultos' :
+                    activeCategory === 'child_paying' ? 'Crianças Pagantes' : 'Crianças Isentas'} ▾
+              </button>
+
+              {showCategoryMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowCategoryMenu(false)} />
+                  <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-border-soft p-2 z-20 animate-in fade-in slide-in-from-top-2">
+                    {[
+                      { id: 'all', label: 'Todas Categorias' },
+                      { id: 'adult_paying', label: 'Adultos' },
+                      { id: 'child_paying', label: 'Crianças Pagantes' },
+                      { id: 'child_not_paying', label: 'Crianças Isentas' }
+                    ].map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => {
+                          setActiveCategory(cat.id as any)
+                          setShowCategoryMenu(false)
+                        }}
+                        className={`w-full text-left px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat.id ? 'bg-brand/10 text-brand' : 'hover:bg-bg-light text-text-muted'}`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <FilterPill label="Pendentes" count={metrics.pending} active={activeFilter === 'pending'} onClick={() => setActiveFilter('pending')} />
+            <FilterPill label="Presentes" count={metrics.confirmed} active={activeFilter === 'confirmed'} onClick={() => setActiveFilter('confirmed')} />
+            <FilterPill label="Todos" count={metrics.total} active={activeFilter === 'all'} onClick={() => setActiveFilter('all')} />
+            <FilterPill label="Estatísticas" active={showStats} onClick={() => setShowStats(true)} />
+            <button
+              onClick={handleExportExcel}
+              className="px-6 py-2.5 bg-success-light text-success-dark border border-success/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 hover:bg-success/20"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+              Exportar Lista
+            </button>
+          </div>
+
+          {/* SEARCH BAR */}
+          <div className="flex gap-4 mb-8">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder="Buscar por nome..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-8 py-4 bg-surface border border-border-soft rounded-2xl text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-brand/5 placeholder:text-text-muted transition-all text-text-primary"
+              />
+            </div>
+            <button
+              onClick={() => router.push(`/admin/evento/${eventId}/novo-convidado`)}
+              className="w-14 h-14 bg-brand text-white rounded-2xl flex items-center justify-center shadow-lg shadow-brand-dark/20 hover:scale-105 active:scale-95 transition-all"
+            >
+              <span className="text-2xl font-black">+</span>
+            </button>
+          </div>
+
+          {/* GUEST LIST */}
+          <div className="space-y-4">
+            {filteredGuests.length === 0 ? (
+              <div className="py-20 text-center bg-surface rounded-3xl border border-border-soft">
+                <p className="text-text-muted font-black uppercase tracking-widest text-[10px]">Nenhum convidado nesta listagem...</p>
+              </div>
+            ) : (
+              filteredGuests.map((guest: any) => (
+                <div
+                  key={guest.id}
+                  className="bg-surface rounded-[2rem] p-6 md:px-10 border border-border-soft flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-xl hover:shadow-brand/[0.02] transition-all group animate-in fade-in"
+                >
+                  <div className="flex flex-col gap-1">
+                    <h4 className="text-lg font-black text-text-primary tracking-tight">
+                      {guest.name}
+                    </h4>
+                    <div className="flex gap-2">
+                      <span className="px-3 py-1 bg-brand/5 text-[8px] font-black uppercase tracking-widest text-brand rounded-lg border border-brand/10">
+                        {guest.category === 'adult_paying' ? 'Adulto' : guest.category === 'child_paying' ? 'Criança Pagante' : 'Criança Isenta'}
+                      </span>
+                      {guest.grupo && (
+                        <span className="px-3 py-1 bg-bg-light text-[8px] font-black uppercase tracking-widest text-text-muted rounded-lg border border-border-soft">
+                          Grupo: {guest.grupo}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className={`px-4 py-2 border rounded-xl text-[9px] font-black uppercase tracking-widest ${guest.status === 'confirmed' ? 'bg-success/10 border-success/20 text-success-dark' : guest.status === 'declined' ? 'bg-danger/10 border-danger/20 text-danger' : 'bg-bg-light border-border-soft text-text-muted'}`}>
+                      {guest.status === 'confirmed' ? 'Confirmado' : guest.status === 'declined' ? 'Recusado' : 'Pendente'}
+                    </div>
+
+                    {guest.status !== 'confirmed' ? (
+                      <button
+                        onClick={() => updateGuestStatus(guest.id, 'confirmed')}
+                        className="px-8 py-3 bg-brand text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-brand-dark/20 hover:bg-brand-dark hover:-translate-y-0.5 transition-all"
+                      >
+                        Confirmar presença
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => updateGuestStatus(guest.id, 'pending')}
+                        className="px-8 py-3 bg-success-light text-success-dark border border-success/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-success/10 transition-all"
+                      >
+                        Presença Confirmada ✓
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => handleDeleteGuest(guest.id)}
+                      className="w-10 h-10 flex items-center justify-center border border-border-soft bg-bg-light rounded-xl text-text-muted hover:text-danger hover:border-danger/20 transition-all group"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Confirm Dialogs */}
       {/* STATS MODAL */}
@@ -383,6 +494,13 @@ function AdminEventoPageContent() {
 
               <div className="space-y-6">
                 <div className="space-y-4">
+                  <StatItem
+                    label="Adultos"
+                    current={metrics.confirmedAdults}
+                    total={metrics.adults}
+                    color="brand"
+                    icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>}
+                  />
                   <StatItem
                     label="Crianças Pagantes"
                     current={metrics.confirmedChildrenPaying}

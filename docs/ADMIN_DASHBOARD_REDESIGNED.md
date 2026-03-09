@@ -115,7 +115,7 @@ Criado novo contexto para gerenciar múltiplos eventos:
 
 **Credenciais de teste:**
 - Email: `rodrigoindalecio@gmail.com`
-- Senha: `Eu@784586`
+- Senha: `[SENHA_REMOVIDA_POR_SEGURANCA]`
 - Role: `admin`
 
 ## 🚀 Como Usar

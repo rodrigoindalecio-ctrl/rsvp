@@ -58,6 +58,13 @@ const IconLogOut = () => (
         <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
 )
+const IconWallet = () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 12V7c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2V17c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-2" />
+        <path d="M16 12h5" />
+        <circle cx="18" cy="12" r="1" />
+    </svg>
+)
 
 interface LinkItem {
     href: string
@@ -117,13 +124,14 @@ export function SharedLayout({
     const adminLinks: LinkItem[] = [
         { href: '/admin/dashboard', label: 'Eventos', icon: <IconHome /> },
         { href: '/admin/users', label: 'Usuários', icon: <IconUsers /> },
+        { href: '/admin/withdrawals', label: 'Saques', icon: <IconWallet /> },
         { href: '/admin/reports', label: 'Relatórios', icon: <IconBarChart /> },
     ]
 
     const userLinks: LinkItem[] = [
         { href: '/dashboard', label: 'Início', icon: <IconHome /> },
-        { href: '/import', label: 'Importar', icon: <IconUpload /> },
         { href: '/settings', label: 'Config.', icon: <IconSettings /> },
+        { href: `/${eventContext?.eventSettings?.slug}`, label: 'Ver Site', icon: <IconCalendarPlus /> },
     ]
 
     const links = role === 'admin' ? adminLinks : userLinks

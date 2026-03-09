@@ -25,7 +25,8 @@ function AdminEventoConfigContent() {
         image: '',
         imagePosition: 50,
         imageScale: 1.1,
-        customMessage: ''
+        customMessage: '',
+        isGiftListEnabled: true
     })
 
     useEffect(() => {
@@ -42,7 +43,8 @@ function AdminEventoConfigContent() {
                 image: found.eventSettings.coverImage,
                 imagePosition: found.eventSettings.coverImagePosition || 50,
                 imageScale: found.eventSettings.coverImageScale || 1.1,
-                customMessage: found.eventSettings.customMessage || ''
+                customMessage: found.eventSettings.customMessage || '',
+                isGiftListEnabled: found.eventSettings.isGiftListEnabled ?? true
             })
         }
     }, [eventId, events])
@@ -63,7 +65,8 @@ function AdminEventoConfigContent() {
                 coverImage: form.image,
                 coverImagePosition: form.imagePosition,
                 coverImageScale: form.imageScale,
-                customMessage: form.customMessage
+                customMessage: form.customMessage,
+                isGiftListEnabled: form.isGiftListEnabled
             }
 
             await updateEvent(eventId, {
@@ -180,6 +183,25 @@ function AdminEventoConfigContent() {
                     <section className="pt-12 border-t border-border-soft">
                         <h3 className="text-xl font-black text-text-primary tracking-tight mb-8">Aparência e Mensagem</h3>
                         <div className="space-y-8">
+                            <div className="p-6 bg-bg-light rounded-[2rem] border border-border-soft flex items-center justify-between group hover:border-brand/20 transition-all">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-text-muted transition-transform group-hover:scale-110 shadow-sm border border-border-soft">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16M7 12v8h10v-8" /></svg>
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none mb-1.5">Módulo Lista de Presentes</p>
+                                        <p className="text-xs font-bold text-text-primary">Habilitar ou desabilitar para o casal</p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setForm({ ...form, isGiftListEnabled: !form.isGiftListEnabled })}
+                                    className={`w-14 h-8 rounded-full relative transition-all duration-300 ${form.isGiftListEnabled ? 'bg-brand' : 'bg-border-soft'}`}
+                                >
+                                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${form.isGiftListEnabled ? 'left-7' : 'left-1'}`} />
+                                </button>
+                            </div>
+
                             <div>
                                 <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3">URL da Imagem de Capa</label>
                                 <input

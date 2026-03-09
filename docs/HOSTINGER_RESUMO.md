@@ -71,7 +71,7 @@ http://localhost:3000/evento/vanessaerodrigo
 ```
 .env.local
 ├── SMTP_USER: contato@vanessabidinotti.com.br
-├── SMTP_PASSWORD: Eu@784586
+├── SMTP_PASSWORD: [SENHA_REMOVIDA_POR_SEGURANCA]
 ├── SMTP_HOST: smtp.hostinger.com
 ├── SMTP_PORT: 465
 ├── SMTP_FROM_EMAIL: contato@vanessabidinotti.com.br

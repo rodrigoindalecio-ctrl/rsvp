@@ -4,7 +4,7 @@
 
 ```
 Email: rodrigoindalecio@gmail.com
-Senha: Eu@784586
+Senha: [SENHA_REMOVIDA_POR_SEGURANCA]
 ```
 
 ## Como Acessar

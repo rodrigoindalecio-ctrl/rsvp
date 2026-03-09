@@ -26,6 +26,8 @@ const createTransporter = () => {
 
 export async function POST(request: NextRequest) {
     try {
+        
+
         const body = await request.json()
         const { email, guestName, eventSettings, confirmedCompanions, confirmedNames, confirmedDetails, giftListLinks } = body
 
@@ -58,6 +60,18 @@ export async function POST(request: NextRequest) {
             ? `https://waze.com/ul?q=${encodeURIComponent(eventSettings.wazeLocation)}`
             : `https://waze.com/ul?q=${encodeURIComponent(eventSettings.eventLocation)}`
 
+        // Gerar link do Google Calendar
+        const calDate = eventSettings.eventDate.replace(/-/g, '')
+        const calTime = (eventSettings.eventTime || '20:00').replace(':', '')
+        const googleCalendarURL = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventSettings.coupleNames)}&dates=${calDate}T${calTime}00/${calDate}T${Number(calTime.substring(0, 2)) + 4}${calTime.substring(2)}00&details=${encodeURIComponent(eventSettings.customMessage || '')}&location=${encodeURIComponent(eventSettings.eventLocation)}`
+
+        // Limpar baseUrl
+        let baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000').replace(/['"]+/g, '').trim();
+        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+        // Link da lista interna (Vitrine)
+        const internalGiftLink = `${baseUrl}/${eventSettings.slug}/presentes`;
+
         // Construir HTML do email com template profissional
         const emailHTML = `
 <!DOCTYPE html>
@@ -81,7 +95,7 @@ export async function POST(request: NextRequest) {
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
         }
         .header {
-            background: linear-gradient(135deg, #C6A664 0%, #B8945A 100%);
+            background: linear-gradient(135deg, #8B2D4F 0%, #6D223D 100%);
             color: white;
             padding: 40px 30px;
             text-align: center;
@@ -103,70 +117,94 @@ export async function POST(request: NextRequest) {
         .greeting {
             font-size: 18px;
             color: #2E2E2E;
-            margin-bottom: 30px;
+            margin-bottom: 25px;
             line-height: 1.6;
         }
-        .event-info {
-            background-color: #FAFAF8;
-            border-left: 4px solid #C6A664;
-            padding: 20px;
-            margin: 30px 0;
-            border-radius: 8px;
+        .confirmation-badge {
+            background-color: #F8F9F8;
+            border: 1px solid #E8EFE8;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 16px;
+            color: #2E2E2E;
         }
-        .info-row {
+        .confirmed-names {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #E6E2DC;
+        }
+        .confirmed-names h4 {
+            margin: 0 0 12px 0;
+            font-size: 11px;
+            font-weight: 900;
+            color: #8B2D4F;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .confirmed-names ul {
+            margin: 0;
+            padding: 0;
+            list-style-type: none;
+        }
+        .confirmed-names li {
+            margin: 8px 0;
+            color: #333;
+            font-size: 14px;
             display: flex;
-            margin: 15px 0;
-            align-items: flex-start;
+            align-items: center;
         }
-        .info-icon {
-            width: 24px;
-            height: 24px;
-            margin-right: 15px;
-            color: #C6A664;
-            flex-shrink: 0;
+        .confirmed-names li:before {
+            content: "✓";
+            margin-right: 10px;
+            color: #4CAF50;
+            font-weight: bold;
         }
-        .info-text {
-            flex: 1;
+        .section-title {
+            font-size: 12px;
+            font-weight: 900;
+            color: #8B2D4F;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 40px 0 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .info-card {
+            background-color: #FAFAF8;
+            border: 1px solid #E6E2DC;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 12px;
+            position: relative;
         }
         .info-label {
-            font-size: 12px;
-            color: #6B6B6B;
+            font-size: 10px;
+            color: #888;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
+            font-weight: 700;
         }
         .info-value {
-            font-size: 16px;
+            font-size: 15px;
             color: #2E2E2E;
-            font-weight: 500;
+            font-weight: 600;
         }
         .cta-button {
             display: inline-block;
-            background-color: #C6A664;
-            color: white;
-            padding: 15px 40px;
+            background-color: #8B2D4F;
+            color: white !important;
+            padding: 14px 28px;
             text-decoration: none;
-            border-radius: 50px;
-            font-weight: 600;
-            text-align: center;
-            margin: 20px 0;
-            font-size: 14px;
-            letter-spacing: 0.5px;
-        }
-        .cta-button:hover {
-            background-color: #B8945A;
-        }
-        .gift-section {
-            background-color: #FAFAF8;
-            padding: 25px;
             border-radius: 12px;
-            margin: 30px 0;
-        }
-        .gift-section h3 {
-            margin: 0 0 15px 0;
-            color: #2E2E2E;
-            font-size: 16px;
-            font-weight: 600;
+            font-weight: 700;
+            text-align: center;
+            margin: 10px 0;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(139, 45, 79, 0.2);
         }
         .gift-links {
             list-style: none;
@@ -177,162 +215,143 @@ export async function POST(request: NextRequest) {
             margin: 10px 0;
         }
         .gift-links a {
-            color: #C6A664;
+            color: #8B2D4F;
             text-decoration: none;
-            font-weight: 500;
-        }
-        .gift-links a:hover {
-            text-decoration: underline;
-        }
-        .confirmation-badge {
-            background-color: #E8F5E9;
-            border-left: 4px solid #4CAF50;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 4px;
-            color: #2E7D32;
+            font-weight: 700;
             font-size: 14px;
+            display: flex;
+            align-items: center;
         }
-        .confirmed-names {
-            background-color: #F5F5F5;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 10px;
-            border: 1px solid #E0E0E0;
-        }
-        .confirmed-names h4 {
-            margin: 0 0 12px 0;
-            font-size: 13px;
-            font-weight: 600;
-            color: #2E7D32;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .confirmed-names ul {
-            margin: 0;
-            padding-left: 20px;
-            list-style-type: none;
-        }
-        .confirmed-names li {
-            margin: 6px 0;
-            color: #333;
-            font-size: 14px;
-            position: relative;
-            padding-left: 20px;
-        }
-        .confirmed-names li:before {
-            content: "✓";
-            position: absolute;
-            left: 0;
-            color: #4CAF50;
-            font-weight: bold;
+        .gift-links a:before {
+            content: "🎁";
+            margin-right: 8px;
         }
         .footer {
             background-color: #FAFAF8;
-            padding: 30px;
+            padding: 40px 30px;
             text-align: center;
             border-top: 1px solid #E6E2DC;
         }
         .footer p {
             margin: 5px 0;
-            color: #6B6B6B;
+            color: #888;
             font-size: 12px;
-        }
-        .divider {
-            height: 1px;
-            background-color: #E6E2DC;
-            margin: 30px 0;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
+            <p style="text-transform: uppercase; letter-spacing: 3px; font-size: 10px; font-weight: 900; margin-bottom: 15px;">Confirmação de Presença</p>
             <h1>${eventSettings.coupleNames}</h1>
-            <p>Obrigado pela confirmação de presença</p>
-            <p style="margin-top: 15px; font-size: 12px; opacity: 0.85; letter-spacing: 0.5px;">Coordenação: Vanessa Bidinotti - Assessoria e Cerimonial</p>
         </div>
 
         <div class="content">
             <div class="greeting">
-                Olá <strong>${guestName}</strong>!
+                Olá, <strong>${guestName}</strong>!
                 <br><br>
-                Ficamos muito felizes em confirmar a sua presença em nosso evento! 🎉
-                <br><br>
-                Coordenado com carinho por <strong>Vanessa Bidinotti - Assessoria e Cerimonial</strong>, este será um evento memorável!
-                <br><br>
-                Aqui estão todos os detalhes que você precisa saber:
+                Ficamos muito felizes com a sua confirmação! 🎉 Sua presença é o que tornará este dia verdadeiramente especial para nós.
             </div>
 
             <div class="confirmation-badge">
-                ✓ Sua confirmação foi recebida com sucesso para <strong>${confirmedCompanions} pessoa${confirmedCompanions > 1 ? 's' : ''}</strong>
+                <div style="font-size: 13px; font-weight: 700; color: #2E7D32;">✓ Presença Confirmada para ${confirmedCompanions} pessoa${confirmedCompanions > 1 ? 's' : ''}</div>
                 ${confirmedDetails && confirmedDetails.length > 0 ? `
                 <div class="confirmed-names">
-                    <h4>Confirmados:</h4>
+                    <h4>Quem vai com você:</h4>
                     <ul>
                         ${confirmedDetails.map((detail: any) => {
-            const categoryLabel = detail.category === 'adult_paying' ? 'Adulto Pagante' :
-                detail.category === 'child_paying' ? 'Criança Pagante' :
-                    'Criança Não Pagante'
-            return `<li>${detail.name} <span style="font-size: 12px; color: #999;">(${categoryLabel})</span></li>`
+            const categoryLabel = detail.category === 'adult_paying' ? 'Adulto' :
+                detail.category === 'child_paying' ? 'Criança' :
+                    'Criança'
+            return `<li>${detail.name} <span style="font-size: 11px; color: #888; margin-left: auto;">${categoryLabel}</span></li>`
         }).join('')}
                     </ul>
                 </div>
                 ` : confirmedNames && confirmedNames.length > 0 ? `
                 <div class="confirmed-names">
-                    <h4>Confirmados:</h4>
+                    <h4>Nomes Confirmados:</h4>
                     <ul>
                         ${confirmedNames.map((name: string) => `<li>${name}</li>`).join('')}
                     </ul>
                 </div>
                 ` : ''}
             </div>
-            </div>
 
-            <div class="event-info">
-                <div class="info-row">
-                    <div class="info-icon">📅</div>
-                    <div class="info-text">
-                        <div class="info-label">Data e Hora</div>
-                        <div class="info-value">${formattedDate}</div>
-                    </div>
-                </div>
-
-                <div class="info-row">
-                    <div class="info-icon">📍</div>
-                    <div class="info-text">
-                        <div class="info-label">Local</div>
-                        <div class="info-value">${eventSettings.eventLocation}</div>
-                        <a href="${wazeURL}" class="cta-button" style="display: inline-block; margin-top: 10px; padding: 10px 20px; font-size: 12px;">
-                            Abrir no Waze
-                        </a>
-                    </div>
+            <div class="section-title">📅 Onde e Quando</div>
+            
+            <div class="info-card">
+                <div class="info-label">Data e Hora</div>
+                <div class="info-value">${formattedDate}h</div>
+                <div style="margin-top: 15px;">
+                    <a href="${googleCalendarURL}" class="cta-button" style="background-color: #FAFAF8; border: 1px solid #8B2D4F; color: #8B2D4F !important; box-shadow: none;">Adicionar ao Calendário</a>
                 </div>
             </div>
 
-            ${eventSettings.giftListLinks && eventSettings.giftListLinks.length > 0 ? `
-            <div class="gift-section">
-                <h3>🎁 Listas de Presentes</h3>
-                <ul class="gift-links">
-                    ${eventSettings.giftListLinks.map((link: any) => `
-                        <li><a href="${link.url}" target="_blank">→ ${link.name}</a></li>
-                    `).join('')}
-                </ul>
+            <div class="info-card">
+                <div class="info-label">Local do Evento</div>
+                <div class="info-value">${eventSettings.eventLocation}</div>
+                <div style="margin-top: 15px;">
+                    <a href="${wazeURL}" class="cta-button">Ver no GPS / Waze</a>
+                </div>
+            </div>
+
+            ${eventSettings.dressCode ? `
+            <div class="section-title">👔 Sugestão de Traje</div>
+            <div class="info-card">
+                <div class="info-value">${eventSettings.dressCode}</div>
             </div>
             ` : ''}
 
-            <p style="color: #6B6B6B; font-size: 14px; line-height: 1.6;">
-                ${eventSettings.customMessage}
-                <br><br>
-                Se tiver dúvidas ou precisar alterar sua confirmação, entre em contato conosco.
-            </p>
+            ${eventSettings.parkingSettings?.hasParking ? `
+            <div class="section-title">🚗 Estacionamento</div>
+            <div class="info-card">
+                <div class="info-label">Tipo</div>
+                <div class="info-value">
+                    ${eventSettings.parkingSettings.type === 'free' ? 'Gratuito no Local' :
+                    eventSettings.parkingSettings.type === 'valet' ? 'Valet / Manobrista' : 'Pago no Local'}
+                    ${eventSettings.parkingSettings.price ? ` — ${eventSettings.parkingSettings.price}` : ''}
+                </div>
+                ${eventSettings.parkingSettings.address ? `
+                <div style="margin-top: 10px; font-size: 13px; color: #666;">
+                    <strong>Endereço do Estacionamento:</strong><br>
+                    ${eventSettings.parkingSettings.address}
+                </div>
+                ` : ''}
+            </div>
+            ` : ''}
+
+            <div class="section-title">🎁 Sugestões de Presentes</div>
+            <div class="info-card">
+                <p style="font-size: 14px; color: #555; margin-top: 0; line-height: 1.5;">
+                    Ter você conosco já é o nosso maior presente! Se desejar nos agraciar com algo mais, preparamos algumas opções:
+                </p>
+                <div style="margin: 15px 0;">
+                    <a href="${internalGiftLink}" class="cta-button" style="background-color: #D4AF37;">Ver Nossa Lista de Presentes</a>
+                </div>
+                
+                ${eventSettings.giftListLinks && eventSettings.giftListLinks.length > 0 ? `
+                <div style="margin-top: 20px; border-top: 1px solid #E6E2DC; pt-15px;">
+                    <p style="font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase;">Outras Listas Externas:</p>
+                    <ul class="gift-links">
+                        ${eventSettings.giftListLinks.map((link: any) => `
+                            <li><a href="${link.url}" target="_blank">${link.name}</a></li>
+                        `).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+
+            ${eventSettings.customMessage ? `
+            <div style="margin-top: 40px; padding: 25px; border-left: 2px solid #8B2D4F; background-color: #FAFAF8; font-style: italic; color: #555; font-size: 15px; line-height: 1.6;">
+                "${eventSettings.customMessage}"
+            </div>
+            ` : ''}
         </div>
 
         <div class="footer">
-            <p><strong>${eventSettings.coupleNames}</strong></p>
-            <p style="margin: 10px 0 0 0; font-size: 13px; color: #C6A664; font-weight: 500;">Coordenação por Vanessa Bidinotti - Assessoria e Cerimonial</p>
-            <p style="margin-top: 15px; font-size: 11px; color: #999;">Sistema de Confirmação de Presença - RSVP Manager</p>
-            <p style="margin-top: 8px; font-size: 10px; color: #999;">© 2026 RSVP Manager. Todos os direitos reservados.</p>
+            <p><strong>Vanessa Bidinotti - Assessoria e Cerimonial</strong></p>
+            <p>Coordenação e Planejamento</p>
+            <p style="margin-top: 25px; font-size: 10px; opacity: 0.5;">RSVP Manager • © 2026</p>
         </div>
     </div>
 </body>
@@ -343,7 +362,6 @@ export async function POST(request: NextRequest) {
         try {
             const transporter = createTransporter()
 
-
             // Enviar email
             const result = await transporter.sendMail({
                 from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,
@@ -352,7 +370,6 @@ export async function POST(request: NextRequest) {
                 html: emailHTML,
                 replyTo: process.env.SMTP_FROM_EMAIL
             })
-
 
             // Retornar sucesso
             return NextResponse.json(

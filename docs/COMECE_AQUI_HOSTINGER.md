@@ -59,7 +59,7 @@ Obrigado!
 
 ```
 Email: contato@vanessabidinotti.com.br ✅
-Senha: Eu@784586 ✅
+Senha: [SENHA_REMOVIDA_POR_SEGURANCA] ✅
 SMTP: smtp.hostinger.com:465 (SSL) ✅
 ```
 

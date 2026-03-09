@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
 import { EventSettings, Guest } from './event-context'
+import { useAuth } from './auth-context'
 import { supabase } from './supabase'
 
 export type UserType = 'admin' | 'noivos'
@@ -54,29 +55,45 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Carrega dados iniciais do Supabase
+  const { user } = useAuth()
+
+  // Carrega dados iniciais do Supabase de forma protegida
   useEffect(() => {
     async function loadData() {
+      // Nota: Sempre carregamos Eventos (são públicos por slug)
+      // Mas usuários e métricas globais dependem de quem está logado.
       setLoading(true)
       try {
-        // Buscar Eventos
-        const { data: eventsData, error: eventsError } = await supabase
-          .from('events')
-          .select('*')
-          .order('created_at', { ascending: false })
+        let eventsQuery = supabase.from('events').select('*')
+        let usersQuery = supabase.from('admin_users').select('*')
+
+        // Se for NOIVOS, filtragem de isolamento:
+        if (user && user.role !== 'admin') {
+          eventsQuery = eventsQuery.eq('created_by', user.email)
+          usersQuery = usersQuery.eq('email', user.email)
+        } else if (!user) {
+          // Público: Não carregamos lista de usuários
+          usersQuery = usersQuery.eq('id', 'none')
+        }
+
+        const [{ data: eventsData, error: eventsError }, { data: usersData, error: usersError }] = await Promise.all([
+          eventsQuery.order('created_at', { ascending: false }),
+          usersQuery.order('created_at', { ascending: false })
+        ])
 
         if (eventsError) throw eventsError
+        if (usersError) throw usersError
 
         const formattedEvents = (eventsData || []).map(e => ({
           id: e.id,
           slug: e.slug,
           eventSettings: e.event_settings,
-          guests: [], // Guests são carregados no EventContext ou Dashboard
+          guests: [],
           createdAt: new Date(e.created_at),
           createdBy: e.created_by
         }))
 
-        // Mapear contagem de eventos por email
+        // Mapear contagem de eventos
         const eventCounts: Record<string, number> = {}
         formattedEvents.forEach(e => {
           if (e.createdBy) {
@@ -84,14 +101,6 @@ export function AdminProvider({ children }: { children: ReactNode }) {
             eventCounts[email] = (eventCounts[email] || 0) + 1
           }
         })
-
-        // Buscar Usuários
-        const { data: usersData, error: usersError } = await supabase
-          .from('admin_users')
-          .select('*')
-          .order('created_at', { ascending: false })
-
-        if (usersError) throw usersError
 
         const formattedUsers = (usersData || []).map(u => ({
           id: u.id,
@@ -112,7 +121,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     }
 
     loadData()
-  }, [])
+  }, [user])
 
   async function addEvent(event: AdminEvent) {
     try {
@@ -165,13 +174,14 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function addUser(user: AdminUser) {
+  async function addUser(user: AdminUser & { password_hash?: string }) {
     try {
       const { error } = await supabase.from('admin_users').insert({
         id: user.id,
         name: user.name,
         email: user.email,
         type: user.type,
+        password_hash: user.password_hash || null,
         created_at: user.createdAt.toISOString()
       })
       if (error) throw error

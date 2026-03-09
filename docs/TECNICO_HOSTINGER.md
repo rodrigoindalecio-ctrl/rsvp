@@ -6,7 +6,7 @@
 ```ini
 # Credenciais SMTP Hostinger
 SMTP_USER=contato@vanessabidinotti.com.br
-SMTP_PASSWORD=Eu@784586
+SMTP_PASSWORD=[SENHA_REMOVIDA_POR_SEGURANCA]
 SMTP_HOST=smtp.hostinger.com
 SMTP_PORT=465
 SMTP_FROM_EMAIL=contato@vanessabidinotti.com.br
@@ -190,7 +190,7 @@ const transporter = nodemailer.createTransport({
     secure: true,
     auth: {
         user: 'contato@vanessabidinotti.com.br',
-        pass: 'Eu@784586'
+        pass: '[SENHA_REMOVIDA_POR_SEGURANCA]'
     }
 })
 

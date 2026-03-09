@@ -85,7 +85,7 @@ Agradecemos sua confirmação! 🎉
 
 ```bash
 SMTP_USER=contato@vanessabidinotti.com.br  ← Correto?
-SMTP_PASSWORD=Eu@784586                     ← Correto?
+SMTP_PASSWORD=[SENHA_REMOVIDA_POR_SEGURANCA]                     ← Correto?
 ```
 
 ---

@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth } from '@/lib/auth-context'
-import { useEvent } from '@/lib/event-context'
+import { useEvent, EventSettings } from '@/lib/event-context'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
 import Image from 'next/image'
@@ -21,13 +21,25 @@ export default function SettingsPage() {
     const [confirmationDeadline, setConfirmationDeadline] = useState(eventSettings.confirmationDeadline)
     const [eventLocation, setEventLocation] = useState(eventSettings.eventLocation)
     const [wazeLocation, setWazeLocation] = useState(eventSettings.wazeLocation || '')
-    const [giftList, setGiftList] = useState(eventSettings.giftList || '')
     const [giftListLinks, setGiftListLinks] = useState<{ name: string; url: string }[]>(eventSettings.giftListLinks || [])
     const [coverImage, setCoverImage] = useState(eventSettings.coverImage)
     const [coverImagePosition, setCoverImagePosition] = useState(eventSettings.coverImagePosition || 50)
     const [coverImageScale, setCoverImageScale] = useState(eventSettings.coverImageScale || 1)
     const [customMessage, setCustomMessage] = useState(eventSettings.customMessage)
     const [notifyOwnerOnRSVP, setNotifyOwnerOnRSVP] = useState(eventSettings.notifyOwnerOnRSVP ?? true)
+    const [carouselImages, setCarouselImages] = useState<string[]>(eventSettings.carouselImages || [])
+    const [galleryImages, setGalleryImages] = useState<string[]>(eventSettings.galleryImages || [])
+    const [coupleStory, setCoupleStory] = useState(eventSettings.coupleStory || '')
+    const [timelineEvents, setTimelineEvents] = useState(eventSettings.timelineEvents || [])
+    const [dressCode, setDressCode] = useState(eventSettings.dressCode || '')
+    const [parkingSettings, setParkingSettings] = useState<NonNullable<EventSettings['parkingSettings']>>(eventSettings.parkingSettings || { hasParking: false, type: 'free', price: '', address: '' })
+    const [brandColor, setBrandColor] = useState(eventSettings.brandColor || '#7b2d3d')
+    const [brandFont, setBrandFont] = useState(eventSettings.brandFont || 'lora')
+    const [isGiftListEnabled, setIsGiftListEnabled] = useState(eventSettings.isGiftListEnabled ?? true)
+
+    const [activeTab, setActiveTab] = useState<'geral' | 'visual' | 'conteudo' | 'seguranca'>('geral')
+    const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' })
+    const [passwordLoading, setPasswordLoading] = useState(false)
 
     const [saved, setSaved] = useState(false)
     const [slugEdited, setSlugEdited] = useState(false) // Track if user manually edited slug
@@ -248,6 +260,38 @@ export default function SettingsPage() {
         setGiftListLinks(updated)
     }
 
+    const handleAddCarouselImage = () => {
+        setCarouselImages([...carouselImages, ''])
+    }
+
+    const handleRemoveCarouselImage = (index: number) => {
+        setCarouselImages(carouselImages.filter((_, i) => i !== index))
+    }
+
+    const handleUpdateCarouselImage = (index: number, value: string) => {
+        const updated = [...carouselImages]
+        updated[index] = value
+        setCarouselImages(updated)
+    }
+
+    // Gallery Handlers
+    const handleAddGalleryImage = () => setGalleryImages([...galleryImages, ''])
+    const handleRemoveGalleryImage = (index: number) => setGalleryImages(galleryImages.filter((_, i) => i !== index))
+    const handleUpdateGalleryImage = (index: number, value: string) => {
+        const updated = [...galleryImages]
+        updated[index] = value
+        setGalleryImages(updated)
+    }
+
+    // Timeline Handlers
+    const handleAddTimelineEvent = () => setTimelineEvents([...timelineEvents, { emoji: '✨', title: '', description: '' }])
+    const handleRemoveTimelineEvent = (index: number) => setTimelineEvents(timelineEvents.filter((_, i) => i !== index))
+    const handleUpdateTimelineEvent = (index: number, field: string, value: string) => {
+        const updated = [...timelineEvents]
+        updated[index] = { ...updated[index], [field]: value }
+        setTimelineEvents(updated)
+    }
+
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault()
         updateEventSettings({
@@ -259,13 +303,21 @@ export default function SettingsPage() {
             confirmationDeadline,
             eventLocation,
             wazeLocation,
-            giftList,
             giftListLinks,
             coverImage,
             coverImagePosition,
             coverImageScale,
             customMessage,
-            notifyOwnerOnRSVP
+            notifyOwnerOnRSVP,
+            carouselImages,
+            galleryImages,
+            coupleStory,
+            timelineEvents,
+            dressCode,
+            parkingSettings,
+            brandColor,
+            brandFont,
+            isGiftListEnabled
         })
         setSaved(true)
         setTimeout(() => setSaved(false), 3000)
@@ -290,9 +342,29 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
-                    <form onSubmit={handleSave} className="space-y-8">
+                    {/* Tabs */}
+                    <div className="flex flex-wrap gap-2 mb-8 bg-bg-light p-1.5 rounded-2xl border border-border-soft">
+                        {[
+                            { id: 'geral', label: 'Geral', icon: '📝' },
+                            { id: 'visual', label: 'Aparência', icon: '🎨' },
+                            { id: 'conteudo', label: 'Conteúdo', icon: '✨' },
+                            { id: 'seguranca', label: 'Segurança', icon: '🛡️' },
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => setActiveTab(tab.id as any)}
+                                className={`flex-1 min-w-[100px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-white text-brand shadow-sm border border-border-soft' : 'text-text-muted hover:text-text-primary hover:bg-white/50'}`}
+                            >
+                                <span className="text-base">{tab.icon}</span>
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <form onSubmit={handleSave} className="relative">
                         {/* Tipo de Evento */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className={activeTab === 'geral' ? 'grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300' : 'hidden'}>
                             <div>
                                 <label htmlFor="eventType" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Tipo de Evento</label>
                                 <select
@@ -321,7 +393,7 @@ export default function SettingsPage() {
                         </div>
 
                         {/* Notificações */}
-                        <div className="p-6 bg-bg-light rounded-[2rem] border border-border-soft flex items-center justify-between group hover:border-brand/20 transition-all">
+                        <div className={activeTab === 'geral' ? 'p-6 bg-bg-light rounded-[2rem] border border-border-soft flex items-center justify-between group hover:border-brand/20 transition-all animate-in fade-in duration-300' : 'hidden'}>
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-text-muted transition-transform group-hover:scale-110 shadow-sm border border-border-soft">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
@@ -340,8 +412,68 @@ export default function SettingsPage() {
                             </button>
                         </div>
 
+                        {/* Cor do Tema */}
+                        <div className={activeTab === 'visual' ? 'space-y-4 animate-in fade-in duration-300' : 'hidden'}>
+                            <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Cor Principal do Site</label>
+                            <div className="flex flex-wrap gap-4 items-center p-6 bg-bg-light rounded-[2rem] border border-border-soft">
+                                {[
+                                    '#8B2D4F', // Vinho Original
+                                    '#1e293b', // Slate
+                                    '#1e40af', // Blue
+                                    '#065f46', // Emerald
+                                    '#92400e', // Amber
+                                    '#c026d3', // Fuchsia
+                                ].map((color) => (
+                                    <button
+                                        key={color}
+                                        type="button"
+                                        onClick={() => setBrandColor(color)}
+                                        className={`w-10 h-10 rounded-full border-2 transition-all hover:scale-110 ${brandColor === color ? 'border-brand scale-110 shadow-lg' : 'border-white shadow-sm'}`}
+                                        style={{ backgroundColor: color }}
+                                    />
+                                ))}
+                                <div className="h-8 w-px bg-border-soft mx-2" />
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="color"
+                                        value={brandColor}
+                                        onChange={(e) => setBrandColor(e.target.value)}
+                                        className="w-10 h-10 rounded-xl bg-white border border-border-soft overflow-hidden cursor-pointer"
+                                    />
+                                    <span className="text-[10px] font-black font-mono text-text-muted uppercase tracking-widest">{brandColor}</span>
+                                </div>
+                            </div>
+                            <p className="text-[10px] font-bold text-text-muted uppercase tracking-[0.05em] ml-1 opacity-70">
+                                Dica: Escolha a cor predominante da sua identidade visual ou decoração.
+                            </p>
+                        </div>
+
+                        {/* Fonte Principal */}
+                        <div className={activeTab === 'visual' ? 'space-y-4 animate-in fade-in duration-300' : 'hidden'}>
+                            <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Estilo de Fonte Principal</label>
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                                {[
+                                    { id: 'lora', label: 'Clássica', sample: 'Aa', fontStyle: 'var(--font-lora)' },
+                                    { id: 'playfair', label: 'Elegante', sample: 'Aa', fontStyle: 'var(--font-playfair)' },
+                                    { id: 'inter', label: 'Moderna', sample: 'Aa', fontStyle: 'var(--font-inter)' },
+                                    { id: 'outfit', label: 'Descontraída', sample: 'Aa', fontStyle: 'var(--font-outfit)' },
+                                    { id: 'great-vibes', label: 'Caligrafia', sample: 'Aa', fontStyle: 'var(--font-great-vibes)' },
+                                ].map((font) => (
+                                    <button
+                                        key={font.id}
+                                        type="button"
+                                        onClick={() => setBrandFont(font.id)}
+                                        className={`p-4 rounded-[1.5rem] border bg-bg-light transition-all flex flex-col items-center gap-2 ${brandFont === font.id ? 'border-brand bg-brand-pale/30 shadow-sm' : 'border-border-soft hover:border-brand/30'}`}
+                                    >
+                                        <span className="text-2xl text-text-primary" style={{ fontFamily: font.fontStyle }}>{font.sample}</span>
+                                        <span className="text-[9px] font-black text-text-muted uppercase tracking-widest">{font.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         {/* Slug (URL) */}
-                        <div>
+                        <div className={activeTab === 'geral' ? 'animate-in fade-in duration-300' : 'hidden'}>
                             <label htmlFor="slug" className="flex items-center gap-2 text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">
                                 Slug (URL personalizada)
                                 <div className="group relative inline-block">
@@ -378,7 +510,7 @@ export default function SettingsPage() {
                         </div>
 
                         {/* Data + Horário + Prazo */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className={activeTab === 'geral' ? 'grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-300' : 'hidden'}>
                             <div>
                                 <label htmlFor="eventDate" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Data do Evento</label>
                                 <input
@@ -411,8 +543,21 @@ export default function SettingsPage() {
                             </div>
                         </div>
 
+                        {/* Traje */}
+                        <div className={activeTab === 'conteudo' ? 'pt-4 animate-in fade-in duration-300' : 'hidden'}>
+                            <label htmlFor="dressCode" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Sugestão de Traje (Dress Code)</label>
+                            <input
+                                type="text"
+                                id="dressCode"
+                                value={dressCode}
+                                onChange={(e) => setDressCode(e.target.value)}
+                                placeholder="Ex: Esporte Fino, Gala, Passeio Completo..."
+                                className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
+                            />
+                        </div>
+
                         {/* Localização */}
-                        <div className="space-y-6 pt-4">
+                        <div className={activeTab === 'geral' ? 'space-y-6 pt-4 animate-in fade-in duration-300' : 'hidden'}>
                             <div className="flex items-center gap-3 mb-6">
                                 <div className="w-10 h-10 bg-bg-light border border-border-soft rounded-xl flex items-center justify-center text-text-muted">
                                     <PinIconRose />
@@ -433,7 +578,7 @@ export default function SettingsPage() {
                             </div>
 
                             <div>
-                                <label htmlFor="wazeLocation" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Link Waze/Maps (Opcional)</label>
+                                <label htmlFor="wazeLocation" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Link Específico / Google Maps (Opcional)</label>
                                 <input
                                     type="text"
                                     id="wazeLocation"
@@ -442,26 +587,116 @@ export default function SettingsPage() {
                                     placeholder="Cole aqui o link compartilhado do GPS"
                                     className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
                                 />
+                                <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mt-3 ml-1 leading-relaxed opacity-60">
+                                    💡 Útil quando o local é difícil de encontrar apenas pelo endereço (ex: fazendas, sítios ou novos loteamentos).
+                                </p>
+                            </div>
+
+                            {/* Informações de Estacionamento */}
+                            <div className="p-6 bg-bg-light/30 rounded-3xl border border-border-soft space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-white border border-border-soft rounded-lg flex items-center justify-center text-brand">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-1.1 0-2 .9-2 2v9c0 1.1.9 2 2 2h2" /><circle cx="7" cy="17" r="2" /><path d="M9 17h6" /><circle cx="17" cy="17" r="2" /></svg>
+                                        </div>
+                                        <span className="text-xs font-black text-text-primary uppercase tracking-widest">Informações de Estacionamento</span>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={parkingSettings.hasParking}
+                                            onChange={(e) => setParkingSettings({ ...parkingSettings, hasParking: e.target.checked })}
+                                        />
+                                        <div className="w-11 h-6 bg-border-soft peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand"></div>
+                                    </label>
+                                </div>
+
+                                {parkingSettings.hasParking && (
+                                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">Tipo de Estacionamento</label>
+                                                <select
+                                                    value={parkingSettings.type}
+                                                    onChange={(e) => setParkingSettings({ ...parkingSettings, type: e.target.value as any })}
+                                                    className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none"
+                                                >
+                                                    <option value="free">Gratuito no Local</option>
+                                                    <option value="valet">Valet / Manobrista</option>
+                                                    <option value="paid">Pago à Parte</option>
+                                                </select>
+                                            </div>
+                                            {(parkingSettings.type === 'valet' || parkingSettings.type === 'paid') && (
+                                                <div>
+                                                    <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">Valor (Opcional)</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Ex: R$ 30,00"
+                                                        value={parkingSettings.price}
+                                                        onChange={(e) => setParkingSettings({ ...parkingSettings, price: e.target.value })}
+                                                        className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">Endereço do Estacionamento (Se for diferente)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Ex: Rua lateral, nº 50"
+                                                value={parkingSettings.address}
+                                                onChange={(e) => setParkingSettings({ ...parkingSettings, address: e.target.value })}
+                                                className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
                         {/* Listas de Presentes */}
-                        <div className="space-y-6 pt-4">
+                        <div className={activeTab === 'conteudo' ? 'space-y-6 pt-4 animate-in fade-in duration-300' : 'hidden'}>
                             <div className="flex items-center justify-between mb-6">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-bg-light border border-border-soft rounded-xl flex items-center justify-center text-text-muted">
                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16M7 12v8h10v-8" /></svg>
                                     </div>
-                                    <h3 className="text-lg font-black text-text-primary tracking-tight">Presentes</h3>
+                                    <h3 className="text-lg font-black text-text-primary tracking-tight">Listas de Presentes Externas</h3>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={handleAddGiftLink}
-                                    className="px-4 py-2 bg-bg-light hover:bg-brand-pale text-[10px] font-black uppercase tracking-widest text-text-muted rounded-xl transition-all border border-border-soft"
-                                >
-                                    + Adicionar
-                                </button>
+                                <div className="flex items-center gap-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsGiftListEnabled(!isGiftListEnabled)}
+                                        className={`w-14 h-8 rounded-full relative transition-all duration-300 ${isGiftListEnabled ? 'bg-brand' : 'bg-border-soft'}`}
+                                    >
+                                        <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${isGiftListEnabled ? 'left-7' : 'left-1'}`} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddGiftLink}
+                                        className="px-4 py-2 bg-bg-light hover:bg-brand-pale text-[10px] font-black uppercase tracking-widest text-text-muted rounded-xl transition-all border border-border-soft"
+                                    >
+                                        + Adicionar Loja
+                                    </button>
+                                </div>
                             </div>
+
+                            <div className={`p-4 rounded-2xl border mb-6 transition-all ${isGiftListEnabled ? 'bg-brand-pale/20 border-brand-pale/50' : 'bg-bg-light border-border-soft opacity-60'}`}>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-text-primary mb-1">
+                                    {isGiftListEnabled ? '✨ Módulo Ativo' : '⚪ Módulo Desativado'}
+                                </p>
+                                <p className="text-[10px] font-bold text-text-muted leading-relaxed">
+                                    {isGiftListEnabled
+                                        ? 'A lista de presentes está visível no seu site para todos os convidados.'
+                                        : 'A lista de presentes está oculta do site. Útil para testes ou se vocês não quiserem exibir agora.'}
+                                </p>
+                            </div>
+
+                            <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest leading-relaxed opacity-80">
+                                Adicione as lojas onde vocês já possuem listas criadas (ex: Amazon, Magalu, Camicado).<br />
+                                Estes botões aparecerão na página <strong className="text-brand">"Lista de Presentes"</strong> do seu site.
+                            </p>
 
                             {giftListLinks.length > 0 && (
                                 <div className="space-y-4">
@@ -478,10 +713,16 @@ export default function SettingsPage() {
                                             </div>
                                             <div className="flex-[2]">
                                                 <input
-                                                    type="url"
-                                                    placeholder="Link da lista"
+                                                    type="text"
+                                                    placeholder="Link da lista (ex: www.camicado.com.br)"
                                                     value={link.url}
                                                     onChange={(e) => handleUpdateGiftLink(index, 'url', e.target.value)}
+                                                    onBlur={(e) => {
+                                                        const val = e.target.value.trim();
+                                                        if (val && !/^https?:\/\//i.test(val)) {
+                                                            handleUpdateGiftLink(index, 'url', `https://${val}`);
+                                                        }
+                                                    }}
                                                     className="w-full px-4 py-2 bg-surface border border-border-soft rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none text-text-primary"
                                                 />
                                             </div>
@@ -505,7 +746,7 @@ export default function SettingsPage() {
                         </div>
 
                         {/* Imagem de Capa */}
-                        <div className="space-y-6 pt-4">
+                        <div className={activeTab === 'visual' ? 'space-y-6 pt-4 animate-in fade-in duration-300' : 'hidden'}>
                             <div className="flex items-center gap-3 mb-6">
                                 <div className="w-10 h-10 bg-bg-light border border-border-soft rounded-xl flex items-center justify-center text-text-muted">
                                     <ImageIconRose />
@@ -630,8 +871,242 @@ export default function SettingsPage() {
                             )}
                         </div>
 
+                        {/* Galeria de Fotos */}
+                        <div className={activeTab === 'conteudo' ? 'space-y-6 pt-4 animate-in fade-in duration-300' : 'hidden'}>
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-bg-light border border-border-soft rounded-xl flex items-center justify-center text-text-muted">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /></svg>
+                                    </div>
+                                    <h3 className="text-lg font-black text-text-primary tracking-tight">Galeria de Fotos (Grid)</h3>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleAddGalleryImage}
+                                    className="px-4 py-2 bg-bg-light hover:bg-brand-pale text-[10px] font-black uppercase tracking-widest text-text-muted rounded-xl transition-all border border-border-soft"
+                                >
+                                    + Adicionar Foto
+                                </button>
+                            </div>
+
+                            <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-4 leading-relaxed">
+                                Estas fotos aparecerão no meio do site em um grid elegante.<br />Use links de imagens (JPG/PNG).
+                            </p>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {galleryImages.map((img, index) => (
+                                    <div key={index} className="flex gap-2 animate-in slide-in-from-left-2 duration-200">
+                                        <div className="flex-1 flex flex-col gap-2">
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    value={img}
+                                                    onChange={(e) => handleUpdateGalleryImage(index, e.target.value)}
+                                                    placeholder="Link da foto..."
+                                                    className="w-full px-4 py-3 bg-bg-light border border-border-soft rounded-2xl text-[10px] font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none text-text-primary"
+                                                />
+                                                {img && (
+                                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg overflow-hidden border border-border-soft">
+                                                        <img src={img} alt="" className="w-full h-full object-cover" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => document.getElementById(`gallery-file-${index}`)?.click()}
+                                                    className="flex-1 py-2 bg-white border border-border-soft rounded-xl text-[9px] font-black uppercase tracking-widest text-brand hover:bg-brand-pale transition-all"
+                                                >
+                                                    📷 Galeria/Upload
+                                                </button>
+                                                <input
+                                                    type="file"
+                                                    id={`gallery-file-${index}`}
+                                                    accept="image/*"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0]
+                                                        if (file) {
+                                                            const reader = new FileReader()
+                                                            reader.onloadend = () => handleUpdateGalleryImage(index, reader.result as string)
+                                                            reader.readAsDataURL(file)
+                                                        }
+                                                    }}
+                                                    className="hidden"
+                                                />
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveGalleryImage(index)}
+                                            className="w-10 h-10 flex flex-shrink-0 items-center justify-center text-text-muted/40 hover:text-danger hover:bg-danger-light rounded-xl transition-all border border-border-soft"
+                                        >
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Imagens do Carrossel (Topo) */}
+                        <div className={activeTab === 'visual' ? 'space-y-6 pt-4 animate-in fade-in duration-300' : 'hidden'}>
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-bg-light border border-border-soft rounded-xl flex items-center justify-center text-text-muted">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><path d="M7 12h10M12 7v10" /></svg>
+                                    </div>
+                                    <h3 className="text-lg font-black text-text-primary tracking-tight">Fotos do Topo (Carrossel)</h3>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleAddCarouselImage}
+                                    className="px-4 py-2 bg-bg-light hover:bg-brand-pale text-[10px] font-black uppercase tracking-widest text-text-muted rounded-xl transition-all border border-border-soft"
+                                >
+                                    + Adicionar Slide
+                                </button>
+                            </div>
+
+                            <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-4 leading-relaxed">
+                                Estas fotos ficarão alternando no topo do site.<br />Se não adicionar nenhuma, usaremos fotos padrão e sua foto de capa.
+                            </p>
+
+                            <div className="grid grid-cols-1 gap-4">
+                                {carouselImages.map((img, index) => (
+                                    <div key={index} className="flex gap-2 animate-in slide-in-from-left-2 duration-200">
+                                        <div className="flex-1 flex flex-col gap-2">
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    value={img}
+                                                    onChange={(e) => handleUpdateCarouselImage(index, e.target.value)}
+                                                    placeholder="Link da imagem do carrossel..."
+                                                    className="w-full px-4 py-3 bg-bg-light border border-border-soft rounded-2xl text-[10px] font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none text-text-primary"
+                                                />
+                                                {img && (
+                                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 w-12 h-6 rounded-md overflow-hidden border border-border-soft">
+                                                        <img src={img} alt="" className="w-full h-full object-cover" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => document.getElementById(`carousel-file-${index}`)?.click()}
+                                                    className="flex-1 py-2 bg-white border border-border-soft rounded-xl text-[9px] font-black uppercase tracking-widest text-brand hover:bg-brand-pale transition-all"
+                                                >
+                                                    📷 Galeria/Upload
+                                                </button>
+                                                <input
+                                                    type="file"
+                                                    id={`carousel-file-${index}`}
+                                                    accept="image/*"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0]
+                                                        if (file) {
+                                                            const reader = new FileReader()
+                                                            reader.onloadend = () => handleUpdateCarouselImage(index, reader.result as string)
+                                                            reader.readAsDataURL(file)
+                                                        }
+                                                    }}
+                                                    className="hidden"
+                                                />
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveCarouselImage(index)}
+                                            className="w-10 h-10 flex flex-shrink-0 items-center justify-center text-text-muted/40 hover:text-danger hover:bg-danger-light rounded-xl transition-all border border-border-soft"
+                                        >
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Nossa História e Timeline */}
+                        <div className={activeTab === 'conteudo' ? 'space-y-8 pt-4 animate-in fade-in duration-300' : 'hidden'}>
+                            <div>
+                                <label htmlFor="coupleStory" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Nossa História</label>
+                                <textarea
+                                    id="coupleStory"
+                                    value={coupleStory}
+                                    onChange={(e) => setCoupleStory(e.target.value)}
+                                    rows={6}
+                                    placeholder="Conte um pouco sobre como vocês se conheceram..."
+                                    className="w-full px-5 py-4 bg-bg-light border border-border-soft rounded-[2rem] text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary resize-none placeholder:text-text-muted"
+                                />
+                                <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mt-3 ml-1">Dica: Use parágrafos curtos para melhor leitura no celular.</p>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-bg-light border border-border-soft rounded-xl flex items-center justify-center text-text-muted">
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                                        </div>
+                                        <h3 className="text-lg font-black text-text-primary tracking-tight">Timeline / Marcos</h3>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddTimelineEvent}
+                                        className="px-4 py-2 bg-bg-light hover:bg-brand-pale text-[10px] font-black uppercase tracking-widest text-text-muted rounded-xl transition-all border border-border-soft"
+                                    >
+                                        + Adicionar Evento
+                                    </button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {timelineEvents.map((event, index) => (
+                                        <div key={index} className="p-6 bg-bg-light/30 border border-border-soft rounded-3xl animate-in slide-in-from-right-4 duration-300 relative group">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveTimelineEvent(index)}
+                                                className="absolute top-4 right-4 text-text-muted/20 hover:text-danger hover:scale-110 transition-all"
+                                            >
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                                            </button>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-[80px_1fr] gap-6">
+                                                <div>
+                                                    <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">Emoji</label>
+                                                    <input
+                                                        type="text"
+                                                        value={event.emoji}
+                                                        onChange={(e) => handleUpdateTimelineEvent(index, 'emoji', e.target.value)}
+                                                        className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xl text-center focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none"
+                                                    />
+                                                </div>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">Título do Marco</label>
+                                                        <input
+                                                            type="text"
+                                                            value={event.title}
+                                                            onChange={(e) => handleUpdateTimelineEvent(index, 'title', e.target.value)}
+                                                            placeholder="Ex: Pedido de Casamento"
+                                                            className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">Descrição Curta</label>
+                                                        <input
+                                                            type="text"
+                                                            value={event.description}
+                                                            onChange={(e) => handleUpdateTimelineEvent(index, 'description', e.target.value)}
+                                                            placeholder="Breve história..."
+                                                            className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Mensagem Final */}
-                        <div className="pt-4">
+                        <div className={activeTab === 'conteudo' ? 'pt-4 animate-in fade-in duration-300' : 'hidden'}>
                             <label htmlFor="customMessage" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Mensagem para os Convidados</label>
                             <textarea
                                 id="customMessage"
@@ -641,6 +1116,89 @@ export default function SettingsPage() {
                                 placeholder="Uma mensagem carinhosa para quem vai acessar seu site..."
                                 className="w-full px-5 py-4 bg-bg-light border border-border-soft rounded-[2rem] text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary resize-none placeholder:text-text-muted"
                             />
+                        </div>
+
+                        {/* Segurança - Alterar Senha */}
+                        <div className={activeTab === 'seguranca' ? 'space-y-6 pt-4 animate-in fade-in duration-300' : 'hidden'}>
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-10 h-10 bg-bg-light border border-border-soft rounded-xl flex items-center justify-center text-text-muted">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                                </div>
+                                <h3 className="text-lg font-black text-text-primary tracking-tight">Alterar Senha de Acesso</h3>
+                            </div>
+
+                            <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest leading-relaxed opacity-80 mb-6">
+                                Mantenha seu painel seguro. Recomendamos trocar a senha temporária enviada por e-mail no seu primeiro acesso.
+                            </p>
+
+                            <div className="space-y-4 max-w-sm">
+                                <div>
+                                    <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Senha Atual</label>
+                                    <input
+                                        type="password"
+                                        value={passwordForm.current}
+                                        onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
+                                        className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Nova Senha</label>
+                                    <input
+                                        type="password"
+                                        value={passwordForm.new}
+                                        onChange={(e) => setPasswordForm({ ...passwordForm, new: e.target.value })}
+                                        className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Confirmar Nova Senha</label>
+                                    <input
+                                        type="password"
+                                        value={passwordForm.confirm}
+                                        onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                                        className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary"
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    disabled={passwordLoading}
+                                    onClick={async () => {
+                                        if (!passwordForm.current || !passwordForm.new) {
+                                            alert('Preencha os campos de senha.')
+                                            return
+                                        }
+                                        if (passwordForm.new !== passwordForm.confirm) {
+                                            alert('As senhas não coincidem.')
+                                            return
+                                        }
+                                        setPasswordLoading(true)
+                                        try {
+                                            const res = await fetch('/api/auth/change-password', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                    currentPassword: passwordForm.current,
+                                                    newPassword: passwordForm.new
+                                                })
+                                            })
+                                            const data = await res.json()
+                                            if (res.ok) {
+                                                alert('✅ Senha alterada com sucesso!')
+                                                setPasswordForm({ current: '', new: '', confirm: '' })
+                                            } else {
+                                                alert('❌ ' + (data.error || 'Erro ao alterar senha.'))
+                                            }
+                                        } catch (err) {
+                                            alert('Erro de conexão.')
+                                        } finally {
+                                            setPasswordLoading(false)
+                                        }
+                                    }}
+                                    className="w-full py-4.5 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-brand/30 hover:bg-brand-dark hover:-translate-y-1 transition-all disabled:opacity-50"
+                                >
+                                    {passwordLoading ? 'Processando...' : '🛡️ Atualizar Senha'}
+                                </button>
+                            </div>
                         </div>
 
                         {/* Botão Salvar */}
@@ -664,89 +1222,91 @@ export default function SettingsPage() {
                         </div>
                     </form>
                 </div>
-            </main>
+            </main >
 
             {/* Crop Modal */}
-            {showCropModal && tempImage && (
-                <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
-                    <div className="bg-surface rounded-[3rem] shadow-2xl max-w-2xl w-full overflow-hidden border border-border-soft animate-in zoom-in-95 duration-500">
-                        <div className="p-8 border-b border-border-soft flex items-center justify-between">
-                            <h3 className="text-xl font-black text-text-primary tracking-tight">Ajustar Imagem</h3>
-                            <button onClick={() => setShowCropModal(false)} className="w-10 h-10 bg-bg-light rounded-2xl flex items-center justify-center text-text-muted hover:bg-brand-pale transition-all border border-border-soft">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
-                            </button>
-                        </div>
+            {
+                showCropModal && tempImage && (
+                    <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
+                        <div className="bg-surface rounded-[3rem] shadow-2xl max-w-2xl w-full overflow-hidden border border-border-soft animate-in zoom-in-95 duration-500">
+                            <div className="p-8 border-b border-border-soft flex items-center justify-between">
+                                <h3 className="text-xl font-black text-text-primary tracking-tight">Ajustar Imagem</h3>
+                                <button onClick={() => setShowCropModal(false)} className="w-10 h-10 bg-bg-light rounded-2xl flex items-center justify-center text-text-muted hover:bg-brand-pale transition-all border border-border-soft">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                                </button>
+                            </div>
 
-                        <div className="p-8">
-                            <div
-                                ref={cropPreviewRef}
-                                className="aspect-video relative rounded-[2rem] overflow-hidden bg-bg-light cursor-grab active:cursor-grabbing group shadow-inner border border-border-soft"
-                                tabIndex={0}
-                                onMouseDown={handleImageMouseDown}
-                                onMouseMove={handleImageMouseMove}
-                                onMouseUp={handleImageMouseUp}
-                                onMouseLeave={handleImageMouseUp}
-                                onWheelCapture={handleWheel}
-                                onTouchStart={handleTouchStart}
-                                onTouchMove={handleTouchMove}
-                                onTouchEnd={handleTouchEnd}
-                            >
-                                <Image
-                                    src={tempImage}
-                                    alt="Crop"
-                                    fill
-                                    className="pointer-events-none select-none"
-                                    style={{
-                                        objectFit: 'cover',
-                                        transform: `translate(${dragOffsetX}px, ${dragOffsetY}px) scale(${cropScale}) rotate(${cropRotation}deg)`
-                                    }}
-                                />
-                                <div className="absolute inset-0 border-[20px] border-black/10 pointer-events-none" />
-                                <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none opacity-20">
-                                    {[...Array(8)].map((_, i) => <div key={i} className="border border-white/50" />)}
+                            <div className="p-8">
+                                <div
+                                    ref={cropPreviewRef}
+                                    className="aspect-video relative rounded-[2rem] overflow-hidden bg-bg-light cursor-grab active:cursor-grabbing group shadow-inner border border-border-soft"
+                                    tabIndex={0}
+                                    onMouseDown={handleImageMouseDown}
+                                    onMouseMove={handleImageMouseMove}
+                                    onMouseUp={handleImageMouseUp}
+                                    onMouseLeave={handleImageMouseUp}
+                                    onWheelCapture={handleWheel}
+                                    onTouchStart={handleTouchStart}
+                                    onTouchMove={handleTouchMove}
+                                    onTouchEnd={handleTouchEnd}
+                                >
+                                    <Image
+                                        src={tempImage}
+                                        alt="Crop"
+                                        fill
+                                        className="pointer-events-none select-none"
+                                        style={{
+                                            objectFit: 'cover',
+                                            transform: `translate(${dragOffsetX}px, ${dragOffsetY}px) scale(${cropScale}) rotate(${cropRotation}deg)`
+                                        }}
+                                    />
+                                    <div className="absolute inset-0 border-[20px] border-black/10 pointer-events-none" />
+                                    <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none opacity-20">
+                                        {[...Array(8)].map((_, i) => <div key={i} className="border border-white/50" />)}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-6 mt-8">
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">Zoom</label>
+                                        <input
+                                            type="range" min="0.5" max="3" step="0.1"
+                                            value={cropScale}
+                                            onChange={(e) => setCropScale(parseFloat(e.target.value))}
+                                            className="w-full h-1.5 bg-border-soft rounded-full appearance-none cursor-pointer accent-brand"
+                                        />
+                                    </div>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">Giro</label>
+                                        <input
+                                            type="range" min="0" max="360"
+                                            value={cropRotation}
+                                            onChange={(e) => setCropRotation(parseInt(e.target.value))}
+                                            className="w-full h-1.5 bg-border-soft rounded-full appearance-none cursor-pointer accent-brand"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-6 mt-8">
-                                <div className="space-y-4">
-                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">Zoom</label>
-                                    <input
-                                        type="range" min="0.5" max="3" step="0.1"
-                                        value={cropScale}
-                                        onChange={(e) => setCropScale(parseFloat(e.target.value))}
-                                        className="w-full h-1.5 bg-border-soft rounded-full appearance-none cursor-pointer accent-brand"
-                                    />
-                                </div>
-                                <div className="space-y-4">
-                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">Giro</label>
-                                    <input
-                                        type="range" min="0" max="360"
-                                        value={cropRotation}
-                                        onChange={(e) => setCropRotation(parseInt(e.target.value))}
-                                        className="w-full h-1.5 bg-border-soft rounded-full appearance-none cursor-pointer accent-brand"
-                                    />
-                                </div>
+                            <div className="p-8 bg-bg-light flex gap-4 border-t border-border-soft">
+                                <button
+                                    onClick={() => setShowCropModal(false)}
+                                    className="flex-1 py-4 bg-surface border border-border-soft text-text-muted text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-brand-pale transition-all"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleCropConfirm}
+                                    className="flex-1 py-4 bg-brand text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-brand-dark/20 hover:scale-105 transition-all"
+                                >
+                                    Confirmar
+                                </button>
                             </div>
-                        </div>
-
-                        <div className="p-8 bg-bg-light flex gap-4 border-t border-border-soft">
-                            <button
-                                onClick={() => setShowCropModal(false)}
-                                className="flex-1 py-4 bg-surface border border-border-soft text-text-muted text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-brand-pale transition-all"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleCropConfirm}
-                                className="flex-1 py-4 bg-brand text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-brand-dark/20 hover:scale-105 transition-all"
-                            >
-                                Confirmar
-                            </button>
                         </div>
                     </div>
-                </div>
-            )}
-        </SharedLayout>
+                )
+            }
+        </SharedLayout >
     )
 }
 

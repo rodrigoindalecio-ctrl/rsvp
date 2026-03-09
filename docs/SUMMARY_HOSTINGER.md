@@ -38,7 +38,7 @@ const transporter = nodemailer.createTransport({
     secure: true,
     auth: {
         user: 'contato@vanessabidinotti.com.br',
-        pass: 'Eu@784586'
+        pass: '[SENHA_REMOVIDA_POR_SEGURANCA]'
     }
 })
 
@@ -102,7 +102,7 @@ http://localhost:3000/evento/vanessaerodrigo
 ```
 .env.local
 ├── Email: contato@vanessabidinotti.com.br ✅
-├── Senha: Eu@784586 ✅
+├── Senha: [SENHA_REMOVIDA_POR_SEGURANCA] ✅
 ├── SMTP: smtp.hostinger.com ✅
 ├── Porta: 465 ✅
 └── Criptografia: SSL ✅

@@ -82,7 +82,7 @@ http://localhost:3000/evento/vanessaerodrigo
 
 ```
 Email: contato@vanessabidinotti.com.br ✅
-Senha: Eu@784586 ✅
+Senha: [SENHA_REMOVIDA_POR_SEGURANCA] ✅
 SMTP: smtp.hostinger.com ✅
 Porta: 465 (SSL) ✅
 ```

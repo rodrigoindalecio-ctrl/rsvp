@@ -11,7 +11,7 @@
 **Credenciais de Admin:**
 ```
 Email: rodrigoindalecio@gmail.com
-Senha: Eu@784586
+Senha: [SENHA_REMOVIDA_POR_SEGURANCA]
 ```
 
 ---
@@ -98,7 +98,7 @@ src/app/login/page.tsx           ← Added admin hint
 ### 1. Fazer Login como Admin
 - Acesse `/login`
 - Digite email: `rodrigoindalecio@gmail.com`
-- Digite senha: `Eu@784586`
+- Digite senha: `[SENHA_REMOVIDA_POR_SEGURANCA]`
 - Será redirecionado para `/admin/dashboard`
 
 ### 2. Visualizar Dashboard

@@ -3,7 +3,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from './supabase'
-import { useAdmin } from './admin-context'
 
 type User = {
   name: string
@@ -22,15 +21,9 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const ADMIN_CREDENTIALS = {
-  email: 'rodrigoindalecio@hotmail.com',
-  password: 'Eu@784586'
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const adminContext = useAdmin() // Usar contexto admin para criar eventos
 
   // Initialize state from localStorage once mounted
   useEffect(() => {
@@ -38,7 +31,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const saved = localStorage.getItem('rsvp_auth_user')
       if (saved) {
         try {
-          setUser(JSON.parse(saved))
+          const parsed = JSON.parse(saved)
+          setUser(parsed)
+          // Garantir que o cookie de sessão existe (pode ter sido limpo)
+          document.cookie = `rsvp_session=${encodeURIComponent(saved)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
         } catch (e) {
           console.error('Error parsing saved user:', e)
         }
@@ -50,75 +46,78 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   async function login(email: string, password: string) {
-    if (email === ADMIN_CREDENTIALS.email && password === ADMIN_CREDENTIALS.password) {
-      const adminUser = { name: 'Administrador', email, role: 'admin' as const }
-      setUser(adminUser)
-      localStorage.setItem('rsvp_auth_user', JSON.stringify(adminUser))
-      router.push('/admin/dashboard')
-      return
+    const setSession = (userData: any) => {
+      setUser(userData)
+      const serialized = JSON.stringify(userData)
+      localStorage.setItem('rsvp_auth_user', serialized)
+      document.cookie = `rsvp_session=${encodeURIComponent(serialized)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
     }
 
     try {
-      const { data, error } = await supabase
-        .from('admin_users')
-        .select('*')
-        .eq('email', email)
-        .maybeSingle()
+      // Toda a verificação acontece no servidor — credenciais nunca ficam no código
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      })
 
-      if (error) throw error
+      const data = await res.json()
 
-      if (data) {
-        const rsvpUser = {
-          name: data.name,
-          email: data.email,
-          role: (data.type === 'admin' ? 'admin' : 'user') as 'admin' | 'user'
-        }
-        setUser(rsvpUser)
-        localStorage.setItem('rsvp_auth_user', JSON.stringify(rsvpUser))
+      if (!res.ok) {
+        alert(data.error || 'Acesso negado.')
+        return
+      }
 
-        if (rsvpUser.role === 'admin') {
-          router.push('/admin/dashboard')
-        } else {
-          router.push('/dashboard')
-        }
+      setSession(data.user)
+
+      if (data.user.role === 'admin') {
+        router.push('/admin/dashboard')
       } else {
-        alert('Acesso negado: Este e-mail não está autorizado.')
+        router.push('/dashboard')
       }
     } catch (err) {
-      console.error('Erro no login Supabase:', err)
-      alert('Erro ao verificar suas credenciais. Tente novamente.')
+      console.error('Erro no login:', err)
+      alert('Erro de conexão. Tente novamente.')
     }
   }
 
   async function register(name: string, email: string, password: string) {
-    const newUser = { name, email, role: 'user' as const }
-    setUser(newUser)
-    localStorage.setItem('rsvp_auth_user', JSON.stringify(newUser))
-
     try {
-      const userId = crypto.randomUUID()
-      await supabase.from('admin_users').insert({
-        id: userId,
-        name,
-        email,
-        type: 'noivos',
-        created_at: new Date().toISOString()
+      setLoading(true)
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password })
       })
 
-      // Criar evento automático ao se registrar
-      if (adminContext) {
-        await adminContext.createDefaultEventForUser(email, name)
-      }
-    } catch (err) {
-      console.error('Erro ao registrar no Supabase:', err)
-    }
+      const data = await res.json()
 
-    router.push('/dashboard')
+      if (!res.ok) {
+        alert(data.error || 'Erro ao criar conta.')
+        return
+      }
+
+      // Login automático após registro
+      const userData = data.user
+      setUser(userData)
+      const serialized = JSON.stringify(userData)
+      localStorage.setItem('rsvp_auth_user', serialized)
+      document.cookie = `rsvp_session=${encodeURIComponent(serialized)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
+
+      router.push('/dashboard')
+    } catch (err) {
+      console.error('Erro ao registrar:', err)
+      alert('Erro de conexão.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   function logout() {
     setUser(null)
     localStorage.removeItem('rsvp_auth_user')
+    // Expirar o cookie de sessão imediatamente
+    document.cookie = 'rsvp_session=; path=/; max-age=0; SameSite=Lax'
     router.push('/login')
   }
 
