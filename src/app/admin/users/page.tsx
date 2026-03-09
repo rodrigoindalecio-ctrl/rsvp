@@ -363,25 +363,7 @@ function UsersManagementContent() {
                     </button>
                   </div>
                 </div>
-                <div>
-                  <div className="flex items-center justify-between mb-2.5 ml-1">
-                    <label className="block text-[10px] font-black text-text-muted uppercase tracking-[0.2em]">Senha Inicial de Acesso</label>
-                    <button 
-                      onClick={() => setNewUser({ ...newUser, password: generatePassword() })}
-                      className="text-[9px] text-brand hover:underline font-bold"
-                    >
-                        Gerar Outra
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={newUser.password}
-                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                    placeholder="Ex: Casamento2025"
-                    className="w-full px-6 py-4 bg-bg-light border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 shadow-inner text-text-primary transition-all outline-none placeholder:text-text-muted/50"
-                  />
-                  <p className="text-[9px] text-text-muted mt-2 ml-1">Será enviada por e-mail ao casal. Eles usarão para o primeiro acesso.</p>
-                </div>
+
               </div>
 
               <div className="flex gap-4">
