@@ -26,6 +26,8 @@ const MOBILE_BREAKPOINT = 640
 
 // ─── Tooltip position calculator ────────────────────────────
 // All coords are viewport-relative (from getBoundingClientRect).
+// IMPORTANT: Never use CSS `transform` here — framer-motion owns
+// the transform property to animate scale/y. Mixing them breaks positioning.
 function calcTooltipStyle(
   position: TourStep['position'],
   coords: { top: number; left: number; width: number; height: number }
@@ -37,26 +39,25 @@ function calcTooltipStyle(
   const isCenter = position === 'center' || coords.width === 0
 
   // ── Center / Welcome step ────────────────────────────────
+  // Compute pixels directly — avoids transform: translate() conflict
   if (isCenter) {
     return {
       position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
+      top: Math.max(EDGE, Math.round((window.innerHeight - TOOLTIP_H_EST) / 2)),
+      left: Math.round((window.innerWidth - w) / 2),
       width: w,
       zIndex: 10001,
     }
   }
 
-  // ── Mobile: always anchor as bottom sheet ────────────────
-  // Shows above the mobile bottom-nav (80px) + safe gap
+  // ── Mobile: bottom sheet ─────────────────────────────────
+  // Use left + right instead of left + transform: translateX(-50%)
   if (isMobile) {
     return {
       position: 'fixed',
-      bottom: 92,          // 80px nav + 12px gap
-      left: '50%',
-      transform: 'translateX(-50%)',
-      width: w,
+      bottom: 92,   // above bottom nav (80px) + 12px gap
+      left: EDGE,
+      right: EDGE,
       zIndex: 10001,
     }
   }
@@ -109,11 +110,12 @@ function calcTooltipStyle(
     top = coords.top - TOOLTIP_H_EST - GAP
   }
 
-  // Hard clamp - never go off screen
+  // Hard clamp — never go off screen
   top = Math.max(EDGE, Math.min(window.innerHeight - TOOLTIP_H_EST - EDGE, top))
 
   return { position: 'fixed', top, left, width: w, zIndex: 10001 }
 }
+
 
 // ─── Component ───────────────────────────────────────────────
 export function OnboardingTour({ steps, onComplete, onSkip, isOpen }: OnboardingTourProps) {
