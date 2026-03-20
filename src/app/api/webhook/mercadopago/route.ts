@@ -58,7 +58,8 @@ export async function POST(req: Request) {
                         await fetch(`${baseUrl}/api/send-gift-notification`, {
                             method: 'POST',
                             headers: { 
-                                'Content-Type': 'application/json'
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${process.env.INTERNAL_API_KEY}`
                             },
                             body: JSON.stringify({
                                 ownerEmail: tx.events.created_by,

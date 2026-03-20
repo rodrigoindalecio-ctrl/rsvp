@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { decrypt } from './auth-utils'
 
 /**
- * Verifica se o usuário logado (lido do cookie rsvp_session) é dono do evento.
+ * Verifica se o usuário logado (lido do cookie rsvp_session assinado) é dono do evento.
  * Retorna { authorized: true } se for admin ou se o evento pertencer ao email logado.
  * Retorna { authorized: false, response } com o NextResponse de erro em caso contrário.
  */
@@ -22,11 +23,11 @@ export async function verifyEventOwnership(
 
     let session: { email?: string; role?: string }
     try {
-        session = JSON.parse(decodeURIComponent(sessionCookie.value))
-    } catch {
+        session = await decrypt(sessionCookie.value)
+    } catch (err) {
         return {
             authorized: false,
-            response: NextResponse.json({ error: 'Sessão inválida' }, { status: 401 })
+            response: NextResponse.json({ error: 'Sessão inválida ou expirada' }, { status: 401 })
         }
     }
 

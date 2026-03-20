@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
+import { verifyInternalKey } from '@/lib/auth-utils'
 
 // Função para parsear data ISO sem problemas de timezone
 function parseDateString(dateString: string): Date {
@@ -26,7 +27,9 @@ const createTransporter = () => {
 
 export async function POST(request: NextRequest) {
     try {
-        
+        if (!verifyInternalKey(request)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
 
         const body = await request.json()
         const { email, guestName, eventSettings, confirmedCompanions, confirmedNames, confirmedDetails, giftListLinks } = body

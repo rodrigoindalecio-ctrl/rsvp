@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import bcrypt from 'bcryptjs'
+import { encrypt } from '@/lib/auth-utils'
+import { cookies } from 'next/headers'
 
 export async function POST(request: NextRequest) {
     try {
@@ -63,9 +65,21 @@ export async function POST(request: NextRequest) {
 
         if (eventError) throw eventError
 
+        const user = { name, email: email.toLowerCase(), role: 'user' }
+        
+        // Autenticar automaticamente e definir cookie
+        const token = await encrypt(user)
+        cookies().set('rsvp_session', token, {
+            path: '/',
+            maxAge: 60 * 60 * 24 * 30,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax'
+        })
+
         return NextResponse.json({
             ok: true,
-            user: { name, email: email.toLowerCase(), role: 'user' }
+            user
         })
 
     } catch (err) {

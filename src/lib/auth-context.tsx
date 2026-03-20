@@ -33,10 +33,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const parsed = JSON.parse(saved)
           setUser(parsed)
-          // Garantir que o cookie de sessão existe (pode ter sido limpo)
-          document.cookie = `rsvp_session=${encodeURIComponent(saved)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
         } catch (e) {
           console.error('Error parsing saved user:', e)
+          localStorage.removeItem('rsvp_auth_user')
         }
       }
       setLoading(false)
@@ -50,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData)
       const serialized = JSON.stringify(userData)
       localStorage.setItem('rsvp_auth_user', serialized)
-      document.cookie = `rsvp_session=${encodeURIComponent(serialized)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
+      // O cookie 'rsvp_session' agora é HttpOnly e definido pelo servidor na rota /api/auth/login
     }
 
     try {
@@ -102,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData)
       const serialized = JSON.stringify(userData)
       localStorage.setItem('rsvp_auth_user', serialized)
-      document.cookie = `rsvp_session=${encodeURIComponent(serialized)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
+      // O cookie é definido pelo servidor na rota de registro (precisamos atualizar a rota de registro também)
 
       router.push('/dashboard')
     } catch (err) {
@@ -113,13 +112,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  function logout() {
-    setUser(null)
-    localStorage.removeItem('rsvp_auth_user')
-    // Expirar o cookie de sessão imediatamente
-    document.cookie = 'rsvp_session=; path=/; max-age=0; SameSite=Lax'
-    router.push('/login')
-  }
+    const logout = async () => {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' })
+      } catch (err) {
+        console.warn('Logout API error, clearing local state anyway.')
+      }
+      setUser(null)
+      localStorage.removeItem('rsvp_auth_user')
+      router.push('/login')
+    }
 
   const value = useMemo(() => ({
     user,

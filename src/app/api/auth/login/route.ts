@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import bcrypt from 'bcryptjs'
+import { encrypt } from '@/lib/auth-utils'
+import { cookies } from 'next/headers'
 
 export async function POST(request: NextRequest) {
     try {
@@ -15,9 +17,21 @@ export async function POST(request: NextRequest) {
         const adminPassword = process.env.ADMIN_PASSWORD
 
         if (adminEmail && adminPassword && email.toLowerCase() === adminEmail.toLowerCase() && password === adminPassword) {
+            const adminUser = { id: 'master', name: 'Administrador', email: adminEmail, role: 'admin' }
+            const token = await encrypt(adminUser)
+            
+            cookies().set('rsvp_session', token, {
+                path: '/',
+                maxAge: 60 * 60 * 24 * 30,
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax'
+            })
+
             return NextResponse.json({
                 ok: true,
-                user: { name: 'Administrador', email: adminEmail, role: 'admin' }
+                user: adminUser,
+                token
             })
         }
 
@@ -49,17 +63,9 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json({ error: 'E-mail ou senha incorretos.' }, { status: 401 })
                 }
             } else {
-                // Senha legada em texto simples: comparar e então converter para hash
-                if (data.password_hash !== password) {
-                    return NextResponse.json({ error: 'E-mail ou senha incorretos.' }, { status: 401 })
-                }
-
-                // Converter para hash para as próximas vezes
-                const hashedPassword = await bcrypt.hash(password, 8)
-                await supabase
-                    .from('admin_users')
-                    .update({ password_hash: hashedPassword })
-                    .eq('id', data.id)
+                // Senha legada em texto simples: recusar por segurança.
+                // O administrador deve atualizar no banco para o primeiro hash.
+                return NextResponse.json({ error: 'Sua conta precisa de uma atualização de segurança. Contate o suporte.' }, { status: 403 })
             }
         } else {
             // Sem senha definida: primeiro login, salvar a senha fornecida como hash
@@ -70,17 +76,33 @@ export async function POST(request: NextRequest) {
                 .eq('id', data.id)
         }
 
+        const user = {
+            id: data.id,
+            name: data.name,
+            email: data.email,
+            role: data.type === 'admin' ? 'admin' : 'user'
+        }
+
+        // Criar Sessão Segura (JWT)
+        const token = await encrypt(user)
+        
+        // Configurar o Cookie de Sessão no Servidor (HttpOnly)
+        cookies().set('rsvp_session', token, {
+            path: '/',
+            maxAge: 60 * 60 * 24 * 30, // 30 dias
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax'
+        })
+
         return NextResponse.json({
             ok: true,
-            user: {
-                name: data.name,
-                email: data.email,
-                role: data.type === 'admin' ? 'admin' : 'user'
-            }
+            user,
+            token // Opcional: retornar o token se quiser salvar no localStorage também
         })
 
     } catch (err) {
-        console.error('[LOGIN] Unexpected error:', err)
+        console.error('[LOGIN ERROR]', err)
         return NextResponse.json({ error: 'Erro interno no servidor.' }, { status: 500 })
     }
 }

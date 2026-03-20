@@ -10,7 +10,7 @@ import { useAuth } from '@/lib/auth-context'
 interface Props { slug: string }
 
 export default function RSVPContent({ slug }: Props) {
-    const { eventSettings, guests, updateGuest, ownerEmail, loading } = useEvent()
+    const { eventSettings, guests, updateGuest, ownerEmail, loading, refreshData } = useEvent()
     const { loading: authLoading } = useAuth()
     const [step, setStep] = useState<'idle' | 'search' | 'results' | 'group' | 'success'>('idle')
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -50,40 +50,41 @@ export default function RSVPContent({ slug }: Props) {
         if (!selectedGuest) return
         setIsSubmitting(true)
         try {
-            const updatedComps = selectedGuest.companionsList.map((c, i) => ({ ...c, isConfirmed: groupConf[i] || false }))
-            await updateGuest(selectedGuest.id, {
-                status: isMainConfirmed ? 'confirmed' : 'declined',
-                email: guestEmail, 
-                message: message.trim() || undefined,
-                companionsList: updatedComps, 
-                confirmedAt: new Date()
-            })
+            const updatedComps = selectedGuest.companionsList.map((c: any, i: number) => ({ ...c, isConfirmed: groupConf[i] || false }))
+            
             // Emails
             const confirmedNames: string[] = []
             if (isMainConfirmed) confirmedNames.push(selectedGuest.name)
-            updatedComps.filter(c => c.isConfirmed).forEach(c => confirmedNames.push(c.name))
+            updatedComps.filter((c: any) => c.isConfirmed).forEach((c: any) => confirmedNames.push(c.name))
+
             const confirmedDetails: { name: string; category: GuestCategory }[] = []
             if (isMainConfirmed) confirmedDetails.push({ name: selectedGuest.name, category: selectedGuest.category })
-            updatedComps.filter(c => c.isConfirmed).forEach(c => confirmedDetails.push({ name: c.name, category: c.category || 'adult_paying' }))
+            updatedComps.filter((c: any) => c.isConfirmed).forEach((c: any) => confirmedDetails.push({ name: c.name, category: c.category || 'adult_paying' }))
 
-            if (confirmedNames.length > 0 && guestEmail) {
-                fetch('/api/send-confirmation-email', {
-                    method: 'POST', 
-                    headers: { 
-                        'Content-Type': 'application/json'
+            // Chamada Única para o Servidor (Seguro)
+            const rsvpResponse = await fetch('/api/events/rsvp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    guestId: selectedGuest.id,
+                    updates: {
+                        status: isMainConfirmed ? 'confirmed' : 'declined',
+                        email: guestEmail,
+                        message: message.trim() || undefined,
+                        companionsList: updatedComps,
+                        name: selectedGuest.name
                     },
-                    body: JSON.stringify({ email: guestEmail, guestName: selectedGuest.name, eventSettings, confirmedCompanions: confirmedNames.length, confirmedNames, confirmedDetails, giftListLinks: eventSettings.giftListLinks || [] })
-                }).catch(() => { })
-            }
-            if (eventSettings.notifyOwnerOnRSVP !== false) {
-                fetch('/api/send-owner-notification', {
-                    method: 'POST', 
-                    headers: { 
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ ownerEmail, guestName: selectedGuest.name, eventSettings, confirmedNames, status: isMainConfirmed ? 'confirmed' : 'declined' })
-                }).catch(() => { })
-            }
+                    confirmedNames,
+                    eventSettings,
+                    ownerEmail
+                })
+            })
+
+            if (!rsvpResponse.ok) throw new Error('Erro na resposta do servidor')
+            
+            // Atualizar estado local para refletir a mudança imediatamente
+            await refreshData()
+            
             setStep('success')
         } catch { alert('Erro ao confirmar. Tente novamente.') }
         finally { setIsSubmitting(false) }
