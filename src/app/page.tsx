@@ -8,19 +8,13 @@ export default function Home() {
     <div className="min-h-screen bg-[#fcfafa] selection:bg-brand selection:text-white">
       
       {/* ── TOP HEADER (Minimalist) ────────────────────────────── */}
-      <header className="absolute top-0 left-0 right-0 h-24 px-6 md:px-12 flex items-center justify-between z-20">
+      <header className="absolute top-0 left-0 right-0 h-24 px-6 md:px-12 flex items-center justify-center z-20">
         <div className="flex items-center gap-4">
           <div className="w-1.5 h-1.5 rounded-full bg-brand" />
           <span className="text-[10px] font-black uppercase tracking-[0.4em] text-text-primary">
             VB Assessoria e Cerimonial
           </span>
         </div>
-        <Link 
-          href="/login" 
-          className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted hover:text-brand transition-colors"
-        >
-          Login
-        </Link>
       </header>
 
       {/* 🥇 SEÇÃO 1: HERO */}
