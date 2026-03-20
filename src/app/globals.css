@@ -406,3 +406,48 @@
 :root {
   color-scheme: light;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   MODO ESCURO (DARK MODE) — Premium Dark Experience
+───────────────────────────────────────────────────────────── */
+.dark {
+  color-scheme: dark;
+  
+  --color-background:          #121212;
+  --color-bg-light:            #1a1a1a;
+  --color-surface:             #1e1e1e;
+  
+  --color-text-primary:        #f5f5f5;
+  --color-text-secondary:      #d1d1d1;
+  --color-text-muted:          #888888;
+  
+  --color-border-soft:         #333333;
+  --color-border-card:         #2a2a2a;
+  
+  --color-brand-pale:          #2d1a1e;
+  
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 12px 24px rgba(0, 0, 0, 0.5);
+}
+
+.dark body {
+  background: linear-gradient(
+    135deg,
+    #121212 0%,
+    #1a1a1a 100%
+  ) !important;
+  color: #f5f5f5 !important;
+}
+
+/* Auxiliares para Tailwind Utilities no Modo Dark */
+.dark .bg-white { background-color: var(--color-surface) !important; }
+.dark .text-text-primary { color: var(--color-text-primary) !important; }
+.dark .text-text-muted { color: var(--color-text-muted) !important; }
+.dark .border-border-soft { border-color: var(--color-border-soft) !important; }
+.dark .bg-bg-light { background-color: var(--color-bg-light) !important; }
+.dark .bg-surface { background-color: var(--color-surface) !important; }
+.dark .border-brand\/5 { border-color: rgba(255, 255, 255, 0.05) !important; }
+.dark .shadow-sm { box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important; }
+.dark .shadow-xl { box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important; }

@@ -19,6 +19,7 @@ export default function ImportPage() {
     const [manualName, setManualName] = useState('')
     const [manualGrupo, setManualGrupo] = useState('')
     const [manualCategory, setManualCategory] = useState('adult_paying')
+    const [manualTelefone, setManualTelefone] = useState('')
 
     // Acompanhantes (5 posições)
     const [manualCompanions, setManualCompanions] = useState<Array<{ name: string; category: string }>>([
@@ -82,7 +83,8 @@ export default function ImportPage() {
             name: manualName,
             companionsList,
             grupo: manualGrupo,
-            category: manualCategory
+            category: manualCategory,
+            telefone: manualTelefone
         })
         setStep('review')
     }
@@ -373,6 +375,16 @@ export default function ImportPage() {
                                                     <option value="child_not_paying">Criança Não Pagante</option>
                                                 </select>
                                             </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">WhatsApp / Telefone</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Ex: 11999999999"
+                                                    className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary"
+                                                    value={manualTelefone}
+                                                    onChange={(e) => setManualTelefone(e.target.value)}
+                                                />
+                                            </div>
                                         </div>
 
                                         <div>
@@ -471,6 +483,7 @@ export default function ImportPage() {
                                                 <tr>
                                                     <td className="px-8 py-5">
                                                         <p className="font-black text-text-primary tracking-tight">{pendingGuest.name}</p>
+                                                        {pendingGuest.telefone && <p className="text-[10px] text-brand font-bold mt-1">📞 {pendingGuest.telefone}</p>}
                                                         {pendingGuest.companionsList && pendingGuest.companionsList.length > 0 && (
                                                             <div className="mt-2 flex flex-wrap gap-1.5">
                                                                 {pendingGuest.companionsList.map((c: any, i: number) => (
@@ -490,6 +503,7 @@ export default function ImportPage() {
                                                 <tr key={idx}>
                                                     <td className="px-8 py-4">
                                                         <p className="font-black text-text-primary tracking-tight">{guest.name}</p>
+                                                        {guest.telefone && <p className="text-[10px] text-brand font-bold mt-1">📞 {guest.telefone}</p>}
                                                         {guest.companionsList && guest.companionsList.length > 0 && (
                                                             <div className="mt-2 flex flex-wrap gap-1.5">
                                                                 {guest.companionsList.map((c, i) => (

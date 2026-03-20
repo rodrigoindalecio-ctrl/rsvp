@@ -31,6 +31,7 @@ export default function DashboardPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{ isOpen: boolean; person?: any }>({ isOpen: false })
   const [deleteAllConfirmDialog, setDeleteAllConfirmDialog] = useState({ isOpen: false, step: 1 })
+  const [whatsappConfirmDialog, setWhatsappConfirmDialog] = useState<{ isOpen: boolean; guest?: Guest }>({ isOpen: false })
 
   // Onboarding Tour state
   const [isTourOpen, setIsTourOpen] = useState(false)
@@ -132,6 +133,36 @@ export default function DashboardPage() {
     setIsEditModalOpen(false)
     setEditingGuest(null)
   }
+  
+  const handleWhatsAppReminder = (person: FlattenedGuest) => {
+    const guest = guests.find(g => g.id === person.guestId)
+    if (!guest) return
+    
+    const phone = guest.telefone?.replace(/\D/g, '')
+    if (!phone) {
+      setWhatsappConfirmDialog({ isOpen: true, guest })
+      return
+    }
+    
+    const coupleNames = eventSettings.coupleNames || 'os noivos'
+    const eventSlug = eventSettings.slug || 'dashboard'
+    const url = `${window.location.origin}/${eventSlug}`
+    
+    // Identifica o tipo de evento para a mensagem
+    const eventTypeText = eventSettings.eventType === 'casamento' ? 'o nosso Casamento' : 'a nossa Festa de Debutante'
+    
+    // Formata as datas para o padrão brasileiro
+    const eventDateStr = formatDate(eventSettings.eventDate, { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const deadlineStr = formatDate(eventSettings.confirmationDeadline, { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const eventTimeStr = eventSettings.eventTime || 'horário definido no convite'
+
+    const message = `Olá, ${person.name}! 👋 Tudo bem?\n\nAqui é ${coupleNames}.\n\nEstamos a poucos dias de ${eventTypeText}! Será no dia ${eventDateStr} às ${eventTimeStr}. 💒\n\nNosso buffet precisa da lista final, e a confirmação oficial deve ser feita EXCLUSIVAMENTE pelo link abaixo, pois é por ele que os nomes serão validados para a entrada no evento:\n\n🔗 ${url}\n\n⚠️ Importante: Precisamos da sua confirmação até o dia ${deadlineStr}. Após essa data, fecharemos a lista final e, sem o registro no link, teremos que considerar sua ausência para a recepção. (Favor não responder apenas por aqui, valide pelo link acima).\n\nEstamos imensamente felizes em compartilhar esse dia especial com você! ❤️`
+    
+    // No Windows, às vezes o wa.me tem problemas com preenchimento via URL se não for disparado corretamente.
+    // O encodeURIComponent é o padrão, vamos manter mas garantir a URL limpa.
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(message)}`
+    window.open(whatsappUrl, '_blank')
+  }
 
   // Flatten guests logic
   type FlattenedGuest = {
@@ -145,6 +176,7 @@ export default function DashboardPage() {
     status: GuestStatus
     updatedAt: Date
     confirmedAt?: Date
+    telefone?: string
   }
 
   const allPeople: FlattenedGuest[] = useMemo(() => {
@@ -159,7 +191,8 @@ export default function DashboardPage() {
         groupName: g.grupo || g.name,
         status: g.status,
         updatedAt: g.updatedAt,
-        confirmedAt: g.confirmedAt ? new Date(g.confirmedAt) : undefined
+        confirmedAt: g.confirmedAt ? new Date(g.confirmedAt) : undefined,
+        telefone: g.telefone
       }
 
       // 2. Os Acompanhantes
@@ -173,7 +206,8 @@ export default function DashboardPage() {
         groupName: g.grupo || g.name,
         status: c.isConfirmed ? 'confirmed' : (g.status === 'pending' ? 'pending' : 'declined'),
         updatedAt: g.updatedAt,
-        confirmedAt: g.confirmedAt ? new Date(g.confirmedAt) : undefined
+        confirmedAt: g.confirmedAt ? new Date(g.confirmedAt) : undefined,
+        telefone: g.telefone // O acompanhante herda o telefone do titular para contato
       }))
 
       return [main, ...companions]
@@ -224,6 +258,7 @@ export default function DashboardPage() {
       // 1. Estilização do Cabeçalho
       const headerRow = worksheet.addRow([
         'NOME COMPLETO',
+        'TELEFONE',
         'CATEGORIA',
         'GRUPO / FAMÍLIA',
         'STATUS',
@@ -264,6 +299,7 @@ export default function DashboardPage() {
       allPeople.forEach(person => {
         const row = worksheet.addRow([
           person.name.toUpperCase(),
+          person.telefone || '-',
           categoryLabel(person.category),
           person.groupName || '-',
           person.status === 'confirmed' ? 'CONFIRMADO' : (person.status === 'declined' ? 'RECUSADO' : 'PENDENTE'),
@@ -724,12 +760,26 @@ export default function DashboardPage() {
                                 'Criança Isenta'}
                           </span>
                         </div>
-                        <button
-                          onClick={() => handleEditClick(guests.find(g => g.id === person.guestId)!)}
-                          className="w-9 h-9 bg-bg-light text-text-muted rounded-xl flex items-center justify-center hover:bg-brand hover:text-white hover:scale-110 transition-all shadow-inner group-hover:text-text-primary"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          {person.status === 'pending' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleWhatsAppReminder(person)
+                              }}
+                              className="w-9 h-9 bg-success-light text-success-dark rounded-xl flex items-center justify-center hover:bg-success hover:text-white hover:scale-110 transition-all shadow-inner"
+                              title="Lembrete via WhatsApp"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l2.27-2.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleEditClick(guests.find(g => g.id === person.guestId)!)}
+                            className="w-9 h-9 bg-bg-light text-text-muted rounded-xl flex items-center justify-center hover:bg-brand hover:text-white hover:scale-110 transition-all shadow-inner group-hover:text-text-primary"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -781,6 +831,21 @@ export default function DashboardPage() {
         eventId && <MuralMessagesTab eventId={eventId as string} />
       )}
       </div>
+      {/* Diálogo de Confirmação para WhatsApp sem Telefone */}
+      <ConfirmDialog
+        isOpen={whatsappConfirmDialog.isOpen}
+        onClose={() => setWhatsappConfirmDialog({ isOpen: false })}
+        onConfirm={() => {
+          if (whatsappConfirmDialog.guest) {
+            handleEditClick(whatsappConfirmDialog.guest)
+          }
+          setWhatsappConfirmDialog({ isOpen: false })
+        }}
+        title="WhatsApp não cadastrado"
+        message={`O convidado "${whatsappConfirmDialog.guest?.name}" não possui um número de telefone cadastrado. Deseja adicionar agora para enviar o lembrete?`}
+        confirmText="Adicionar Telefone"
+        cancelText="Depois"
+      />
     </SharedLayout>
   )
 }

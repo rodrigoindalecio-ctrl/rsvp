@@ -69,7 +69,8 @@ export const OPTIONAL_COLUMNS = {
   adultos: 'NOME_COMPLETO_DOS_ACOMPANHANTES',
   criancas_pagantes: 'CRIANCAS_PAGANTES',
   criancas_isentas: 'CRIANCAS_ISENTAS',
-  grupo: 'GRUPO_FAMILIA'
+  grupo: 'GRUPO_FAMILIA',
+  telefone: 'TELEFONE'
 }
 
 // ==========================================
@@ -210,7 +211,7 @@ function processRows(rows: RawGuestRow[]): ParseSheetResult {
       name: nomePrincipal,
       companions: companionsList.length,
       companionsList,
-      telefone: '',
+      telefone: normalizedRow['telefone'] || normalizedRow['whatsapp'] || normalizedRow['celular'] || '',
       grupo: normalizedRow['grupofamilia'] || undefined,
       category: 'adult_paying',
     }
@@ -295,6 +296,7 @@ export async function generateImportTemplate(): Promise<Uint8Array> {
     ['CRIANCAS_PAGANTES', 'Nomes COMPLETOS de crianças PAGANTES separados por vírgula.(ex: Enzo Silva, Maria Silva).'],
     ['CRIANCAS_ISENTAS', 'Nomes COMPLETOS de crianças ISENTAS (não pagantes) separados por vírgula.(ex: Enzo Silva, Maria Silva).'],
     ['GRUPO_FAMILIA', 'Ex: Família Noiva, Amigos Trabalho.'],
+    ['TELEFONE', 'Número para WhatsApp com DDD (apenas números).'],
   ]
 
   tips.forEach(tip => {
@@ -318,6 +320,7 @@ export async function generateImportTemplate(): Promise<Uint8Array> {
     { header: 'CRIANCAS_PAGANTES', key: 'criancas_pagantes', width: 25 },
     { header: 'CRIANCAS_ISENTAS', key: 'criancas_isentas', width: 25 },
     { header: 'GRUPO_FAMILIA', key: 'grupofamilia', width: 20 },
+    { header: 'TELEFONE', key: 'telefone', width: 20 },
   ]
 
   const headerRow = worksheet.getRow(1)
@@ -333,7 +336,8 @@ export async function generateImportTemplate(): Promise<Uint8Array> {
     nomecompletodosacompanhantes: 'Ex: Maria Aparecida Silva',
     criancas_pagantes: 'Ex: Joãozinho Silva',
     criancas_isentas: 'Ex: Bebê Ana',
-    grupofamilia: 'Ex: Família Noivo'
+    grupofamilia: 'Ex: Família Noivo',
+    telefone: 'Ex: 11999999999'
   })
 
   const buffer = await workbook.xlsx.writeBuffer()
