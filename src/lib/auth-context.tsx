@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
+import { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from './supabase'
 
@@ -121,8 +121,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/login')
   }
 
+  const value = useMemo(() => ({
+    user,
+    loading,
+    login,
+    register,
+    logout,
+    isAdmin: user?.role === 'admin'
+  }), [user, loading])
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, isAdmin: user?.role === 'admin' }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   )

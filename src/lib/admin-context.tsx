@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
+import { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react'
 import { EventSettings, Guest } from './event-context'
 import { useAuth } from './auth-context'
 import { supabase } from './supabase'
@@ -45,7 +45,7 @@ type AdminContextType = {
     totalPending: number
     confirmationRate: number
   }
-  createDefaultEventForUser: (userEmail: string, userName: string) => Promise<void>
+  createDefaultEventForUser: (userEmail: string, userName: string, coupleNames?: string, customSlug?: string) => Promise<void>
 }
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined)
@@ -64,8 +64,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       // Mas usuários e métricas globais dependem de quem está logado.
       setLoading(true)
       try {
-        let eventsQuery = supabase.from('events').select('*')
-        let usersQuery = supabase.from('admin_users').select('*')
+        let eventsQuery = supabase.from('events').select('id, slug, event_settings, created_at, created_by')
+        let usersQuery = supabase.from('admin_users').select('id, name, email, type, created_at')
 
         // Se for NOIVOS, filtragem de isolamento:
         if (user && user.role !== 'admin') {
@@ -171,6 +171,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Erro ao atualizar evento:', error)
+      throw error
     }
   }
 
@@ -292,17 +293,43 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function createDefaultEventForUser(userEmail: string, userName: string) {
+  async function createDefaultEventForUser(userEmail: string, userName: string, coupleNames?: string, customSlug?: string) {
     try {
       const eventId = crypto.randomUUID()
-      const defaultSlug = userName.toLowerCase().replace(/\s+/g, '-') + '-' + Math.random().toString(36).substr(2, 4)
+      let finalSlug = customSlug || (coupleNames || userName).toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+
+      // Se for slug automático, adicionamos um sufixo inicial para evitar conflitos óbvios
+      if (!customSlug) {
+        finalSlug += '-' + Math.random().toString(36).substring(2, 6)
+      }
+
+      // 1. Verificar se o slug já existe
+      const { data: existing } = await supabase
+        .from('events')
+        .select('slug')
+        .eq('slug', finalSlug)
+        .maybeSingle()
+
+      if (existing) {
+        if (customSlug) {
+          throw new Error(`O subdomínio "/${customSlug}" já está sendo usado por outro casal. Escolha um diferente.`)
+        } else {
+          // Se for automático e colidir (raro), tentamos um sufixo mais longo
+          finalSlug += Math.random().toString(36).substring(2, 6)
+        }
+      }
 
       const newEvent: AdminEvent = {
         id: eventId,
-        slug: defaultSlug,
+        slug: finalSlug,
         eventSettings: {
-          coupleNames: userName,
-          slug: defaultSlug,
+          coupleNames: coupleNames || userName,
+          slug: finalSlug,
           eventType: 'casamento',
           eventDate: new Date().toISOString().split('T')[0],
           eventTime: '19:00',
@@ -325,24 +352,27 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       setUsers(prev => prev.map(u => u.email.toLowerCase() === userEmail.toLowerCase() ? { ...u, eventsCount: 1 } : u))
     } catch (error) {
       console.error('Erro ao criar evento padrão:', error)
+      throw error // Repassar para o componente tratar
     }
   }
 
+  const value = useMemo(() => ({
+    events,
+    users,
+    loading,
+    addEvent,
+    removeEvent,
+    updateEvent,
+    addUser,
+    removeUser,
+    updateUser,
+    getEventById,
+    getTotalMetrics,
+    createDefaultEventForUser
+  }), [events, users, loading])
+
   return (
-    <AdminContext.Provider value={{
-      events,
-      users,
-      loading,
-      addEvent,
-      removeEvent,
-      updateEvent,
-      addUser,
-      removeUser,
-      updateUser,
-      getEventById,
-      getTotalMetrics,
-      createDefaultEventForUser
-    }}>
+    <AdminContext.Provider value={value}>
       {children}
     </AdminContext.Provider>
   )

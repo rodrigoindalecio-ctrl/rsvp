@@ -3,7 +3,7 @@
 import { useAuth } from '@/lib/auth-context'
 import { useEvent, Guest, GuestStatus, GuestCategory } from '@/lib/event-context'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Image from 'next/image'
 import { GuestEditModal } from './guest-edit-modal'
 import { ConfirmDialog } from '@/app/components/confirm-dialog'
@@ -106,18 +106,6 @@ export default function DashboardPage() {
     }
   }, [eventSettings.isGiftListEnabled, activeTab])
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-brand/20 border-t-brand rounded-full animate-spin" />
-      </div>
-    )
-  }
-
-  if (!user) {
-    return null
-  }
-
   const handleEditClick = (guest: Guest) => {
     setEditingGuest(guest)
     setIsEditModalOpen(true)
@@ -156,44 +144,63 @@ export default function DashboardPage() {
     groupName: string
     status: GuestStatus
     updatedAt: Date
+    confirmedAt?: Date
   }
 
-  const allPeople: FlattenedGuest[] = guests.flatMap(g => {
-    // 1. O Titular
-    const main: FlattenedGuest = {
-      uniqueId: g.id + '-main',
-      guestId: g.id,
-      name: g.name,
-      type: 'Principal',
-      category: g.category,
-      groupName: g.grupo || g.name,
-      status: g.status,
-      updatedAt: g.updatedAt
-    }
+  const allPeople: FlattenedGuest[] = useMemo(() => {
+    return guests.flatMap(g => {
+      // 1. O Titular
+      const main: FlattenedGuest = {
+        uniqueId: g.id + '-main',
+        guestId: g.id,
+        name: g.name,
+        type: 'Principal',
+        category: g.category,
+        groupName: g.grupo || g.name,
+        status: g.status,
+        updatedAt: g.updatedAt,
+        confirmedAt: g.confirmedAt ? new Date(g.confirmedAt) : undefined
+      }
 
-    // 2. Os Acompanhantes
-    const companions: FlattenedGuest[] = g.companionsList.map((c, idx) => ({
-      uniqueId: g.id + '-comp-' + idx,
-      guestId: g.id,
-      companionIndex: idx,
-      name: c.name,
-      type: 'Acompanhante',
-      category: c.category || 'adult_paying',
-      groupName: g.grupo || g.name,
-      status: c.isConfirmed ? 'confirmed' : (g.status === 'pending' ? 'pending' : 'declined'),
-      updatedAt: g.updatedAt
-    }))
+      // 2. Os Acompanhantes
+      const companions: FlattenedGuest[] = g.companionsList.map((c, idx) => ({
+        uniqueId: g.id + '-comp-' + idx,
+        guestId: g.id,
+        companionIndex: idx,
+        name: c.name,
+        type: 'Acompanhante',
+        category: c.category || 'adult_paying',
+        groupName: g.grupo || g.name,
+        status: c.isConfirmed ? 'confirmed' : (g.status === 'pending' ? 'pending' : 'declined'),
+        updatedAt: g.updatedAt,
+        confirmedAt: g.confirmedAt ? new Date(g.confirmedAt) : undefined
+      }))
 
-    return [main, ...companions]
-  })
+      return [main, ...companions]
+    })
+  }, [guests])
 
   // Filter flattened list
-  const filteredPeople = allPeople.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.groupName.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesFilter = filter === 'all' || p.status === filter
-    const matchesCategory = activeCategory === 'all' || p.category === activeCategory
-    return matchesSearch && matchesFilter && matchesCategory
-  })
+  const filteredPeople = useMemo(() => {
+    return allPeople.filter(p => {
+      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.groupName.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesFilter = filter === 'all' || p.status === filter
+      const matchesCategory = activeCategory === 'all' || p.category === activeCategory
+      return matchesSearch && matchesFilter && matchesCategory
+    })
+  }, [allPeople, searchTerm, filter, activeCategory])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-brand/20 border-t-brand rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return null
+  }
 
   const handleCopyLink = () => {
     const slug = eventSettings.slug || user.name.toLowerCase().replace(/\s+/g, '-')
@@ -220,7 +227,6 @@ export default function DashboardPage() {
         'CATEGORIA',
         'GRUPO / FAMÍLIA',
         'STATUS',
-        'ACOMPANHANTES',
         'DATA CONFIRMAÇÃO'
       ])
 
@@ -254,22 +260,21 @@ export default function DashboardPage() {
         return 'Adulto'
       }
 
-      // 3. Adicionar dados
-      guests.forEach(guest => {
+      // 3. Adicionar dados (Usando allPeople para exportar linha a linha)
+      allPeople.forEach(person => {
         const row = worksheet.addRow([
-          guest.name.toUpperCase(),
-          categoryLabel(guest.category),
-          guest.grupo || '-',
-          guest.status === 'confirmed' ? 'CONFIRMADO' : (guest.status === 'declined' ? 'RECUSADO' : 'PENDENTE'),
-          guest.companionsList?.map(c => `${c.name} (${categoryLabel(c.category || 'adult_paying')})`).join(', ') || 'Nenhum',
-          guest.confirmedAt ? formatDate(guest.confirmedAt.toISOString(), { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'
+          person.name.toUpperCase(),
+          categoryLabel(person.category),
+          person.groupName || '-',
+          person.status === 'confirmed' ? 'CONFIRMADO' : (person.status === 'declined' ? 'RECUSADO' : 'PENDENTE'),
+          person.confirmedAt ? formatDate(person.confirmedAt.toISOString(), { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'
         ])
 
         // Estilo condicional para Status
         const statusCell = row.getCell(4)
-        if (guest.status === 'confirmed') {
+        if (person.status === 'confirmed') {
           statusCell.font = { color: { argb: 'FF107C10' }, bold: true }
-        } else if (guest.status === 'declined') {
+        } else if (person.status === 'declined') {
           statusCell.font = { color: { argb: 'FFA50000' }, bold: true }
         }
 
@@ -363,17 +368,19 @@ export default function DashboardPage() {
       title={eventSettings.coupleNames}
       subtitle={`${eventSettings.eventType === 'casamento' ? '💒' : '👑'} ${eventSettings.eventType === 'casamento' ? 'Casamento' : 'Debutante'}`}
     >
-      <div id="tour-dashboard">
+      <div id="tour-dashboard" className="max-w-6xl mx-auto">
       <OnboardingTour 
         isOpen={isTourOpen} 
         steps={tourSteps} 
         onComplete={handleTourComplete} 
         onSkip={handleTourSkip} 
       />
-      {/* HERO SECTION - Cover Image */}
+      {/* HERO SECTION - Cover Image (Card Style as Guest View) */}
       {eventSettings.coverImage && (
-        <div className="relative h-64 md:h-80 rounded-[2.5rem] overflow-hidden mb-10 shadow-xl border-4 border-white animate-in fade-in duration-1000">
-          <Image
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 mb-10 overflow-hidden">
+          <div className="relative aspect-[16/10] sm:aspect-[21/9] rounded-[2.5rem] p-1.5 sm:p-2 bg-white/40 backdrop-blur-sm border border-white/50 shadow-xl group transition-all duration-700">
+            <div className="relative w-full h-full rounded-[2rem] overflow-hidden border border-black/5">
+              <Image
             src={eventSettings.coverImage}
             alt="Event Cover"
             fill
@@ -387,23 +394,15 @@ export default function DashboardPage() {
           {/* Liquid Glass Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10" />
 
-          <div className="absolute inset-x-0 bottom-0 p-8 flex items-end">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-8 text-white text-[10px] font-black uppercase tracking-[0.2em]">
-              {/* Badge Data */}
-              <div className="flex items-center gap-3 drop-shadow-lg">
-                <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/20">
-                  <CalendarIcon />
-                </div>
-                <span>{formatDate(eventSettings.eventDate, { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+          <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8 flex items-end">
+            {/* Badge Data - Único elemento agora */}
+            <div className="flex items-center gap-3 text-white text-[10px] font-black uppercase tracking-[0.2em] drop-shadow-lg">
+              <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/20">
+                <CalendarIcon />
               </div>
-
-              {/* Badge Local */}
-              <div className="flex items-center gap-3 drop-shadow-lg">
-                <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/20">
-                  <PinIcon />
-                </div>
-                <span className="truncate max-w-[250px]">{eventSettings.eventLocation}</span>
-              </div>
+              <span>{formatDate(eventSettings.eventDate, { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+            </div>
+          </div>
             </div>
           </div>
         </div>
@@ -417,71 +416,77 @@ export default function DashboardPage() {
             <ShareIcon />
           </div>
           <div className="flex-1 min-w-0 text-center md:text-left">
-            <h3 className="text-text-primary font-black text-xl mb-1 tracking-tight">Convite Digital</h3>
+            <h3 className="text-text-primary font-black text-xl mb-1 tracking-tight">Meu Site</h3>
             <p className="text-text-muted text-xs font-bold leading-relaxed max-w-2xl px-4 md:px-0">
               O seu link personalizado está pronto. Envie para os convidados confirmarem presença.
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-            <div className="flex-1 bg-bg-light border border-border-soft rounded-xl px-4 py-3 text-[10px] text-text-muted font-black uppercase tracking-widest overflow-hidden text-ellipsis flex items-center shadow-inner">
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-stretch">
+            <div className="flex-1 bg-bg-light border border-border-soft rounded-xl px-5 py-3.5 text-[10px] text-text-muted font-black uppercase tracking-widest overflow-hidden text-ellipsis flex items-center shadow-inner min-w-[200px] md:min-w-[280px]">
               {typeof window !== 'undefined' ?
-                `${window.location.origin}/${eventSettings.slug || user.name.toLowerCase().replace(/\s+/g, '-')}` : '...'
+                `${window.location.origin.replace('http://', '').replace('https://', '')}/${eventSettings.slug || user.name.toLowerCase().replace(/\s+/g, '-')}` : '...'
               }
             </div>
-            <button
-              onClick={handleCopyLink}
-              className={`px-8 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 ${copied ? 'bg-success text-white' : 'bg-brand text-white shadow-lg shadow-brand/20 hover:scale-105 active:scale-95'}`}
-            >
-              {copied ? <><CheckIcon /> Copiado!</> : <><CopyIcon /> Copiar Link</>}
-            </button>
+            
+            <div className="flex gap-2 w-full md:w-auto">
+              <button
+                onClick={handleCopyLink}
+                className={`flex-1 md:flex-none px-6 py-3.5 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all flex items-center justify-center gap-2 border-2 ${copied ? 'bg-success text-white border-success' : 'bg-brand-pale/30 text-brand border-brand/5 hover:bg-brand-pale/50 active:scale-95'}`}
+              >
+                {copied ? <><CheckIcon /> Copiado!</> : <><CopyIcon /> Copiar Link</>}
+              </button>
+              
+              <Link
+                href={`/${eventSettings.slug || user.name.toLowerCase().replace(/\s+/g, '-')}`}
+                target="_blank"
+                className="flex-1 md:flex-none px-6 py-3.5 bg-brand text-white rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-brand/20 hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+              >
+                <div className="sm:hidden lg:block"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/></svg></div>
+                Ver meu site
+              </Link>
+            </div>
           </div>
         </div>
       </div>
 
       {/* TABS MENU */}
-      <div className="flex flex-wrap items-center justify-between mb-8 gap-4">
-        <div className="flex gap-4">
+      <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between mb-10 gap-4">
+        <div className="flex flex-wrap justify-center sm:justify-start gap-2 sm:gap-4 w-full sm:w-auto">
           <button
             onClick={() => setActiveTab('guests')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'guests' ? 'bg-brand text-white shadow-xl' : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'}`}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'guests' ? 'bg-brand text-white shadow-xl' : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'}`}
           >
-            <UsersIconMini /> Lista de Convidados
+            <UsersIconMini /> <span className="whitespace-nowrap">Lista de Convidados</span>
           </button>
           <button
             onClick={() => {
               if (eventSettings.isGiftListEnabled === false) return;
               setActiveTab('gifts');
             }}
-            className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${eventSettings.isGiftListEnabled === false
-              ? 'bg-bg-light border border-dashed border-border-soft text-text-muted opacity-50 cursor-not-allowed'
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${eventSettings.isGiftListEnabled === false
+              ? 'bg-bg-light border border-dashed border-border-soft text-text-muted opacity-50 cursor-not-allowed select-none'
               : activeTab === 'gifts'
                 ? 'bg-brand text-white shadow-xl'
                 : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'
               }`}
             title={eventSettings.isGiftListEnabled === false ? "Este módulo está desativado nas configurações" : ""}
           >
-            <HeartIcon /> Lista de Presentes {eventSettings.isGiftListEnabled === false && '🔒'}
+            <HeartIcon /> <span className="whitespace-nowrap">Presentes {eventSettings.isGiftListEnabled === false && '🔒'}</span>
           </button>
           <button
-            onClick={() => {
-              if (eventSettings.isGiftListEnabled === false) return;
-              setActiveTab('messages');
-            }}
-            className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${eventSettings.isGiftListEnabled === false
-              ? 'bg-bg-light border border-dashed border-border-soft text-text-muted opacity-50 cursor-not-allowed'
-              : activeTab === 'messages'
+            onClick={() => setActiveTab('messages')}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'messages'
                 ? 'bg-brand text-white shadow-xl'
                 : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'
               }`}
-            title={eventSettings.isGiftListEnabled === false ? "Este módulo está desativado nas configurações" : ""}
           >
-            <MessageSquareIcon /> Mural de Recados {eventSettings.isGiftListEnabled === false && '🔒'}
+            <MessageSquareIcon /> <span className="whitespace-nowrap">Mural</span>
           </button>
         </div>
 
         <button
           onClick={() => setIsTourOpen(true)}
-          className="flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all bg-bg-light border border-border-soft text-text-muted hover:bg-brand-pale hover:text-brand hover:border-brand/20 shadow-sm"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all bg-bg-light border border-border-soft text-text-muted hover:bg-brand-pale hover:text-brand hover:border-brand/20 shadow-sm"
         >
           <HelpCircleIcon className="w-4 h-4" /> Ver Tutorial
         </button>
@@ -687,15 +692,15 @@ export default function DashboardPage() {
                   {filteredPeople.map((person) => (
                     <div
                       key={person.uniqueId}
-                      className="bg-surface rounded-[2rem] border border-border-soft shadow-sm p-6 hover:-translate-y-1 hover:shadow-xl hover:shadow-brand/5 transition-all duration-300 group flex flex-col justify-between"
+                      className="bg-surface rounded-[2rem] border border-border-soft shadow-sm p-5 hover:-translate-y-1 hover:shadow-xl hover:shadow-brand/5 transition-all duration-300 group flex flex-col justify-between"
                     >
-                      <div className="flex justify-between items-start gap-2 mb-4">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="flex items-start gap-2 mb-4">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
                           <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center font-black text-sm shadow-inner transform group-hover:scale-110 transition-transform ${person.status === 'confirmed' ? 'bg-success-light text-success-dark' : person.status === 'declined' ? 'bg-danger-light text-danger-dark' : 'bg-bg-light text-text-muted'}`}>
                             {person.name.charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <h4 className="text-sm font-black text-text-primary tracking-tight truncate" title={person.name}>
+                            <h4 className="text-sm font-black text-text-primary tracking-tight line-clamp-2 leading-tight mb-0.5" title={person.name}>
                               {person.name}
                             </h4>
                             <p className="text-[9px] font-bold text-text-muted uppercase tracking-widest truncate">
@@ -703,17 +708,17 @@ export default function DashboardPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex-shrink-0 pt-0.5">
-                          <StatusBadge status={person.status} />
-                        </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-4 border-t border-border-soft">
-                        <div className="flex flex-col">
-                          <span className={`px-2 py-0.5 w-fit rounded-lg text-[8px] font-black uppercase tracking-widest ${person.type === 'Principal' ? 'bg-brand-pale text-brand' : 'bg-bg-light text-text-muted'}`}>
-                            {person.type}
-                          </span>
-                          <span className="text-[8px] font-bold text-text-muted uppercase tracking-tighter mt-1">
+                      <div className="flex items-end justify-between pt-4 border-t border-border-soft">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className={`px-2 py-0.5 w-fit rounded-lg text-[8px] font-black uppercase tracking-widest ${person.type === 'Principal' ? 'bg-brand-pale text-brand' : 'bg-bg-light text-text-muted'}`}>
+                              {person.type}
+                            </span>
+                            <StatusBadge status={person.status} />
+                          </div>
+                          <span className="text-[8px] font-bold text-text-muted uppercase tracking-tighter">
                             {person.category === 'adult_paying' ? 'Adulto' :
                               person.category === 'child_paying' ? 'Criança Pag.' :
                                 'Criança Isenta'}
@@ -874,7 +879,7 @@ function StatusBadge({ status }: { status: GuestStatus }) {
   const { label, icon, class: className } = config[status]
 
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border shadow-sm font-black uppercase tracking-widest whitespace-nowrap ${className} text-[8px] md:text-[9px]`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border shadow-sm font-black uppercase tracking-tight whitespace-nowrap ${className} text-[8px] md:text-[9px]`}>
       <span className="opacity-70">{icon}</span> {label}
     </span>
   )

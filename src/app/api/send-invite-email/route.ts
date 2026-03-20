@@ -70,9 +70,6 @@ export async function POST(request: NextRequest) {
                 <div class="step">
                     <span class="step-text"><strong>E-mail:</strong> ${email}</span>
                 </div>
-                <div class="step">
-                    <span class="step-text"><strong>Senha Temporária:</strong> ${password || 'Use a senha definida pelo administrador'}</span>
-                </div>
                 <div style="margin-top: 20px;">
                     <span class="onboarding-title">Guia de Primeiros Passos:</span>
                     ${onboardingSteps.split('\n').filter((l: string) => l.trim()).map((line: string) => `
@@ -83,7 +80,7 @@ export async function POST(request: NextRequest) {
                 </div>
             </div>
 
-            <a href="${reqBaseUrl}/" class="cta-button">
+            <a href="${reqBaseUrl}/cadastrar-senha?email=${encodeURIComponent(email)}&temp=${password}" class="cta-button">
                 Começar agora!
             </a>
         </div>

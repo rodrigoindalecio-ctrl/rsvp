@@ -55,15 +55,26 @@ export async function POST(request: NextRequest) {
             minute: '2-digit'
         })
 
-        // Criar URL do Waze (se não houver, usar localização genérica)
-        const wazeURL = eventSettings.wazeLocation
-            ? `https://waze.com/ul?q=${encodeURIComponent(eventSettings.wazeLocation)}`
-            : `https://waze.com/ul?q=${encodeURIComponent(eventSettings.eventLocation)}`
+        // Formatar data e hora da cerimônia se existir
+        let ceremonyFormattedTime = ''
+        if (eventSettings.hasSeparateCeremony && eventSettings.ceremonyTime) {
+            ceremonyFormattedTime = eventSettings.ceremonyTime
+        }
 
-        // Gerar link do Google Calendar
+        // Criar URLs do Waze
+        const wazeURL = eventSettings.wazeLocation
+            ? (eventSettings.wazeLocation.startsWith('http') ? eventSettings.wazeLocation : `https://waze.com/ul?q=${encodeURIComponent(eventSettings.wazeLocation)}`)
+            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(eventSettings.eventLocation)}`
+
+        const ceremonyWazeURL = eventSettings.hasSeparateCeremony && (eventSettings.ceremonyWazeLocation || eventSettings.ceremonyLocation)
+            ? (eventSettings.ceremonyWazeLocation?.startsWith('http') ? eventSettings.ceremonyWazeLocation : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(eventSettings.ceremonyWazeLocation || eventSettings.ceremonyLocation || '')}`)
+            : null
+
+        // Gerar link do Google Calendar (focando no horário inicial mais cedo)
+        const finalStartTime = (eventSettings.hasSeparateCeremony && eventSettings.ceremonyTime) ? eventSettings.ceremonyTime : (eventSettings.eventTime || '20:00')
         const calDate = eventSettings.eventDate.replace(/-/g, '')
-        const calTime = (eventSettings.eventTime || '20:00').replace(':', '')
-        const googleCalendarURL = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventSettings.coupleNames)}&dates=${calDate}T${calTime}00/${calDate}T${Number(calTime.substring(0, 2)) + 4}${calTime.substring(2)}00&details=${encodeURIComponent(eventSettings.customMessage || '')}&location=${encodeURIComponent(eventSettings.eventLocation)}`
+        const calTime = finalStartTime.replace(':', '')
+        const googleCalendarURL = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventSettings.coupleNames)}&dates=${calDate}T${calTime}00/${calDate}T${Number(calTime.substring(0, 2)) + 8}${calTime.substring(2)}00&details=${encodeURIComponent(eventSettings.customMessage || '')}&location=${encodeURIComponent(eventSettings.hasSeparateCeremony ? eventSettings.ceremonyLocation || eventSettings.eventLocation : eventSettings.eventLocation)}`
 
         // Limpar baseUrl
         let baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000').replace(/['"]+/g, '').trim();
@@ -95,8 +106,9 @@ export async function POST(request: NextRequest) {
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
         }
         .header {
+            background-color: #8B2D4F;
             background: linear-gradient(135deg, #8B2D4F 0%, #6D223D 100%);
-            color: white;
+            color: #FFFFFF;
             padding: 40px 30px;
             text-align: center;
         }
@@ -241,16 +253,16 @@ export async function POST(request: NextRequest) {
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <p style="text-transform: uppercase; letter-spacing: 3px; font-size: 10px; font-weight: 900; margin-bottom: 15px;">Confirmação de Presença</p>
-            <h1>${eventSettings.coupleNames}</h1>
+        <div class="header" style="background-color: #8B2D4F; background: linear-gradient(135deg, #8B2D4F 0%, #6D223D 100%); color: #ffffff;">
+            <p style="text-transform: uppercase; letter-spacing: 3px; font-size: 10px; font-weight: 900; margin-bottom: 15px; color: #ffffff;">${eventSettings.emailConfirmationTitle || 'Confirmação de Presença'}</p>
+            <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 300; letter-spacing: 1px;">${eventSettings.coupleNames}</h1>
         </div>
 
         <div class="content">
             <div class="greeting">
                 Olá, <strong>${guestName}</strong>!
                 <br><br>
-                Ficamos muito felizes com a sua confirmação! 🎉 Sua presença é o que tornará este dia verdadeiramente especial para nós.
+                ${(eventSettings.emailConfirmationGreeting || 'Ficamos muito felizes com a sua confirmação! 🎉 Sua presença é o que tornará este dia verdadeiramente especial para nós.').replace(/\n/g, '<br>')}
             </div>
 
             <div class="confirmation-badge">
@@ -280,20 +292,34 @@ export async function POST(request: NextRequest) {
             <div class="section-title">📅 Onde e Quando</div>
             
             <div class="info-card">
-                <div class="info-label">Data e Hora</div>
+                <div class="info-label">Data e Horário</div>
                 <div class="info-value">${formattedDate}h</div>
                 <div style="margin-top: 15px;">
                     <a href="${googleCalendarURL}" class="cta-button" style="background-color: #FAFAF8; border: 1px solid #8B2D4F; color: #8B2D4F !important; box-shadow: none;">Adicionar ao Calendário</a>
                 </div>
             </div>
 
+            ${eventSettings.hasSeparateCeremony ? `
+            <div class="info-card" style="border-left: 4px solid #8B2D4F;">
+                <div class="info-label">✨ A Cerimônia (Início às ${eventSettings.eventTime}h)</div>
+                <div class="info-value" style="margin-bottom: 12px;">${eventSettings.ceremonyLocation}</div>
+                ${ceremonyWazeURL ? `<a href="${ceremonyWazeURL}" class="cta-button" style="padding: 8px 16px; font-size: 10px;">GPS da Cerimônia</a>` : ''}
+            </div>
+
+            <div class="info-card">
+                <div class="info-label">🥂 A Recepção</div>
+                <div class="info-value" style="margin-bottom: 12px;">${eventSettings.eventLocation}</div>
+                <a href="${wazeURL}" class="cta-button" style="padding: 8px 16px; font-size: 10px;">GPS da Recepção</a>
+            </div>
+            ` : `
             <div class="info-card">
                 <div class="info-label">Local do Evento</div>
-                <div class="info-value">${eventSettings.eventLocation}</div>
-                <div style="margin-top: 15px;">
+                <div class="info-value" style="margin-bottom: 12px;">${eventSettings.eventLocation}</div>
+                <div style="margin-top: 5px;">
                     <a href="${wazeURL}" class="cta-button">Ver no GPS / Waze</a>
                 </div>
             </div>
+            `}
 
             ${eventSettings.dressCode ? `
             <div class="section-title">👔 Sugestão de Traje</div>
@@ -303,18 +329,23 @@ export async function POST(request: NextRequest) {
             ` : ''}
 
             ${eventSettings.parkingSettings?.hasParking ? `
-            <div class="section-title">🚗 Estacionamento</div>
+            <div class="section-title">🚗 Estacionamento (Local da Recepção)</div>
             <div class="info-card">
                 <div class="info-label">Tipo</div>
                 <div class="info-value">
-                    ${eventSettings.parkingSettings.type === 'free' ? 'Gratuito no Local' :
-                    eventSettings.parkingSettings.type === 'valet' ? 'Valet / Manobrista' : 'Pago no Local'}
+                    ${eventSettings.parkingSettings.type === 'free' ? 'Gratuito no Local 🟢' :
+                    eventSettings.parkingSettings.type === 'valet' ? 'Valet / Estacionamento no Local (Pago) 🟡' : 'Estacionamentos Próximos (Sugestão) 🅿️'}
                     ${eventSettings.parkingSettings.price ? ` — ${eventSettings.parkingSettings.price}` : ''}
                 </div>
                 ${eventSettings.parkingSettings.address ? `
                 <div style="margin-top: 10px; font-size: 13px; color: #666;">
-                    <strong>Endereço do Estacionamento:</strong><br>
+                    <strong>📍 Localização:</strong><br>
                     ${eventSettings.parkingSettings.address}
+                </div>
+                ` : ''}
+                ${(eventSettings.parkingSettings as any).wazeLocation ? `
+                <div style="margin-top: 15px;">
+                    <a href="${(eventSettings.parkingSettings as any).wazeLocation}" class="cta-button" style="padding: 8px 16px; font-size: 10px; background-color: #FAFAF8; border: 1px solid #8B2D4F; color: #8B2D4F !important; box-shadow: none;">GPS do Estacionamento</a>
                 </div>
                 ` : ''}
             </div>

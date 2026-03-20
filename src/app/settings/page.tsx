@@ -3,19 +3,28 @@
 import { useAuth } from '@/lib/auth-context'
 import { useEvent, EventSettings } from '@/lib/event-context'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState, useRef, Suspense } from 'react'
+import { useEffect, useState, useRef, Suspense, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { SharedLayout } from '@/app/components/shared-layout'
+import { motion, AnimatePresence } from 'framer-motion'
+import { toast } from 'sonner'
+import { useJsApiLoader, Autocomplete } from '@react-google-maps/api'
+
+const libraries: ("places")[] = ["places"]
 
 export default function SettingsPage() {
     const { user, loading: authLoading, logout } = useAuth()
     const { eventSettings, updateEventSettings } = useEvent()
     const router = useRouter()
     
+    if (authLoading || !eventSettings) {
+        return <div className="min-h-screen bg-bg-light flex items-center justify-center"><div className="w-12 h-12 border-4 border-brand/20 border-t-brand rounded-full animate-spin" /></div>
+    }
+
     // Wrap with Suspense because useSearchParams is used
     return (
-        <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><div className="w-12 h-12 border-4 border-brand/20 border-t-brand rounded-full animate-spin" /></div>}>
+        <Suspense fallback={<div className="min-h-screen bg-bg-light flex items-center justify-center"><div className="w-12 h-12 border-4 border-brand/20 border-t-brand rounded-full animate-spin" /></div>}>
             <SettingsContent user={user} authLoading={authLoading} eventSettings={eventSettings} updateEventSettings={updateEventSettings} router={router} />
         </Suspense>
     )
@@ -43,12 +52,27 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
     const [carouselImages, setCarouselImages] = useState<string[]>(eventSettings.carouselImages || [])
     const [galleryImages, setGalleryImages] = useState<string[]>(eventSettings.galleryImages || [])
     const [coupleStory, setCoupleStory] = useState(eventSettings.coupleStory || '')
+    const [coupleStoryTitle, setCoupleStoryTitle] = useState(eventSettings.coupleStoryTitle || 'Como Tudo Começou')
+    const [emailConfirmationTitle, setEmailConfirmationTitle] = useState(eventSettings.emailConfirmationTitle || 'Confirmação de Presença')
+    const [emailConfirmationGreeting, setEmailConfirmationGreeting] = useState(eventSettings.emailConfirmationGreeting || 'Ficamos muito felizes com a sua confirmação! 🎉 Sua presença é o que tornará este dia verdadeiramente especial para nós.')
     const [timelineEvents, setTimelineEvents] = useState(eventSettings.timelineEvents || [])
     const [dressCode, setDressCode] = useState(eventSettings.dressCode || '')
-    const [parkingSettings, setParkingSettings] = useState<NonNullable<EventSettings['parkingSettings']>>(eventSettings.parkingSettings || { hasParking: false, type: 'free', price: '', address: '' })
+    const [parkingSettings, setParkingSettings] = useState<NonNullable<EventSettings['parkingSettings']>>({
+        hasParking: eventSettings.parkingSettings?.hasParking ?? false,
+        type: eventSettings.parkingSettings?.type ?? 'free',
+        price: eventSettings.parkingSettings?.price ?? '',
+        address: eventSettings.parkingSettings?.address ?? '',
+        receptionOnly: eventSettings.parkingSettings?.receptionOnly ?? false
+    })
     const [brandColor, setBrandColor] = useState(eventSettings.brandColor || '#7b2d3d')
     const [brandFont, setBrandFont] = useState(eventSettings.brandFont || 'lora')
+    const [hasSeparateCeremony, setHasSeparateCeremony] = useState(eventSettings.hasSeparateCeremony ?? false)
+    const [ceremonyLocation, setCeremonyLocation] = useState(eventSettings.ceremonyLocation || '')
+    const [ceremonyAddress, setCeremonyAddress] = useState(eventSettings.ceremonyAddress || '')
+    const [ceremonyWazeLocation, setCeremonyWazeLocation] = useState(eventSettings.ceremonyWazeLocation || '')
+    const [ceremonyTime, setCeremonyTime] = useState(eventSettings.ceremonyTime || '19:00')
     const [isGiftListEnabled, setIsGiftListEnabled] = useState(eventSettings.isGiftListEnabled ?? true)
+    const [eventAddress, setEventAddress] = useState(eventSettings.eventAddress || '')
 
     const [activeTab, setActiveTab] = useState<'geral' | 'visual' | 'conteudo' | 'seguranca'>('geral')
     const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' })
@@ -69,9 +93,57 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
     const [dragStartY, setDragStartY] = useState(0)
     const [cropScale, setCropScale] = useState(1)
     const [cropRotation, setCropRotation] = useState(0)
+    const [cropTarget, setCropTarget] = useState<{ type: 'cover' | 'timeline' | 'gallery' | 'carousel' | 'logo', index?: number } | null>(null)
+    const [cropQueue, setCropQueue] = useState<{ src: string, type: any, index?: number }[]>([])
     const [touchDistance, setTouchDistance] = useState(0)
     const [touchStartRotation, setTouchStartRotation] = useState(0)
     const cropPreviewRef = useRef<HTMLDivElement>(null)
+    
+    // Autocomplete Refs
+    const ceremonyAutocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
+    const receptionAutocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
+    const parkingAutocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
+
+    const { isLoaded } = useJsApiLoader({
+        id: 'google-map-script',
+        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '',
+        libraries: libraries
+    })
+
+    const onCeremonyPlaceChanged = () => {
+        if (ceremonyAutocompleteRef.current) {
+            const place = ceremonyAutocompleteRef.current.getPlace()
+            if (place.formatted_address) {
+                setCeremonyLocation(place.name || place.formatted_address)
+                setCeremonyAddress(place.formatted_address)
+                if (place.url) setCeremonyWazeLocation(place.url)
+            }
+        }
+    }
+
+    const onReceptionPlaceChanged = () => {
+        if (receptionAutocompleteRef.current) {
+            const place = receptionAutocompleteRef.current.getPlace()
+            if (place.formatted_address) {
+                setEventLocation(place.name || place.formatted_address)
+                setEventAddress(place.formatted_address)
+                if (place.url) setWazeLocation(place.url)
+            }
+        }
+    }
+
+    const onParkingPlaceChanged = () => {
+        if (parkingAutocompleteRef.current) {
+            const place = parkingAutocompleteRef.current.getPlace()
+            if (place.formatted_address) {
+                setParkingSettings({
+                    ...parkingSettings,
+                    address: place.name || place.formatted_address,
+                    wazeLocation: place.url || undefined
+                })
+            }
+        }
+    }
 
     // Function to generate slug from names
     const generateSlug = (text: string): string => {
@@ -93,27 +165,51 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
 
     // Handle manual slug edit
     const handleSlugChange = (value: string) => {
-        setSlug(value)
-        setSlugEdited(true) // Mark as manually edited
+        const cleanSlug = value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+        setSlug(cleanSlug)
+        setSlugEdited(true)
     }
 
-    // Handle drag on image in crop modal
+    const handleEventDateChange = (newDate: string) => {
+        setEventDate(newDate)
+        if (newDate) {
+            // Cálculo robusto de data (7 dias antes)
+            const [year, month, day] = newDate.split('-').map(Number)
+            const date = new Date(year, month - 1, day)
+            date.setDate(date.getDate() - 7)
+            
+            // Formatar YYYY-MM-DD
+            const y = date.getFullYear()
+            const m = String(date.getMonth() + 1).padStart(2, '0')
+            const d = String(date.getDate()).padStart(2, '0')
+            setConfirmationDeadline(`${y}-${m}-${d}`)
+        }
+    }
+
     const handleImageMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
         setIsDragging(true)
-        setDragStartX(e.clientX)
-        setDragStartY(e.clientY)
+        setDragStartX(e.clientX - dragOffsetX)
+        setDragStartY(e.clientY - dragOffsetY)
     }
 
-    const handleImageMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!isDragging) return
+    const handleImageMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+        if (!isDragging || !cropPreviewRef.current) return
+        const rect = cropPreviewRef.current.getBoundingClientRect()
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+        
+        let newX = clientX - dragStartX
+        let newY = clientY - dragStartY
 
-        const deltaX = e.clientX - dragStartX
-        const deltaY = e.clientY - dragStartY
+        // Bounds clamping logic (prevention of black bars)
+        const maxOffsetX = (rect.width * (cropScale - 1)) / 2
+        const maxOffsetY = (rect.height * (cropScale - 1)) / 2
+        
+        newX = Math.max(-maxOffsetX, Math.min(maxOffsetX, newX))
+        newY = Math.max(-maxOffsetY, Math.min(maxOffsetY, newY))
 
-        setDragOffsetX(dragOffsetX + deltaX)
-        setDragOffsetY(dragOffsetY + deltaY)
-        setDragStartX(e.clientX)
-        setDragStartY(e.clientY)
+        setDragOffsetX(newX)
+        setDragOffsetY(newY)
     }
 
     const handleImageMouseUp = () => {
@@ -143,8 +239,8 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
         if (e.touches.length === 1) {
             // Single finger - drag
             setIsDragging(true)
-            setDragStartX(e.touches[0].clientX)
-            setDragStartY(e.touches[0].clientY)
+            setDragStartX(e.touches[0].clientX - dragOffsetX)
+            setDragStartY(e.touches[0].clientY - dragOffsetY)
         } else if (e.touches.length === 2) {
             // Two fingers - pinch zoom or rotation
             e.preventDefault()
@@ -157,13 +253,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
     const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
         if (e.touches.length === 1 && isDragging) {
             // Single finger drag
-            const deltaX = e.touches[0].clientX - dragStartX
-            const deltaY = e.touches[0].clientY - dragStartY
-
-            setDragOffsetX(dragOffsetX + deltaX)
-            setDragOffsetY(dragOffsetY + deltaY)
-            setDragStartX(e.touches[0].clientX)
-            setDragStartY(e.touches[0].clientY)
+            handleImageMouseMove(e)
         } else if (e.touches.length === 2) {
             // Two fingers - pinch and rotate
             e.preventDefault()
@@ -206,16 +296,18 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
         if (!file) return
 
         if (file.size > 5 * 1024 * 1024) {
-            alert('Arquivo muito grande! Máximo 5MB.')
-            return
+            toast.info('Processando foto...', {
+                description: 'Isso pode demorar um pouco se o arquivo for muito pesado.'
+            })
         }
 
         const reader = new FileReader()
         reader.onloadend = () => {
             const base64String = reader.result as string
             setTempImage(base64String)
+            setCropTarget({ type: 'cover' })
             setShowCropModal(true)
-            setCropScale(1)
+            setCropScale(1.1) // Start with a bit of zoom to hide edges
             setCropRotation(0)
             setDragOffsetX(0)
             setDragOffsetY(0)
@@ -223,11 +315,107 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
         reader.readAsDataURL(file)
     }
 
-    const handleCropConfirm = () => {
-        setCoverImage(tempImage)
-        setImagePreview(tempImage)
-        setShowCropModal(false)
-        setTempImage('')
+    const handleCropConfirm = async () => {
+        if (!tempImage || !cropPreviewRef.current) return
+
+        try {
+            // Real pixel crop using Canvas
+            const img = new (window as any).Image()
+            img.src = tempImage
+            await new Promise((resolve) => img.onload = resolve)
+
+            const canvas = document.createElement('canvas')
+            const rect = cropPreviewRef.current.getBoundingClientRect()
+            
+            // Set output size based on aspect ratio
+            const isSquare = cropTarget?.type === 'timeline' || cropTarget?.type === 'gallery'
+            const isCarousel = cropTarget?.type === 'carousel'
+            
+            canvas.width = isSquare ? 1000 : 1200
+            canvas.height = isSquare ? 1000 : 675 
+             // Se for carrossel, forçamos o aspect ratio horizontal no modal (ajustando a visualização)
+            const targetAspect = isSquare ? 1 : 1200/675            
+            const ctx = canvas.getContext('2d')
+            if (!ctx) return
+
+            // Transparent background
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            
+            // Calculate total transformations
+            const scaleFactor = canvas.width / rect.width
+            
+            // Apply transformations
+            ctx.save()
+            ctx.translate(canvas.width / 2, canvas.height / 2)
+            ctx.rotate((cropRotation * Math.PI) / 180)
+            
+            // Map drag offsets to canvas coordinates
+            const tx = dragOffsetX * scaleFactor
+            const ty = dragOffsetY * scaleFactor
+            ctx.translate(tx, ty)
+            ctx.scale(cropScale, cropScale)
+            
+            // Final draw dimensions
+            const imgAspect = img.width / img.height
+            const canvasAspect = canvas.width / canvas.height
+            let drawW, drawH
+            if (imgAspect > canvasAspect) {
+                drawH = canvas.height
+                drawW = canvas.height * imgAspect
+            } else {
+                drawW = canvas.width
+                drawH = canvas.width / imgAspect
+            }
+
+            ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH)
+            ctx.restore()
+
+            const croppedBase64 = canvas.toDataURL('image/jpeg', 0.85)
+
+            // Apply to target
+            if (cropTarget?.type === 'cover') {
+                setCoverImage(croppedBase64)
+                setImagePreview(croppedBase64)
+            } else if (cropTarget?.type === 'timeline' && cropTarget.index !== undefined) {
+                handleUpdateTimelineEvent(cropTarget.index, 'image', croppedBase64)
+            } else if (cropTarget?.type === 'gallery') {
+                if (cropTarget.index !== undefined && cropTarget.index < galleryImages.length) {
+                    handleUpdateGalleryImage(cropTarget.index, croppedBase64)
+                } else {
+                    handleAddGalleryImage(croppedBase64)
+                }
+            } else if (cropTarget?.type === 'carousel') {
+                if (cropTarget.index !== undefined && cropTarget.index < carouselImages.length) {
+                    handleUpdateCarouselImage(cropTarget.index, croppedBase64)
+                } else {
+                    handleAddCarouselImage(croppedBase64)
+                }
+            }
+
+            setShowCropModal(false)
+            setTempImage('')
+            setCropTarget(null)
+
+            // Process next in queue if exists
+            if (cropQueue.length > 0) {
+                const [next, ...remaining] = cropQueue
+                setCropQueue(remaining)
+                
+                // Add a small delay for the modal animation
+                setTimeout(() => {
+                    setTempImage(next.src)
+                    setCropTarget({ type: next.type, index: next.index })
+                    setShowCropModal(true)
+                    setCropScale(1.1)
+                    setCropRotation(0)
+                    setDragOffsetX(0)
+                    setDragOffsetY(0)
+                }, 300)
+            }
+        } catch (error) {
+            console.error('Erro no crop:', error)
+            toast.error('Erro ao processar imagem')
+        }
     }
 
     const handleUrlChange = (value: string) => {
@@ -273,87 +461,226 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
         setGiftListLinks(updated)
     }
 
-    const handleAddCarouselImage = () => {
-        setCarouselImages([...carouselImages, ''])
+    const handleAddCarouselImage = (src: string = '') => {
+        setCarouselImages(prev => [...prev, src])
     }
 
     const handleRemoveCarouselImage = (index: number) => {
-        setCarouselImages(carouselImages.filter((_, i) => i !== index))
+        setCarouselImages(prev => prev.filter((_, i) => i !== index))
     }
 
     const handleUpdateCarouselImage = (index: number, value: string) => {
-        const updated = [...carouselImages]
-        updated[index] = value
-        setCarouselImages(updated)
+        setCarouselImages(prev => {
+            const newImages = [...prev]
+            newImages[index] = value
+            return newImages
+        })
     }
 
     // Gallery Handlers
-    const handleAddGalleryImage = () => setGalleryImages([...galleryImages, ''])
-    const handleRemoveGalleryImage = (index: number) => setGalleryImages(galleryImages.filter((_, i) => i !== index))
+    const handleAddGalleryImage = (src: string = '') => {
+        setGalleryImages(prev => [...prev, src])
+    }
+    const handleRemoveGalleryImage = (index: number) => setGalleryImages(prev => prev.filter((_, i) => i !== index))
     const handleUpdateGalleryImage = (index: number, value: string) => {
-        const updated = [...galleryImages]
-        updated[index] = value
-        setGalleryImages(updated)
+        setGalleryImages(prev => {
+            const newImages = [...prev]
+            newImages[index] = value
+            return newImages
+        })
     }
 
     // Timeline Handlers
-    const handleAddTimelineEvent = () => setTimelineEvents([...timelineEvents, { emoji: '✨', title: '', description: '' }])
-    const handleRemoveTimelineEvent = (index: number) => setTimelineEvents(timelineEvents.filter((_: any, i: number) => i !== index))
+    const handleAddTimelineEvent = () => setTimelineEvents(prev => [...prev, { emoji: '✨', title: '', description: '', image: '' }])
+    const handleRemoveTimelineEvent = (index: number) => setTimelineEvents(prev => prev.filter((_: any, i: number) => i !== index))
     const handleUpdateTimelineEvent = (index: number, field: string, value: string) => {
-        const updated = [...timelineEvents]
-        updated[index] = { ...updated[index], [field]: value }
-        setTimelineEvents(updated)
+        setTimelineEvents(prev => {
+            const updated = [...prev]
+            updated[index] = { ...updated[index], [field]: value }
+            return updated
+        })
     }
 
-    const handleSave = (e: React.FormEvent) => {
-        e.preventDefault()
-        updateEventSettings({
-            eventType,
-            coupleNames,
-            slug,
-            eventDate,
-            eventTime,
-            confirmationDeadline,
-            eventLocation,
-            wazeLocation,
-            giftListLinks,
-            coverImage,
-            coverImagePosition,
-            coverImageScale,
-            customMessage,
-            notifyOwnerOnRSVP,
-            carouselImages,
-            galleryImages,
-            coupleStory,
-            timelineEvents,
-            dressCode,
-            parkingSettings,
-            brandColor,
-            brandFont,
-            isGiftListEnabled
-        })
-        setSaved(true)
-        setTimeout(() => setSaved(false), 3000)
+    // --- Dirty State Tracking ---
+    const isDirty = useMemo(() => {
+        if (!eventSettings) return false;
+        
+        const current: any = {
+            eventType, coupleNames, slug, eventDate, eventTime, 
+            confirmationDeadline, eventLocation, wazeLocation, 
+            giftListLinks, coverImage, coverImagePosition, 
+            coverImageScale, customMessage, notifyOwnerOnRSVP,
+            carouselImages, galleryImages, coupleStory, coupleStoryTitle,
+            emailConfirmationTitle, emailConfirmationGreeting,
+            timelineEvents, dressCode, parkingSettings,
+            brandColor, brandFont, isGiftListEnabled,
+            ceremonyAddress, eventAddress, hasSeparateCeremony,
+            ceremonyWazeLocation, ceremonyTime, ceremonyLocation
+        };
+
+        // Comparamos campo a campo apenas os campos que o formulário controla
+        for (const key of Object.keys(current)) {
+            let valInitial = (eventSettings as any)[key];
+            let valCurrent = current[key];
+
+            // Normalização de valores padrão para comparação justa
+            if (valInitial === undefined || valInitial === null) {
+                if (key === 'eventTime') valInitial = '21:00';
+                else if (key === 'notifyOwnerOnRSVP') valInitial = true;
+                else if (key === 'isGiftListEnabled') valInitial = true;
+                else if (key === 'coverImagePosition') valInitial = 50;
+                else if (key === 'coverImageScale') valInitial = 1;
+                else if (key === 'brandColor') valInitial = '#7b2d3d';
+                else if (key === 'brandFont') valInitial = 'lora';
+                else if (key === 'parkingSettings') valInitial = { hasParking: false, type: 'free', price: '', address: '', receptionOnly: false };
+                else if (key === 'hasSeparateCeremony') valInitial = false;
+                else if (key === 'ceremonyTime') valInitial = '19:00';
+                else if (Array.isArray(valCurrent)) valInitial = [];
+                else if (typeof valCurrent === 'string') valInitial = '';
+                else if (typeof valCurrent === 'boolean') valInitial = false;
+            }
+
+            // Comparação profunda via stringify para objetos/arrays
+            if (JSON.stringify(valInitial) !== JSON.stringify(valCurrent)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }, [
+        eventType, coupleNames, slug, eventDate, eventTime, 
+        confirmationDeadline, eventLocation, wazeLocation, 
+        giftListLinks, coverImage, coverImagePosition, 
+        coverImageScale, customMessage, notifyOwnerOnRSVP,
+        carouselImages, galleryImages, coupleStory, 
+        timelineEvents, dressCode, parkingSettings,
+        brandColor, brandFont, isGiftListEnabled,
+        ceremonyAddress, eventAddress, hasSeparateCeremony,
+        ceremonyWazeLocation, ceremonyTime, ceremonyLocation,
+        eventSettings
+    ]);
+
+    // Warn before leaving
+    useEffect(() => {
+        if (!isDirty) return;
+
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            e.preventDefault();
+            e.returnValue = '';
+        };
+
+        const handleAnchorClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            const anchor = target.closest('a');
+            
+            if (anchor && anchor.href && !anchor.href.startsWith('javascript:') && !anchor.href.startsWith('#')) {
+                try {
+                    const url = new URL(anchor.href);
+                    if (url.origin === window.location.origin && url.pathname !== window.location.pathname) {
+                        if (!window.confirm('Você tem alterações não salvas. Deseja realmente sair sem salvar?')) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }
+                    }
+                } catch (e) {
+                    // Ignorar erros de URL
+                }
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        document.addEventListener('click', handleAnchorClick, true);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            document.removeEventListener('click', handleAnchorClick, true);
+        };
+    }, [isDirty]);
+
+    const handleSave = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault()
+        try {
+            await updateEventSettings({
+                eventType,
+                coupleNames,
+                slug,
+                eventDate,
+                eventTime,
+                confirmationDeadline,
+                eventLocation,
+                wazeLocation,
+                hasSeparateCeremony,
+                ceremonyLocation,
+                ceremonyWazeLocation,
+                ceremonyTime,
+                giftListLinks,
+                coverImage,
+                coverImagePosition,
+                coverImageScale,
+                customMessage,
+                notifyOwnerOnRSVP,
+                carouselImages,
+                galleryImages,
+                coupleStory,
+                coupleStoryTitle,
+                emailConfirmationTitle,
+                emailConfirmationGreeting,
+                timelineEvents,
+                dressCode,
+                parkingSettings,
+                ceremonyAddress,
+                eventAddress,
+                brandColor,
+                brandFont,
+                isGiftListEnabled
+            })
+            setSaved(true)
+            setTimeout(() => setSaved(false), 3000)
+            toast.success('Configurações salvas com sucesso! ✨')
+            return true
+        } catch (error: any) {
+            console.error('Erro ao salvar:', error)
+            toast.error('Erro ao salvar alterações', {
+                description: error.message?.includes('events_slug_key') || error.message?.includes('duplicate key')
+                    ? 'Este subdomínio (URL) já está em uso por outro evento. Escolha um diferente.'
+                    : 'Não foi possível salvar os dados. Tente novamente.'
+            })
+            return false
+        }
     }
 
     return (
         <SharedLayout
             role="user"
-            title="Configurações"
-            subtitle="Personalize as informações do seu evento"
+            title={eventSettings.coupleNames}
+            subtitle="Configurações do Evento"
+            onSave={handleSave}
+            onBeforeNavigate={(href) => {
+                if (isDirty && href !== '/settings' && !href.includes('onboarding=true')) {
+                    return 'confirm_needed';
+                }
+                return true;
+            }}
         >
             <main className="max-w-[800px] mx-auto w-full animate-in fade-in duration-500 pb-20">
                     {/* ONBOARDING BANNER */}
                     {isOnboarding && (
-                        <div className="bg-brand-pale border border-brand/20 rounded-[2rem] p-6 mb-10 shadow-sm animate-in slide-in-from-top-4 duration-500">
-                            <div className="flex gap-4">
+                        <div className="bg-brand-pale border border-brand/20 rounded-[2rem] p-6 mb-10 shadow-sm animate-in slide-in-from-top-4 duration-500 relative group">
+                            <button 
+                                onClick={() => router.replace('/settings')}
+                                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-brand/30 hover:text-brand transition-all hover:bg-white rounded-xl"
+                                title="Fechar aviso"
+                            >
+                                <XIcon className="w-4 h-4" />
+                            </button>
+                            <div className="flex gap-4 pr-8">
                                 <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-brand flex-shrink-0 shadow-sm">
                                     <StarIcon className="w-6 h-6" />
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-black text-brand tracking-tight mb-1">Quase lá! ✨</h3>
                                     <p className="text-xs font-bold text-text-primary leading-relaxed">
-                                        Para começar com o pé direito, preencha os dados básicos do seu evento abaixo e, por segurança, <button onClick={() => setActiveTab('seguranca')} className="text-brand underline">altere sua senha</button>.
+                                        Para começar com o pé direito, preencha os dados básicos do seu evento abaixo (como a data, o local e as fotos) para o seu site ficar completo! ✨
                                     </p>
                                 </div>
                             </div>
@@ -546,20 +873,23 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                     type="date"
                                     id="eventDate"
                                     value={eventDate}
-                                    onChange={(e) => setEventDate(e.target.value)}
+                                    onChange={(e) => handleEventDateChange(e.target.value)}
                                     className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary"
                                 />
                             </div>
-                            <div>
-                                <label htmlFor="eventTime" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Horário</label>
-                                <input
-                                    type="time"
-                                    id="eventTime"
-                                    value={eventTime}
-                                    onChange={(e) => setEventTime(e.target.value)}
-                                    className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary"
-                                />
-                            </div>
+                             <div>
+                                 <label htmlFor="eventTime" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Horário</label>
+                                 <input
+                                     type="time"
+                                     id="eventTime"
+                                     value={eventTime}
+                                     onChange={(e) => setEventTime(e.target.value)}
+                                     className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary"
+                                 />
+                                 <p className="text-[9px] font-bold text-text-muted uppercase tracking-widest mt-3 ml-1 leading-relaxed opacity-60">
+                                     💡 Recomendamos definir o horário do convite com pelo menos 30 minutos de antecedência ao início real da cerimônia. Isso garante que todos os convidados já estejam acomodados quando a celebração começar!
+                                 </p>
+                             </div>
                             <div>
                                 <label htmlFor="confirmationDeadline" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Prazo RSVP</label>
                                 <input
@@ -594,20 +924,131 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                 <h3 className="text-lg font-black text-text-primary tracking-tight">Localização</h3>
                             </div>
 
-                            <div>
-                                <label htmlFor="eventLocation" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Endereço Completo</label>
-                                <input
-                                    type="text"
-                                    id="eventLocation"
-                                    value={eventLocation}
-                                    onChange={(e) => setEventLocation(e.target.value)}
-                                    placeholder="Ex: Villa de Regale, Rua das Palmeiras, 100"
-                                    className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
-                                />
+                            {/* Toggle de Cerimônia em local separado */}
+                            <div className="p-6 bg-brand-pale/10 rounded-3xl border border-brand-pale/30 space-y-4 mb-8">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-white border border-brand/10 rounded-lg flex items-center justify-center text-brand">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 10a2 2 0 1 0-4 0a2 2 0 1 0 4 0Z" /><path d="M12 10v4" /><path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m19.07 4.93-1.41 1.41" /><path d="m6.34 17.66-1.41 1.41" /></svg>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-black text-text-primary uppercase tracking-widest">Locais Diferentes?</span>
+                                            <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Cerimônia e Recepção em lugares distintos</span>
+                                        </div>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={hasSeparateCeremony}
+                                            onChange={(e) => setHasSeparateCeremony(e.target.checked)}
+                                        />
+                                        <div className="w-11 h-6 bg-border-soft peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand"></div>
+                                    </label>
+                                </div>
                             </div>
 
+                            {hasSeparateCeremony && (
+                                <div className="space-y-6 pb-8 animate-in fade-in slide-in-from-top-4 duration-500">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-brand px-2 py-1 bg-brand-pale rounded-md">Parte 1</span>
+                                        <h4 className="text-[11px] font-black uppercase tracking-widest text-text-primary">Dados da Cerimônia</h4>
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="ceremonyLocation" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Local da Cerimônia</label>
+                                        {isLoaded ? (
+                                            <Autocomplete
+                                                onLoad={(autocomplete) => (ceremonyAutocompleteRef.current = autocomplete)}
+                                                onPlaceChanged={onCeremonyPlaceChanged}
+                                            >
+                                                <input
+                                                    type="text"
+                                                    id="ceremonyLocation"
+                                                    value={ceremonyLocation}
+                                                    onChange={(e) => setCeremonyLocation(e.target.value)}
+                                                    placeholder="Ex: Igreja Matriz, Capela São Pedro..."
+                                                    className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
+                                                />
+                                            </Autocomplete>
+                                        ) : (
+                                            <input
+                                                type="text"
+                                                id="ceremonyLocation"
+                                                value={ceremonyLocation}
+                                                onChange={(e) => setCeremonyLocation(e.target.value)}
+                                                placeholder="Ex: Igreja Matriz, Capela São Pedro..."
+                                                className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
+                                            />
+                                        )}
+                                    </div>
+
+                                    {(ceremonyAddress || eventSettings.ceremonyAddress) && (
+                                        <div className="bg-bg-light/50 border border-border-soft p-4 rounded-2xl animate-in fade-in slide-in-from-top-2">
+                                            <label className="block text-[8px] font-black text-text-muted uppercase tracking-widest mb-1.5 ml-1">Endereço Completo (Preenchido Automaticamente)</label>
+                                            <p className="text-[11px] font-bold text-text-primary px-1">{ceremonyAddress || eventSettings.ceremonyAddress}</p>
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <label htmlFor="ceremonyWaze" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Link do Google Maps da Cerimônia</label>
+                                        <input
+                                            type="text"
+                                            id="ceremonyWaze"
+                                            value={ceremonyWazeLocation}
+                                            onChange={(e) => setCeremonyWazeLocation(e.target.value)}
+                                            placeholder="Link compartilhado do Google Maps ou Waze"
+                                            className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
+                                        />
+                                    </div>
+
+                                    <div className="w-full h-px bg-border-soft my-8" />
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-brand px-2 py-1 bg-brand-pale rounded-md">Parte 2</span>
+                                        <h4 className="text-[11px] font-black uppercase tracking-widest text-text-primary">Dados da Recepção / Festa</h4>
+                                    </div>
+                                </div>
+                            )}
+
                             <div>
-                                <label htmlFor="wazeLocation" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Link Específico / Google Maps (Opcional)</label>
+                                <label htmlFor="eventLocation" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">
+                                    {hasSeparateCeremony ? 'Local da Recepção (Buffet/Festa)' : 'Endereço Completo da Festa'}
+                                </label>
+                                {isLoaded ? (
+                                    <Autocomplete
+                                        onLoad={(autocomplete) => (receptionAutocompleteRef.current = autocomplete)}
+                                        onPlaceChanged={onReceptionPlaceChanged}
+                                    >
+                                        <input
+                                            type="text"
+                                            id="eventLocation"
+                                            value={eventLocation}
+                                            onChange={(e) => setEventLocation(e.target.value)}
+                                            placeholder="Ex: Mansão Victoria, Buffet Ravena..."
+                                            className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
+                                        />
+                                    </Autocomplete>
+                                ) : (
+                                    <input
+                                        type="text"
+                                        id="eventLocation"
+                                        value={eventLocation}
+                                        onChange={(e) => setEventLocation(e.target.value)}
+                                        placeholder="Ex: Mansão Victoria, Buffet Ravena..."
+                                        className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
+                                    />
+                                )}
+                            </div>
+
+                            {(eventAddress || eventSettings.eventAddress) && (
+                                <div className="bg-bg-light/50 border border-border-soft p-4 rounded-2xl animate-in fade-in slide-in-from-top-2">
+                                    <label className="block text-[8px] font-black text-text-muted uppercase tracking-widest mb-1.5 ml-1">Endereço Completo (Preenchido Automaticamente)</label>
+                                    <p className="text-[11px] font-bold text-text-primary px-1">{eventAddress || eventSettings.eventAddress}</p>
+                                </div>
+                            )}
+
+                            <div>
+                                <label htmlFor="wazeLocation" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Link do Google Maps {hasSeparateCeremony ? 'da Recepção' : '(Opcional)'}</label>
                                 <input
                                     type="text"
                                     id="wazeLocation"
@@ -643,6 +1084,11 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
 
                                 {parkingSettings.hasParking && (
                                     <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                                        <div className="p-4 bg-brand-pale/20 border border-brand-pale/50 rounded-2xl">
+                                            <p className="text-[10px] font-bold text-brand uppercase tracking-widest leading-relaxed">
+                                                💡 Esta configuração de estacionamento será apresentada como referente ao local da Recepção/Festa.
+                                            </p>
+                                        </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">Tipo de Estacionamento</label>
@@ -652,13 +1098,13 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                                     className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none"
                                                 >
                                                     <option value="free">Gratuito no Local</option>
-                                                    <option value="valet">Valet / Manobrista</option>
-                                                    <option value="paid">Pago à Parte</option>
+                                                    <option value="valet">Valet / Estacionamento no Local (Pago)</option>
+                                                    <option value="suggestion">Estacionamentos Próximos (Sugestão)</option>
                                                 </select>
                                             </div>
-                                            {(parkingSettings.type === 'valet' || parkingSettings.type === 'paid') && (
-                                                <div>
-                                                    <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">Valor (Opcional)</label>
+                                            {(parkingSettings.type === 'valet' || parkingSettings.type === 'suggestion') && (
+                                                <div className="animate-in fade-in slide-in-from-right-2 duration-300">
+                                                    <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">Valor Aproximado (Opcional)</label>
                                                     <input
                                                         type="text"
                                                         placeholder="Ex: R$ 30,00"
@@ -669,16 +1115,35 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                                 </div>
                                             )}
                                         </div>
-                                        <div>
-                                            <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">Endereço do Estacionamento (Se for diferente)</label>
-                                            <input
-                                                type="text"
-                                                placeholder="Ex: Rua lateral, nº 50"
-                                                value={parkingSettings.address}
-                                                onChange={(e) => setParkingSettings({ ...parkingSettings, address: e.target.value })}
-                                                className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none"
-                                            />
-                                        </div>
+                                        {parkingSettings.type === 'suggestion' && (
+                                            <div className="animate-in fade-in slide-in-from-top-1">
+                                                <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">
+                                                    Endereço/Nome do Estacionamento sugerido
+                                                </label>
+                                                {isLoaded ? (
+                                                    <Autocomplete
+                                                        onLoad={(autocomplete) => (parkingAutocompleteRef.current = autocomplete)}
+                                                        onPlaceChanged={onParkingPlaceChanged}
+                                                    >
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Ex: Estacionamento 24h, Rua lateral..."
+                                                            value={parkingSettings.address}
+                                                            onChange={(e) => setParkingSettings({ ...parkingSettings, address: e.target.value })}
+                                                            className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none"
+                                                        />
+                                                    </Autocomplete>
+                                                ) : (
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Ex: Estacionamento 24h, Rua lateral..."
+                                                        value={parkingSettings.address}
+                                                        onChange={(e) => setParkingSettings({ ...parkingSettings, address: e.target.value })}
+                                                        className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none"
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -783,53 +1248,57 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                 <h3 className="text-lg font-black text-text-primary tracking-tight">Banner de Capa</h3>
                             </div>
 
-                            <div className="flex gap-2 p-1.5 bg-bg-light rounded-2xl w-fit mb-8 border border-border-soft">
-                                <button
-                                    type="button"
-                                    onClick={() => setUploadMethod('upload')}
-                                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${uploadMethod === 'upload' ? 'bg-surface text-brand shadow-sm border border-border-soft' : 'text-text-muted hover:text-text-secondary'}`}
-                                >
-                                    Arquivo
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setUploadMethod('url')}
-                                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${uploadMethod === 'url' ? 'bg-surface text-brand shadow-sm border border-border-soft' : 'text-text-muted hover:text-text-secondary'}`}
-                                >
-                                    URL Link
-                                </button>
-                            </div>
+                            {!imagePreview && (
+                                <div className="flex gap-2 p-1.5 bg-bg-light rounded-2xl w-fit mb-8 border border-border-soft">
+                                    <button
+                                        type="button"
+                                        onClick={() => setUploadMethod('upload')}
+                                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${uploadMethod === 'upload' ? 'bg-surface text-brand shadow-sm border border-border-soft' : 'text-text-muted hover:text-text-secondary'}`}
+                                    >
+                                        Arquivo
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setUploadMethod('url')}
+                                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${uploadMethod === 'url' ? 'bg-surface text-brand shadow-sm border border-border-soft' : 'text-text-muted hover:text-text-secondary'}`}
+                                    >
+                                        URL Link
+                                    </button>
+                                </div>
+                            )}
 
-                            {uploadMethod === 'url' ? (
-                                <input
-                                    type="text"
-                                    value={coverImage}
-                                    onChange={(e) => handleUrlChange(e.target.value)}
-                                    placeholder="https://sua-imagem.com/foto.jpg"
-                                    className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
-                                />
-                            ) : (
-                                <div
-                                    className="relative border-4 border-dashed border-border-soft rounded-[2.5rem] p-12 text-center hover:border-brand-light/30 hover:bg-bg-light transition-all cursor-pointer group"
-                                    onClick={() => document.getElementById('coverImageFile')?.click()}
-                                >
+                            {!imagePreview && (
+                                uploadMethod === 'url' ? (
                                     <input
-                                        type="file"
-                                        id="coverImageFile"
-                                        accept="image/*"
-                                        onChange={handleImageUpload}
-                                        className="hidden"
+                                        type="text"
+                                        value={coverImage}
+                                        onChange={(e) => handleUrlChange(e.target.value)}
+                                        placeholder="https://sua-imagem.com/foto.jpg"
+                                        className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
                                     />
-                                    <div className="flex flex-col items-center gap-4">
-                                        <div className="w-16 h-16 bg-surface border border-border-soft rounded-2xl flex items-center justify-center text-text-muted/20 shadow-sm group-hover:scale-110 transition-transform">
-                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" x2="12" y1="3" y2="15" /></svg>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-black text-text-primary">Escolha uma Foto</p>
-                                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mt-1">JPG ou PNG até 5MB</p>
+                                ) : (
+                                    <div
+                                        className="relative border-4 border-dashed border-border-soft rounded-[2.5rem] p-12 text-center hover:border-brand-light/30 hover:bg-bg-light transition-all cursor-pointer group"
+                                        onClick={() => document.getElementById('coverImageFile')?.click()}
+                                    >
+                                        <input
+                                            type="file"
+                                            id="coverImageFile"
+                                            accept="image/*"
+                                            onChange={handleImageUpload}
+                                            className="hidden"
+                                        />
+                                        <div className="flex flex-col items-center gap-4">
+                                            <div className="w-16 h-16 bg-surface border border-border-soft rounded-2xl flex items-center justify-center text-text-muted/20 shadow-sm group-hover:scale-110 transition-transform">
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" x2="12" y1="3" y2="15" /></svg>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mt-4">Escolha uma Foto</p>
+                                                <p className="text-[8px] font-bold text-text-muted opacity-40 uppercase tracking-widest mt-1">Otimizada Automaticamente</p>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                )
                             )}
 
                             {imagePreview && (
@@ -865,37 +1334,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                         </div>
                                     </div>
 
-                                    <div className="bg-bg-light p-8 rounded-[2.5rem] border border-border-soft space-y-6">
-                                        <div className="space-y-4">
-                                            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-text-muted">
-                                                <span>Ajuste Vertical</span>
-                                                <span className="text-brand">{coverImagePosition}%</span>
-                                            </div>
-                                            <input
-                                                type="range"
-                                                min="0"
-                                                max="100"
-                                                value={coverImagePosition}
-                                                onChange={(e) => setCoverImagePosition(parseInt(e.target.value))}
-                                                className="w-full h-1.5 bg-border-soft rounded-full appearance-none cursor-pointer accent-brand"
-                                            />
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-text-muted">
-                                                <span>Nível de Zoom</span>
-                                                <span className="text-brand">{coverImageScale.toFixed(1)}x</span>
-                                            </div>
-                                            <input
-                                                type="range"
-                                                min="1"
-                                                max="3"
-                                                step="0.1"
-                                                value={coverImageScale}
-                                                onChange={(e) => setCoverImageScale(parseFloat(e.target.value))}
-                                                className="w-full h-1.5 bg-border-soft rounded-full appearance-none cursor-pointer accent-brand"
-                                            />
-                                        </div>
-                                    </div>
+                            {/* Os sliders de ajuste foram removidos daqui pois agora estão dentro do Modal de Edição (botão Lápis) */}
                                 </div>
                             )}
                         </div>
@@ -909,70 +1348,74 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                     </div>
                                     <h3 className="text-lg font-black text-text-primary tracking-tight">Galeria de Fotos (Grid)</h3>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={handleAddGalleryImage}
-                                    className="px-4 py-2 bg-bg-light hover:bg-brand-pale text-[10px] font-black uppercase tracking-widest text-text-muted rounded-xl transition-all border border-border-soft"
-                                >
-                                    + Adicionar Foto
-                                </button>
                             </div>
 
                             <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-4 leading-relaxed">
-                                Estas fotos aparecerão no meio do site em um grid elegante.<br />Use links de imagens (JPG/PNG).
+                                Estas fotos aparecerão no meio do site em um grid elegante.<br />Sua seleção será otimizada automaticamente.
                             </p>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {galleryImages.map((img, index) => (
-                                    <div key={index} className="flex gap-2 animate-in slide-in-from-left-2 duration-200">
-                                        <div className="flex-1 flex flex-col gap-2">
-                                            <div className="relative">
-                                                <input
-                                                    type="text"
-                                                    value={img}
-                                                    onChange={(e) => handleUpdateGalleryImage(index, e.target.value)}
-                                                    placeholder="Link da foto..."
-                                                    className="w-full px-4 py-3 bg-bg-light border border-border-soft rounded-2xl text-[10px] font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none text-text-primary"
-                                                />
-                                                {img && (
-                                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg overflow-hidden border border-border-soft">
-                                                        <img src={img} alt="" className="w-full h-full object-cover" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => document.getElementById(`gallery-file-${index}`)?.click()}
-                                                    className="flex-1 py-2 bg-white border border-border-soft rounded-xl text-[9px] font-black uppercase tracking-widest text-brand hover:bg-brand-pale transition-all"
-                                                >
-                                                    📷 Galeria/Upload
-                                                </button>
-                                                <input
-                                                    type="file"
-                                                    id={`gallery-file-${index}`}
-                                                    accept="image/*"
-                                                    onChange={(e) => {
-                                                        const file = e.target.files?.[0]
-                                                        if (file) {
-                                                            const reader = new FileReader()
-                                                            reader.onloadend = () => handleUpdateGalleryImage(index, reader.result as string)
-                                                            reader.readAsDataURL(file)
-                                                        }
-                                                    }}
-                                                    className="hidden"
-                                                />
-                                            </div>
-                                        </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                {galleryImages.map((src, index) => (
+                                    <div key={index} className="aspect-[3/4] relative rounded-2xl overflow-hidden border border-border-soft animate-in zoom-in-95 duration-200 bg-bg-light shadow-sm">
+                                        <img src={src || '/placeholder-broken.png'} alt="" className="w-full h-full object-cover" />
                                         <button
                                             type="button"
-                                            onClick={() => handleRemoveGalleryImage(index)}
-                                            className="w-10 h-10 flex flex-shrink-0 items-center justify-center text-text-muted/40 hover:text-danger hover:bg-danger-light rounded-xl transition-all border border-border-soft"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleRemoveGalleryImage(index);
+                                            }}
+                                            className="absolute top-2 right-2 w-7 h-7 bg-danger text-white rounded-full flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl z-20 border-2 border-white"
                                         >
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><path d="M18 6 6 18M6 6l12 12" /></svg>
                                         </button>
+                                        <div className="absolute inset-0 bg-black/5 pointer-events-none" />
                                     </div>
                                 ))}
+                                <button
+                                    type="button"
+                                    onClick={() => document.getElementById('gallery-bulk-upload')?.click()}
+                                    className="aspect-[3/4] flex flex-col items-center justify-center gap-2 bg-bg-light border-2 border-dashed border-border-soft rounded-2xl hover:bg-brand-pale/50 hover:border-brand/40 transition-all group active:scale-95"
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-text-muted group-hover:bg-brand group-hover:text-white transition-all shadow-sm group-hover:shadow-md">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 5v14M5 12h14" /></svg>
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted group-hover:text-brand">Adicionar Foto</span>
+                                </button>
+                                <input
+                                    type="file"
+                                    id="gallery-bulk-upload"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={(e) => {
+                                        const files = Array.from(e.target.files || [])
+                                        if (files.length > 0) {
+                                            const processFiles = async () => {
+                                                const newQueue: { src: string, type: any, index?: number }[] = []
+                                                for (let i = 0; i < files.length; i++) {
+                                                    const reader = new FileReader()
+                                                    const result = await new Promise<string>((resolve) => {
+                                                        reader.onloadend = () => resolve(reader.result as string)
+                                                        reader.readAsDataURL(files[i])
+                                                    })
+                                                    if (i === 0) {
+                                                        setTempImage(result)
+                                                        setCropTarget({ type: 'gallery', index: galleryImages.length })
+                                                        setShowCropModal(true)
+                                                        setCropScale(1.1)
+                                                        setCropRotation(0)
+                                                        setDragOffsetX(0)
+                                                        setDragOffsetY(0)
+                                                    } else {
+                                                        newQueue.push({ src: result, type: 'gallery', index: galleryImages.length + i })
+                                                    }
+                                                }
+                                                setCropQueue(newQueue)
+                                            }
+                                            processFiles()
+                                        }
+                                    }}
+                                    className="hidden"
+                                />
                             </div>
                         </div>
 
@@ -985,86 +1428,140 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                     </div>
                                     <h3 className="text-lg font-black text-text-primary tracking-tight">Fotos do Topo (Carrossel)</h3>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={handleAddCarouselImage}
-                                    className="px-4 py-2 bg-bg-light hover:bg-brand-pale text-[10px] font-black uppercase tracking-widest text-text-muted rounded-xl transition-all border border-border-soft"
-                                >
-                                    + Adicionar Slide
-                                </button>
                             </div>
 
                             <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-4 leading-relaxed">
-                                Estas fotos ficarão alternando no topo do site.<br />Se não adicionar nenhuma, usaremos fotos padrão e sua foto de capa.
+                                Estas fotos ficarão alternando no topo do site.<br />Se não adicionar nenhuma, usaremos fotos padrão com sua foto de capa.
                             </p>
 
-                            <div className="grid grid-cols-1 gap-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {carouselImages.map((img, index) => (
-                                    <div key={index} className="flex gap-2 animate-in slide-in-from-left-2 duration-200">
-                                        <div className="flex-1 flex flex-col gap-2">
-                                            <div className="relative">
-                                                <input
-                                                    type="text"
-                                                    value={img}
-                                                    onChange={(e) => handleUpdateCarouselImage(index, e.target.value)}
-                                                    placeholder="Link da imagem do carrossel..."
-                                                    className="w-full px-4 py-3 bg-bg-light border border-border-soft rounded-2xl text-[10px] font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none text-text-primary"
-                                                />
-                                                {img && (
-                                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 w-12 h-6 rounded-md overflow-hidden border border-border-soft">
-                                                        <img src={img} alt="" className="w-full h-full object-cover" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => document.getElementById(`carousel-file-${index}`)?.click()}
-                                                    className="flex-1 py-2 bg-white border border-border-soft rounded-xl text-[9px] font-black uppercase tracking-widest text-brand hover:bg-brand-pale transition-all"
-                                                >
-                                                    📷 Galeria/Upload
-                                                </button>
-                                                <input
-                                                    type="file"
-                                                    id={`carousel-file-${index}`}
-                                                    accept="image/*"
-                                                    onChange={(e) => {
-                                                        const file = e.target.files?.[0]
-                                                        if (file) {
-                                                            const reader = new FileReader()
-                                                            reader.onloadend = () => handleUpdateCarouselImage(index, reader.result as string)
-                                                            reader.readAsDataURL(file)
-                                                        }
-                                                    }}
-                                                    className="hidden"
-                                                />
-                                            </div>
-                                        </div>
+                                    <div key={index} className="aspect-square relative rounded-2xl overflow-hidden border border-border-soft animate-in zoom-in-95 duration-200 bg-bg-light shadow-sm">
+                                        <img src={img || '/placeholder-broken.png'} alt="" className="w-full h-full object-cover" />
                                         <button
                                             type="button"
-                                            onClick={() => handleRemoveCarouselImage(index)}
-                                            className="w-10 h-10 flex flex-shrink-0 items-center justify-center text-text-muted/40 hover:text-danger hover:bg-danger-light rounded-xl transition-all border border-border-soft"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleRemoveCarouselImage(index);
+                                            }}
+                                            className="absolute top-2 right-2 w-7 h-7 bg-danger text-white rounded-full flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl z-20 border-2 border-white"
                                         >
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><path d="M18 6 6 18M6 6l12 12" /></svg>
                                         </button>
+                                        <div className="absolute inset-0 bg-black/5 pointer-events-none" />
                                     </div>
                                 ))}
+                                <button
+                                    type="button"
+                                    onClick={() => document.getElementById('carousel-bulk-upload')?.click()}
+                                    className="aspect-square flex flex-col items-center justify-center gap-2 bg-bg-light border-2 border-dashed border-border-soft rounded-2xl hover:bg-brand-pale/50 hover:border-brand/40 transition-all group active:scale-95 shadow-sm"
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-text-muted group-hover:bg-brand group-hover:text-white transition-all shadow-sm group-hover:shadow-md">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 5v14M5 12h14" /></svg>
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted group-hover:text-brand">Adicionar Foto</span>
+                                </button>
+                                <input
+                                    type="file"
+                                    id="carousel-bulk-upload"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={(e) => {
+                                        const files = Array.from(e.target.files || [])
+                                        if (files.length > 0) {
+                                            const processFiles = async () => {
+                                                const newQueue: { src: string, type: any, index?: number }[] = []
+                                                
+                                                for (let i = 0; i < files.length; i++) {
+                                                    const reader = new FileReader()
+                                                    const result = await new Promise<string>((resolve) => {
+                                                        reader.onloadend = () => resolve(reader.result as string)
+                                                        reader.readAsDataURL(files[i])
+                                                    })
+                                                    
+                                                    if (i === 0) {
+                                                        // First one opens modal immediately
+                                                        setTempImage(result)
+                                                        setCropTarget({ type: 'carousel', index: carouselImages.length })
+                                                        setShowCropModal(true)
+                                                        setCropScale(1.1)
+                                                        setCropRotation(0)
+                                                        setDragOffsetX(0)
+                                                        setDragOffsetY(0)
+                                                    } else {
+                                                        // Others go to queue
+                                                        newQueue.push({ src: result, type: 'carousel', index: carouselImages.length + i })
+                                                    }
+                                                }
+                                                setCropQueue(newQueue)
+                                            }
+                                            processFiles()
+                                        }
+                                    }}
+                                    className="hidden"
+                                />
                             </div>
                         </div>
 
-                        {/* Nossa História e Timeline */}
                         <div className={activeTab === 'conteudo' ? 'space-y-8 pt-4 animate-in fade-in duration-300' : 'hidden'}>
-                            <div>
-                                <label htmlFor="coupleStory" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Nossa História</label>
-                                <textarea
-                                    id="coupleStory"
-                                    value={coupleStory}
-                                    onChange={(e) => setCoupleStory(e.target.value)}
-                                    rows={6}
-                                    placeholder="Conte um pouco sobre como vocês se conheceram..."
-                                    className="w-full px-5 py-4 bg-bg-light border border-border-soft rounded-[2rem] text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary resize-none placeholder:text-text-muted"
-                                />
-                                <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mt-3 ml-1">Dica: Use parágrafos curtos para melhor leitura no celular.</p>
+                            <div className="grid grid-cols-1 gap-6">
+                                <div>
+                                    <label htmlFor="coupleStoryTitle" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Título da História</label>
+                                    <input
+                                        type="text"
+                                        id="coupleStoryTitle"
+                                        value={coupleStoryTitle}
+                                        onChange={(e) => setCoupleStoryTitle(e.target.value)}
+                                        placeholder="Ex: Como Tudo Começou"
+                                        className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
+                                    />
+                                </div>
+                                <div>
+                                    <label htmlFor="coupleStory" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Texto da História</label>
+                                    <textarea
+                                        id="coupleStory"
+                                        value={coupleStory}
+                                        onChange={(e) => setCoupleStory(e.target.value)}
+                                        rows={6}
+                                        placeholder="Conte um pouco sobre como vocês se conheceram..."
+                                        className="w-full px-5 py-4 bg-bg-light border border-border-soft rounded-[2rem] text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary resize-none placeholder:text-text-muted"
+                                    />
+                                    <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mt-3 ml-1">Dica: Use parágrafos curtos para melhor leitura no celular.</p>
+                                </div>
+                            </div>
+
+                            <div className="pt-10 border-t border-border-soft space-y-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-bg-light border border-border-soft rounded-xl flex items-center justify-center text-text-muted">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
+                                    </div>
+                                    <h3 className="text-lg font-black text-text-primary tracking-tight">E-mail de Confirmação</h3>
+                                </div>
+                                
+                                <div className="space-y-6">
+                                    <div>
+                                        <label htmlFor="emailConfirmationTitle" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Título do Cabeçalho do E-mail</label>
+                                        <input
+                                            type="text"
+                                            id="emailConfirmationTitle"
+                                            value={emailConfirmationTitle}
+                                            onChange={(e) => setEmailConfirmationTitle(e.target.value)}
+                                            placeholder="Ex: Confirmação de Presença"
+                                            className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="emailConfirmationGreeting" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Mensagem de Boas-vindas (E-mail)</label>
+                                        <textarea
+                                            id="emailConfirmationGreeting"
+                                            value={emailConfirmationGreeting}
+                                            onChange={(e) => setEmailConfirmationGreeting(e.target.value)}
+                                            rows={4}
+                                            placeholder="Escreva a mensagem que o convidado verá no início do e-mail..."
+                                            className="w-full px-5 py-4 bg-bg-light border border-border-soft rounded-[2rem] text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary resize-none placeholder:text-text-muted"
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="space-y-6">
@@ -1078,7 +1575,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                     <button
                                         type="button"
                                         onClick={handleAddTimelineEvent}
-                                        className="px-4 py-2 bg-bg-light hover:bg-brand-pale text-[10px] font-black uppercase tracking-widest text-text-muted rounded-xl transition-all border border-border-soft"
+                                        className="px-5 py-2.5 bg-bg-light hover:bg-brand hover:text-white text-[10px] font-black uppercase tracking-widest text-text-muted rounded-xl transition-all border border-border-soft shadow-sm active:scale-95 hover:shadow-md"
                                     >
                                         + Adicionar Evento
                                     </button>
@@ -1095,14 +1592,72 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
                                             </button>
 
-                                            <div className="grid grid-cols-1 sm:grid-cols-[80px_1fr] gap-6">
-                                                <div>
-                                                    <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">Emoji</label>
+                                            <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-6">
+                                                <div className="space-y-4">
+                                                    {!event.image && (
+                                                        <div className="flex bg-bg-light p-1 rounded-xl border border-border-soft">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleUpdateTimelineEvent(index, 'image', '')}
+                                                                className={`flex-1 py-2 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all ${!event.image ? 'bg-white shadow-sm text-brand' : 'text-text-muted hover:text-text-primary'}`}
+                                                            >
+                                                                😊 Emoji
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { if (!event.image) document.getElementById(`timeline-img-file-${index}`)?.click() }}
+                                                                className={`flex-1 py-2 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all ${event.image ? 'bg-white shadow-sm text-brand' : 'text-text-muted hover:text-text-primary'}`}
+                                                            >
+                                                                📷 Foto
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                    {!event.image ? (
+                                                        <div className="grid grid-cols-4 gap-1.5 p-2 bg-white border border-border-soft rounded-2xl shadow-inner max-h-[140px] overflow-y-auto">
+                                                            {['✨', '💑', '🏠', '💍', '⛪', '🥂', '🍰', '🎈', '❤️', '✈️', '🐶', '🍕', '🎉', '👶', '🎓', '🎬', '☕', '🚗', '🏖️', '⛰️'].map(emo => (
+                                                                <button
+                                                                    key={emo}
+                                                                    type="button"
+                                                                    onClick={() => handleUpdateTimelineEvent(index, 'emoji', emo)}
+                                                                    className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm transition-all ${event.emoji === emo ? 'bg-brand/10 border border-brand scale-110' : 'hover:bg-bg-light'}`}
+                                                                >
+                                                                    {emo}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-3">
+                                                            <div className="relative group/img aspect-square w-full bg-white border border-border-soft rounded-2xl flex items-center justify-center overflow-hidden shadow-inner">
+                                                                <img src={event.image} alt="" className="w-full h-full object-cover" />
+                                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-all cursor-pointer"
+                                                                    onClick={() => document.getElementById(`timeline-img-file-${index}`)?.click()}>
+                                                                    <span className="text-[8px] font-black text-white uppercase tracking-widest text-center px-2">Trocar Foto</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                     <input
-                                                        type="text"
-                                                        value={event.emoji}
-                                                        onChange={(e) => handleUpdateTimelineEvent(index, 'emoji', e.target.value)}
-                                                        className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xl text-center focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none"
+                                                        type="file"
+                                                        id={`timeline-img-file-${index}`}
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0]
+                                                            if (file) {
+                                                                const reader = new FileReader()
+                                                                reader.onloadend = () => {
+                                                                    setTempImage(reader.result as string)
+                                                                    setCropTarget({ type: 'timeline', index })
+                                                                    setShowCropModal(true)
+                                                                    setCropScale(1.1)
+                                                                    setCropRotation(0)
+                                                                    setDragOffsetX(0)
+                                                                    setDragOffsetY(0)
+                                                                }
+                                                                reader.readAsDataURL(file)
+                                                            }
+                                                        }}
                                                     />
                                                 </div>
                                                 <div className="space-y-4">
@@ -1157,7 +1712,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                             </div>
 
                             <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest leading-relaxed opacity-80 mb-6">
-                                Mantenha seu painel seguro. Recomendamos trocar a senha temporária enviada por e-mail no seu primeiro acesso.
+                                Mantenha seu painel seguro. Você pode atualizar sua senha de acesso a qualquer momento aqui.
                             </p>
 
                             <div className="space-y-4 max-w-sm">
@@ -1193,15 +1748,15 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                     disabled={passwordLoading}
                                     onClick={async () => {
                                         if (!passwordForm.current || !passwordForm.new) {
-                                            alert('Preencha os campos de senha.')
+                                            toast.error('Campos incompletos', { description: 'Por favor, preencha todos os campos de senha.' })
                                             return
                                         }
                                         if (passwordForm.new !== passwordForm.confirm) {
-                                            alert('As senhas não coincidem.')
+                                            toast.error('Senhas não coincidem', { description: 'A confirmação deve ser igual à nova senha.' })
                                             return
                                         }
                                         if (passwordForm.new.length < 6) {
-                                            alert('A nova senha deve ter pelo menos 6 caracteres.')
+                                            toast.error('Senha muito curta', { description: 'A nova senha deve ter pelo menos 6 caracteres.' })
                                             return
                                         }
                                         setPasswordLoading(true)
@@ -1216,7 +1771,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                             })
                                             const data = await res.json()
                                             if (res.ok) {
-                                                alert('✅ Senha alterada com sucesso!')
+                                                toast.success('Senha atualizada!', { description: 'Sua senha de acesso foi alterada com sucesso.' })
                                                 setPasswordForm({ current: '', new: '', confirm: '' })
                                                 // Se veio do onboarding, remover o query param
                                                 // para que o banner "Quase lá!" desapareça
@@ -1224,10 +1779,10 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                                     router.replace('/settings')
                                                 }
                                             } else {
-                                                alert('❌ ' + (data.error || 'Erro ao alterar senha.'))
+                                                toast.error('Erro na atualização', { description: data.error || 'Não foi possível alterar a senha.' })
                                             }
                                         } catch (err) {
-                                            alert('Erro de conexão.')
+                                            toast.error('Erro de conexão', { description: 'Verifique sua internet e tente novamente.' })
                                         } finally {
                                             setPasswordLoading(false)
                                         }
@@ -1239,25 +1794,36 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                             </div>
                         </div>
 
-                        {/* Botão Salvar */}
-                        <div className="pt-10">
-                            <button
-                                type="submit"
-                                className={`w-full py-5 rounded-[2rem] font-black uppercase tracking-widest text-sm transition-all shadow-xl flex items-center justify-center gap-3 ${saved ? 'bg-success text-success-dark shadow-success/20 border border-success/30' : 'bg-brand text-white shadow-brand-dark/20 hover:scale-[1.02] active:scale-95'}`}
-                            >
-                                {saved ? (
-                                    <>
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6 9 17l-5-5" /></svg>
-                                        Configurações Atualizadas!
-                                    </>
-                                ) : (
-                                    <>
-                                        <SaveIcon />
-                                        Salvar Alterações
-                                    </>
-                                )}
-                            </button>
-                        </div>
+                        {/* Botão Salvar - Agora como FAB flutuante */}
+                        <AnimatePresence>
+                            {isDirty && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 100, scale: 0.8 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 100, scale: 0.8 }}
+                                    className="fixed bottom-24 right-6 md:bottom-12 md:right-12 z-[100]"
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={handleSave}
+                                        disabled={passwordLoading}
+                                        className={`flex items-center gap-3 px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-2xl transition-all hover:scale-105 active:scale-95 ${saved ? 'bg-success text-success-dark' : 'bg-brand text-white shadow-brand/40'}`}
+                                    >
+                                        {saved ? (
+                                            <>
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6 9 17l-5-5" /></svg>
+                                                Salvo!
+                                            </>
+                                        ) : (
+                                            <>
+                                                <SaveIcon />
+                                                Salvar Alterações
+                                            </>
+                                        )}
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </form>
                 </div>
             </main >
@@ -1277,7 +1843,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                             <div className="p-8">
                                 <div
                                     ref={cropPreviewRef}
-                                    className="aspect-video relative rounded-[2rem] overflow-hidden bg-bg-light cursor-grab active:cursor-grabbing group shadow-inner border border-border-soft"
+                                    className={`${(cropTarget?.type === 'cover' || cropTarget?.type === 'carousel') ? 'aspect-video w-full' : 'aspect-square max-w-[400px] mx-auto'} relative rounded-[2rem] overflow-hidden bg-bg-light cursor-grab active:cursor-grabbing group shadow-inner border border-border-soft`}
                                     tabIndex={0}
                                     onMouseDown={handleImageMouseDown}
                                     onMouseMove={handleImageMouseMove}
@@ -1355,4 +1921,5 @@ const HeartIconOutline = ({ className = "w-5 h-5" }: { className?: string }) => 
 const PinIconRose = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
 const ImageIconRose = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg>
 const StarIcon = ({ className = "w-5 h-5" }: { className?: string }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+const XIcon = ({ className = "w-5 h-5" }: { className?: string }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
 

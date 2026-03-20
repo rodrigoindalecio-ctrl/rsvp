@@ -13,31 +13,43 @@ export async function GET(
         const ownership = await verifyEventOwnership(req, eventId)
         if (!ownership.authorized) return ownership.response
 
-        const { data: event, error: eventError } = await supabase
-            .from('events')
-            .select('id, slug, gift_list_enabled, tax_payer, bank_pix_key, bank_type, bank_beneficiary, event_settings')
-            .eq('id', eventId)
-            .single();
+        // 📝 Buscar todos os dados em paralelo para máxima performance
+        const [
+            { data: event, error: eventError },
+            { data: gifts },
+            { data: transactions },
+            { data: withdrawals },
+            { data: rsvpMessages }
+        ] = await Promise.all([
+            supabase
+                .from('events')
+                .select('id, slug, gift_list_enabled, tax_payer, bank_pix_key, bank_type, bank_beneficiary, event_settings')
+                .eq('id', eventId)
+                .single(),
+            supabase
+                .from('gifts')
+                .select('*')
+                .eq('event_id', eventId)
+                .order('order', { ascending: true }),
+            supabase
+                .from('gift_transactions')
+                .select('*')
+                .eq('event_id', eventId)
+                .eq('status', 'APPROVED')
+                .order('created_at', { ascending: false }),
+            supabase
+                .from('withdrawals')
+                .select('*')
+                .eq('event_id', eventId),
+            supabase
+                .from('guests')
+                .select('id, name, message, confirmed_at')
+                .eq('event_id', eventId)
+                .not('message', 'is', null)
+                .order('confirmed_at', { ascending: false })
+        ]);
 
         if (eventError || !event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
-        const { data: gifts } = await supabase
-            .from('gifts')
-            .select('*')
-            .eq('event_id', eventId)
-            .order('order', { ascending: true });
-
-        const { data: transactions } = await supabase
-            .from('gift_transactions')
-            .select('*')
-            .eq('event_id', eventId)
-            .eq('status', 'APPROVED')
-            .order('created_at', { ascending: false });
-
-        const { data: withdrawals } = await supabase
-            .from('withdrawals')
-            .select('*')
-            .eq('event_id', eventId);
 
         const now = new Date();
         const stats = (transactions || []).reduce((acc: any, t: any) => {
@@ -56,6 +68,27 @@ export async function GET(
             .reduce((acc: any, w: any) => acc + Number(w.amount), 0);
         stats.availableNet -= totalWithdrawn;
 
+        // Combinar transações de presentes com recados do RSVP
+        const giftMessages = (transactions || []).map(t => ({
+            id: t.id,
+            guestName: t.guest_name,
+            message: t.message,
+            type: 'gift',
+            createdAt: t.created_at
+        }));
+
+        const directMessages = (rsvpMessages || []).map(m => ({
+            id: m.id,
+            guestName: m.name,
+            message: m.message,
+            type: 'rsvp',
+            createdAt: m.confirmed_at
+        }));
+
+        const allMessages = [...giftMessages, ...directMessages].sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
         return NextResponse.json({
             gifts: gifts || [],
             stats,
@@ -68,15 +101,7 @@ export async function GET(
                 bankBeneficiary: event.bank_beneficiary || '',
                 coupleNames: typeof event.event_settings === 'string' ? JSON.parse(event.event_settings).coupleNames : event.event_settings?.coupleNames || 'Nós'
             },
-            transactions: (transactions || []).slice(0, 50).map(t => ({
-                id: t.id,
-                guestName: t.guest_name,
-                guestEmail: t.guest_email,
-                message: t.message,
-                amountNet: Number(t.amount_net),
-                status: t.status,
-                createdAt: t.created_at
-            })),
+            transactions: allMessages.slice(0, 100),
             withdrawals: (withdrawals || []).map(w => ({
                 id: w.id,
                 amount: Number(w.amount),

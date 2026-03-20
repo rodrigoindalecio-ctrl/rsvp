@@ -5,6 +5,8 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { formatDate } from '@/lib/date-utils'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useAuth } from '@/lib/auth-context'
 
 interface EventContentProps { slug: string }
 
@@ -48,14 +50,25 @@ const FALLBACK_SLIDES = [
 ]
 
 export default function EventContent({ slug }: EventContentProps) {
-    const { eventSettings } = useEvent()
+    const { eventSettings, loading } = useEvent()
+    const { loading: authLoading } = useAuth()
     const [slide, setSlide] = useState(0)
     const [navScrolled, setNavScrolled] = useState(false)
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const sections = ['inicio', 'historia', 'galeria', 'local', 'presentes-link']
     const activeSection = useActiveSection(sections)
     const timeLeft = useCountdown(eventSettings.eventDate)
-    const isCorrectEvent = eventSettings.slug === slug
+    const isCorrectEvent = eventSettings.slug === slug && slug !== 'dashboard'
+    
+    // Responsive state to avoid Server/Client mismatch for animations
+    const [isMobile, setIsMobile] = useState(false)
+    useEffect(() => {
+        const check = () => setIsMobile(window.innerWidth < 768)
+        check(); window.addEventListener('resize', check)
+        return () => window.removeEventListener('resize', check)
+    }, [])
+    
+    const isLoading = loading || authLoading
 
     const slides = eventSettings.carouselImages && eventSettings.carouselImages.length > 0
         ? eventSettings.carouselImages
@@ -92,6 +105,11 @@ export default function EventContent({ slug }: EventContentProps) {
             ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(eventSettings.eventLocation)}`
             : null)
 
+    const ceremonyMapsUrl = eventSettings.ceremonyWazeLocation ||
+        (eventSettings.ceremonyLocation
+            ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(eventSettings.ceremonyLocation)}`
+            : null)
+
     const navItems = [
         { id: 'inicio', label: 'Início' },
         { id: 'historia', label: 'Nossa História' },
@@ -100,9 +118,59 @@ export default function EventContent({ slug }: EventContentProps) {
         ...(eventSettings.isGiftListEnabled !== false ? [{ id: 'presentes-link', label: 'Presentes' }] : []),
     ]
 
+    if (isLoading) return (
+        <div className="min-h-screen bg-[#FAFAF8] flex flex-col items-center justify-center p-6 text-center">
+            <motion.div 
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+                className="relative"
+            >
+                <div className="absolute inset-0 bg-brand/5 rounded-full blur-3xl animate-pulse" />
+                <div className="relative w-24 h-24 bg-white rounded-[2rem] shadow-xl border border-brand/5 flex items-center justify-center overflow-hidden mb-8 group mx-auto">
+                    <img src="/Logo-03.jpg" alt="Loading" className="w-16 h-16 object-contain" />
+                    <motion.div 
+                        className="absolute inset-0 border-2 border-brand/20 rounded-[2rem]"
+                        animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.2, 0.5] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                    />
+                </div>
+                <div className="space-y-3">
+                    <p className="font-serif italic text-text-primary text-xl tracking-tight">Carregando site...</p>
+                    <div className="flex flex-col items-center gap-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">RSVP • Vanessa Bidinotti</p>
+                        <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-text-muted/60">Assessoria e Cerimonial</p>
+                    </div>
+                </div>
+            </motion.div>
+        </div>
+    )
+
     if (!isCorrectEvent) return (
-        <div className="min-h-screen flex items-center justify-center">
-            <p className="text-text-secondary font-serif italic">Evento não encontrado.</p>
+        <div className="min-h-screen bg-[#FAFAF8] flex flex-col items-center justify-center p-6 text-center">
+            <motion.div 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="max-w-xs space-y-8"
+            >
+                <div className="w-20 h-20 bg-white rounded-3xl shadow-lg border border-border-soft flex items-center justify-center mx-auto opacity-40 grayscale">
+                    <img src="/Logo-03.jpg" alt="VB" className="w-12 h-12 object-contain" />
+                </div>
+                
+                <div className="space-y-4">
+                    <h2 className="text-3xl font-serif text-text-primary">Ops!</h2>
+                    <p className="text-sm text-text-muted leading-relaxed font-medium">
+                        Parece que este convite ainda não existe ou o link está incorreto. 👋
+                    </p>
+                </div>
+
+                <div className="w-full h-px bg-border-soft" />
+
+                <div className="space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-[0.4em] text-text-muted">VB Assessoria</p>
+                    <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-text-muted/40 italic">Onde cada detalhe conta.</p>
+                </div>
+            </motion.div>
         </div>
     )
 
@@ -112,15 +180,15 @@ export default function EventContent({ slug }: EventContentProps) {
             {/* ── NAVBAR ─────────────────────────────────────────────── */}
             <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${navScrolled ? 'bg-surface/95 backdrop-blur-md shadow-lg border-b border-border-soft' : 'bg-transparent'}`}>
                 <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-                    <button onClick={() => scrollTo('inicio')} className={`font-serif text-lg transition-all duration-500 ${navScrolled ? 'text-text-primary' : 'text-white/0'}`}>
+                    <button onClick={() => scrollTo('inicio')} className={`font-serif text-lg transition-all duration-500 ${navScrolled ? 'text-text-primary' : 'text-brand opacity-0 sm:opacity-100'}`}>
                         {eventSettings.coupleNames}
                     </button>
                     <div className="hidden md:flex items-center gap-1">
                         {navItems.map(item => (
                             <button key={item.id} onClick={() => scrollTo(item.id)}
                                 className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === item.id
-                                    ? (navScrolled ? 'bg-brand text-white shadow-md' : 'bg-white/20 text-white backdrop-blur')
-                                    : (navScrolled ? 'text-text-muted hover:text-brand hover:bg-brand-pale' : 'text-white/70 hover:text-white hover:bg-white/10')
+                                    ? (navScrolled ? 'bg-brand text-white shadow-md' : 'bg-brand/10 text-brand shadow-sm')
+                                    : (navScrolled ? 'text-text-muted hover:text-brand hover:bg-brand-pale' : 'text-text-muted hover:text-brand hover:bg-brand-pale')
                                     }`}>
                                 {item.label}
                             </button>
@@ -153,105 +221,165 @@ export default function EventContent({ slug }: EventContentProps) {
                 )}
             </nav>
 
-            {/* ── HERO CAROUSEL + COUNTDOWN ──────────────────────────── */}
-            <section id="inicio" className="relative h-[85vh] md:h-screen min-h-[500px] md:min-h-[600px] overflow-hidden">
-                {/* Slides */}
-                {slides.map((src, i) => (
-                    <div key={i} className={`absolute inset-0 transition-opacity duration-1000 ${i === slide ? 'opacity-100' : 'opacity-0'}`}>
-                        <Image src={src} alt={`Slide ${i + 1}`} fill priority={i === 0}
-                            className="object-cover"
-                            style={{ objectPosition: i === 0 ? `50% ${eventSettings.coverImagePosition || 50}%` : '50% 50%' }}
-                        />
+            {/* ── HERO CAROUSEL ──────────────────────────── */}
+            <section id="inicio" className="max-w-6xl mx-auto px-4 sm:px-8 pt-28 pb-12 relative">
+                {/* Efeito decorativo de fundo sutil */}
+                <div className="absolute top-40 left-1/2 -translate-x-1/2 w-[120%] h-full bg-gradient-to-b from-brand-pale/20 via-transparent to-transparent blur-[120px] -z-10 opacity-30 pointer-events-none" />
+                
+                <div className="relative aspect-[16/10] sm:aspect-[21/9] rounded-[2.5rem] p-1.5 sm:p-2 bg-white/40 backdrop-blur-sm border border-white/50 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.2)] group/hero transition-all duration-700 hover:shadow-[0_48px_80px_-16px_rgba(0,0,0,0.25)]">
+                    <div className="relative w-full h-full rounded-[2rem] overflow-hidden border border-black/5 ring-1 ring-inset ring-white/20">
+                    {/* Slides */}
+                    {slides.map((src, i) => (
+                        <div key={i} className={`absolute inset-0 transition-opacity duration-1500 ${i === slide ? 'opacity-100' : 'opacity-0'}`}>
+                            <motion.div 
+                                className="relative w-full h-full"
+                                animate={i === slide ? { scale: [1.02, 1.08] } : { scale: 1.02 }}
+                                transition={{ duration: 15000, ease: "linear" }}
+                            >
+                                <Image 
+                                    src={src} 
+                                    fill 
+                                    alt="" 
+                                    className="object-cover"
+                                    priority={i === 0}
+                                />
+                                {/* Gradiente de Leitura Sofisticado */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                            </motion.div>
+                        </div>
+                    ))}
+                    
+                    {/* Conteúdo flutuante sobre o carrossel (Apenas Nomes agora) */}
+                    <div className="absolute inset-0 z-30 flex flex-col items-center justify-end text-center text-white pb-8 sm:pb-10 px-6">
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.5 }}
+                        >
+                            <h1 
+                                className="text-4xl sm:text-5xl md:text-6xl text-white tracking-normal leading-tight mx-auto"
+                                style={{ 
+                                    fontFamily: 'var(--font-great-vibes), cursive',
+                                    textShadow: '0 4px 15px rgba(0,0,0,0.6), 0 0 30px rgba(0,0,0,0.3)',
+                                    marginBottom: '-0.1em'
+                                }}
+                            >
+                                {eventSettings.coupleNames}
+                            </h1>
+                        </motion.div>
                     </div>
-                ))}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/30 to-black/75" />
 
-                {/* Conteúdo centralizado */}
-                <div className="relative z-10 h-full flex flex-col items-center justify-center text-center text-white px-6 max-w-3xl mx-auto">
-                    <h1
-                        className="text-5xl md:text-7xl font-serif leading-tight mb-2 text-white animate-in fade-in slide-in-from-bottom-6 duration-700 delay-200"
-                        style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5), 0 0 40px rgba(0,0,0,0.3)' }}>
-                        {eventSettings.coupleNames}
-                    </h1>
-                    <p
-                        className="text-[10px] md:text-xs text-white/90 font-black uppercase tracking-[0.5em] mb-8 animate-in fade-in duration-700 delay-300"
-                        style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
-                        {eventSettings.customMessage && eventSettings.customMessage !== 'Ficamos muito felizes em receber a sua confirmação de presença.'
-                            ? eventSettings.customMessage
-                            : 'Bem-vindos ao nosso site de casamento'}
-                    </p>
-                    <div className="w-12 h-px bg-white/30 mx-auto mb-10 animate-in fade-in duration-700 delay-400" />
+                    {/* Controles de Navegação */}
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); prevSlide(); }} 
+                        className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/10 hover:bg-brand backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center text-white transition-all z-50 opacity-40 hover:opacity-100"
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M15 18l-6-6 6-6" /></svg>
+                    </button>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); nextSlide(); }} 
+                        className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/10 hover:bg-brand backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center text-white transition-all z-50 opacity-40 hover:opacity-100"
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M9 18l6-6-6-6" /></svg>
+                    </button>
 
-                    {/* Countdown em cards de vidro */}
-                    <div className="flex justify-center gap-3 md:gap-4 mb-10 animate-in fade-in duration-700 delay-500">
+                    {/* Sem Dots (Bolinhas removidas a pedido do usuário) */}
+                    </div>
+                </div>
+            </section>
+
+            {/* ── INFO COMPLEMENTAR (Countdown, CTAs, Mensagem) ──────────────── */}
+            <section className="bg-bg-light pb-20 relative">
+                {/* Elemento de Data e Hora Flutuante logo abaixo do carrossel */}
+                <div className="flex justify-center -translate-y-1/2 relative z-50 mb-10">
+                    <div className="inline-flex items-center gap-3 bg-white border border-border-soft rounded-full px-6 py-3 shadow-xl animate-in fade-in slide-in-from-top-4 duration-700">
+                        <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-text-primary">
+                            {formatDate(eventSettings.eventDate, { day: '2-digit', month: 'long', year: 'numeric' })}
+                        </span>
+                        {eventSettings.eventTime && <div className="w-px h-3 bg-border-soft" />}
+                        {eventSettings.eventTime && (
+                           <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-brand">
+                              {eventSettings.eventTime}H
+                           </span>
+                        )}
+                    </div>
+                </div>
+
+                <div className="max-w-4xl mx-auto px-6 text-center space-y-12">
+                    
+                    {/* Mensagem e Bem-vindo */}
+                    <div className="space-y-4 max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        <div className="w-10 h-px bg-brand/30 mx-auto" />
+                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">Bem-vindos</p>
+                        <p className="text-sm text-text-secondary font-serif italic leading-relaxed">
+                            {eventSettings.customMessage && eventSettings.customMessage !== 'Ficamos muito felizes em receber a sua confirmação de presença.'
+                                ? eventSettings.customMessage
+                                : 'Ficamos muito felizes em compartilhar este momento tão especial com você. Sejam bem-vindos ao nosso site!'}
+                        </p>
+                    </div>
+
+                    {/* Contadores (Cards Modernos) */}
+                    <div className="flex flex-wrap justify-center gap-3 md:gap-4 animate-in fade-in duration-700 delay-200">
                         {[
                             { v: timeLeft.days, l: 'Dias' },
                             { v: timeLeft.hours, l: 'Horas' },
                             { v: timeLeft.minutes, l: 'Min' },
                             { v: timeLeft.seconds, l: 'Seg' },
                         ].map(({ v, l }) => (
-                            <div key={l} className="bg-black/40 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3 md:px-5 md:py-4 text-center min-w-[60px] md:min-w-[72px]">
-                                <div className="text-2xl md:text-4xl font-black tabular-nums text-white leading-none">
+                            <div key={l} className="bg-white border border-border-soft rounded-[1.5rem] px-5 py-4 text-center min-w-[75px] md:min-w-[90px] shadow-sm group hover:border-brand/20 transition-all hover:shadow-md">
+                                <div className="text-2xl md:text-3xl font-serif text-brand leading-none">
                                     {String(v).padStart(2, '0')}
                                 </div>
-                                <div className="text-[8px] font-black uppercase tracking-[0.25em] text-white/70 mt-1.5">{l}</div>
+                                <div className="text-[9px] font-black uppercase tracking-widest text-text-muted mt-2">{l}</div>
                             </div>
                         ))}
                     </div>
 
-                    {/* Data badge */}
-                    <div className="flex flex-wrap justify-center gap-3 mb-10 animate-in fade-in duration-700 delay-600">
-                        <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/20 rounded-full px-5 py-2.5 text-xs font-black tracking-wider"
-                            style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-                            📅 {formatDate(eventSettings.eventDate, { day: '2-digit', month: 'long', year: 'numeric' })}
-                            {eventSettings.eventTime && ` • ${eventSettings.eventTime}h`}
+                    {/* Botões de Local e RSVP */}
+                    <div className="space-y-8 animate-in fade-in duration-700 delay-300">
+                        <div className="flex flex-wrap justify-center gap-3">
+                            {eventSettings.hasSeparateCeremony ? (
+                                <>
+                                    <button className="flex items-center gap-3 bg-surface border border-border-soft rounded-full px-6 py-3 text-[10px] font-black tracking-widest text-text-muted hover:bg-brand/5 hover:text-brand hover:border-brand/20 transition-all shadow-sm active:scale-95"
+                                        onClick={() => scrollTo('local')}>
+                                        🏰 CERIMÔNIA
+                                    </button>
+                                    <button className="flex items-center gap-3 bg-surface border border-border-soft rounded-full px-6 py-3 text-[10px] font-black tracking-widest text-text-muted hover:bg-brand/5 hover:text-brand hover:border-brand/20 transition-all shadow-sm active:scale-95"
+                                        onClick={() => scrollTo('local')}>
+                                        🥂 RECEPÇÃO
+                                    </button>
+                                </>
+                            ) : eventSettings.eventLocation && (
+                                <button className="flex items-center gap-3 bg-surface border border-border-soft rounded-full px-7 py-3 text-[10px] font-black tracking-widest text-text-muted hover:bg-brand/5 hover:text-brand hover:border-brand/20 transition-all shadow-sm active:scale-95"
+                                    onClick={() => scrollTo('local')}>
+                                    📍 {eventSettings.eventLocation.split(',')[0]}
+                                </button>
+                            )}
                         </div>
-                        {eventSettings.eventLocation && (
-                            <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/20 rounded-full px-5 py-2.5 text-xs font-black tracking-wider"
-                                style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-                                📍 {eventSettings.eventLocation.split(',')[0]}
-                            </div>
-                        )}
-                    </div>
 
-                    {/* CTAs */}
-                    <div className="flex flex-col sm:flex-row gap-3 animate-in fade-in duration-700 delay-700">
-                        <Link href={`/${slug}/confirmar`}
-                            className="px-8 py-4 bg-brand text-white rounded-full font-black uppercase tracking-[0.2em] text-[11px] shadow-2xl shadow-brand/40 hover:-translate-y-1 active:scale-95 transition-all">
-                            Confirmar Presença
-                        </Link>
-                        {eventSettings.isGiftListEnabled !== false && (
-                            <Link href={`/${slug}/presentes`}
-                                className="px-8 py-4 bg-white/15 backdrop-blur border border-white/30 text-white rounded-full font-black uppercase tracking-[0.2em] text-[11px] hover:bg-white/25 hover:-translate-y-1 transition-all">
-                                Lista de Presentes
+                        <div className="flex flex-col sm:flex-row justify-center gap-4">
+                            <Link href={`/${slug}/confirmar`}
+                                className="px-10 py-4.5 bg-brand text-white rounded-full font-black uppercase tracking-widest text-[11px] shadow-xl shadow-brand/20 hover:-translate-y-1 active:scale-95 transition-all text-center">
+                                Confirmar Presença
                             </Link>
-                        )}
+                            {eventSettings.isGiftListEnabled !== false && (
+                                <Link href={`/${slug}/presentes`}
+                                    className="px-10 py-4.5 bg-white border border-border-soft text-text-primary rounded-full font-black uppercase tracking-widest text-[11px] hover:bg-bg-light hover:-translate-y-1 shadow-sm transition-all text-center">
+                                    Lista de Presentes
+                                </Link>
+                            )}
+                        </div>
                     </div>
-                </div>
-
-                {/* Carousel controls */}
-                <button onClick={prevSlide} className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/10 hover:bg-white/25 backdrop-blur border border-white/20 rounded-full flex items-center justify-center text-white transition-all z-10">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6" /></svg>
-                </button>
-                <button onClick={nextSlide} className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/10 hover:bg-white/25 backdrop-blur border border-white/20 rounded-full flex items-center justify-center text-white transition-all z-10">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
-                </button>
-
-                {/* Dots */}
-                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-                    {slides.map((_, i) => (
-                        <button key={i} onClick={() => setSlide(i)}
-                            className={`transition-all rounded-full ${i === slide ? 'w-6 h-2 bg-white' : 'w-2 h-2 bg-white/40 hover:bg-white/70'}`}
-                        />
-                    ))}
                 </div>
             </section>
+
+            <div id="historia-anchor" />
 
             {/* ── NOSSA HISTÓRIA ─────────────────────────────────────── */}
             <section id="historia" className="py-24 md:py-32 bg-surface">
                 <div className="max-w-2xl mx-auto px-6 text-center">
                     <span className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">Nossa História</span>
-                    <h2 className="text-4xl font-serif text-text-primary mt-3 mb-6">Como Tudo Começou</h2>
+                    <h2 className="text-4xl font-serif text-text-primary mt-3 mb-6">{eventSettings.coupleStoryTitle || 'Como Tudo Começou'}</h2>
                     <div className="w-16 h-px bg-brand/20 mx-auto mb-10" />
                     <p className={`text-text-secondary leading-relaxed ${eventSettings.brandFont === 'great-vibes' ? 'font-sans font-medium' : 'font-serif italic'} text-lg mb-16 whitespace-pre-line`}>
                         {eventSettings.coupleStory ||
@@ -261,13 +389,15 @@ export default function EventContent({ slug }: EventContentProps) {
                     {/* Timeline */}
                     <div className="flex flex-col gap-6 text-left">
                         {(eventSettings.timelineEvents || [
-                            { emoji: '💫', title: 'O primeiro encontro', description: 'O começo de tudo' },
-                            { emoji: '💌', title: 'Nossa memória favorita', description: 'A decisão mais fácil das nossas vidas' },
-                            { emoji: '💍', title: 'O pedido de casamento', description: 'Uma surpresa guardada no coração' },
-                        ]).map((item, i) => (
+                            { emoji: '💫', title: 'O primeiro encontro', description: 'O começo de tudo', image: '' },
+                            { emoji: '💌', title: 'Nossa memória favorita', description: 'A decisão mais fácil das nossas vidas', image: '' },
+                            { emoji: '💍', title: 'O pedido de casamento', description: 'Uma surpresa guardada no coração', image: '' },
+                        ]).map((item: any, i: number) => (
                             <div key={i} className="flex items-start gap-5 group">
-                                <div className="w-12 h-12 bg-brand-pale border border-brand/10 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform">
-                                    {item.emoji}
+                                <div className="w-14 h-14 bg-brand-pale border border-brand/10 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform overflow-hidden">
+                                    {item.image ? (
+                                        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                                    ) : item.emoji}
                                 </div>
                                 <div className="pt-2 border-b border-border-soft pb-6 flex-1">
                                     <h3 className="font-black text-text-primary text-sm uppercase tracking-wider">{item.title}</h3>
@@ -287,6 +417,27 @@ export default function EventContent({ slug }: EventContentProps) {
                     </div>
                 </div>
             </section>
+
+            {/* Sugestão de Traje - Reposicionado para fluir com a Linha do Tempo */}
+            {eventSettings.dressCode && (
+                <section className="bg-bg-light pt-20 pb-8">
+                    <div className="max-w-xl mx-auto px-6">
+                        <div className="bg-surface p-8 rounded-[2.5rem] border border-border-soft shadow-sm animate-in fade-in slide-in-from-top-4 duration-700">
+                            <div className="flex flex-col items-center text-center gap-4">
+                                <div className="w-12 h-12 bg-brand/5 border border-brand/10 rounded-2xl flex items-center justify-center flex-shrink-0 text-brand">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 1.88v6.52a2 2 0 0 0 1.05 1.76l8 4.38a2 2 0 0 0 1.9 0l8-4.38a2 2 0 0 0 1.05-1.76V5.34a2 2 0 0 0-1.34-1.88Z" /><path d="M12 22V12" /></svg>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-2">Sugestão de Traje</p>
+                                    <h4 className="text-text-primary font-bold text-lg">
+                                        {eventSettings.dressCode}
+                                    </h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            )}
 
             {/* ── GALERIA DE FOTOS ──────────────────────────────────────── */}
             {eventSettings.galleryImages && eventSettings.galleryImages.length > 0 && (
@@ -324,31 +475,101 @@ export default function EventContent({ slug }: EventContentProps) {
                         <div className="w-16 h-px bg-brand/20 mx-auto mt-6" />
                     </div>
                     <div className="bg-surface rounded-[2.5rem] border border-border-soft shadow-sm overflow-hidden">
-                        {eventSettings.eventLocation && (
-                            <div className="aspect-video bg-bg-light overflow-hidden">
-                                <iframe
-                                    src={`https://maps.google.com/maps?q=${encodeURIComponent(eventSettings.eventLocation)}&output=embed&z=16`}
-                                    className="w-full h-full border-0" loading="lazy"
-                                />
+                        {eventSettings.hasSeparateCeremony ? (
+                            <div className="flex flex-col">
+                                {/* Parte 1: Cerimônia */}
+                                <div className="p-8 md:p-10 bg-bg-light/30">
+                                    <div className="flex flex-col md:flex-row items-center gap-6">
+                                        <div className="w-14 h-14 bg-brand rounded-2xl flex items-center justify-center flex-shrink-0 text-white shadow-lg shadow-brand/20">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 10a2 2 0 1 0-4 0a2 2 0 1 0 4 0Z" /><path d="M12 10v4" /><path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m19.07 4.93-1.41 1.41" /><path d="m6.34 17.66-1.41 1.41" /></svg>
+                                        </div>
+                                        <div className="flex-1 text-center md:text-left">
+                                            <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-brand">A Cerimônia</span>
+                                                {eventSettings.eventTime && <span className="text-[10px] font-bold text-text-muted opacity-60">• {eventSettings.eventTime}h</span>}
+                                            </div>
+                                            <p className="text-text-primary font-bold leading-relaxed">{eventSettings.ceremonyLocation || 'Endereço da Cerimônia'}</p>
+                                        </div>
+                                        {ceremonyMapsUrl && (
+                                            <a href={ceremonyMapsUrl} target="_blank" rel="noopener noreferrer"
+                                                className="px-6 py-3 bg-white border border-border-soft hover:border-brand/40 text-text-muted hover:text-brand rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex-shrink-0">
+                                                Como Chegar
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                                {eventSettings.ceremonyLocation && (
+                                    <div className="aspect-video bg-bg-light overflow-hidden border-y border-border-soft/30">
+                                        <iframe
+                                            src={`https://maps.google.com/maps?q=${encodeURIComponent(eventSettings.ceremonyLocation)}&output=embed&z=16`}
+                                            className="w-full h-full border-0" loading="lazy"
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Parte 2: Recepção */}
+                                <div className="p-8 md:p-10">
+                                    <div className="flex flex-col md:flex-row items-center gap-6">
+                                        <div className="w-14 h-14 bg-brand-pale rounded-2xl flex items-center justify-center flex-shrink-0">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-brand">
+                                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                                                <circle cx="12" cy="10" r="3" />
+                                            </svg>
+                                        </div>
+                                        <div className="flex-1 text-center md:text-left">
+                                            <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-brand">{eventSettings.hasSeparateCeremony ? 'A Recepção' : 'Endereço'}</span>
+                                                {(!eventSettings.hasSeparateCeremony && eventSettings.eventTime) && <span className="text-[10px] font-bold text-text-muted opacity-60">• {eventSettings.eventTime}h</span>}
+                                            </div>
+                                            <p className="text-text-primary font-bold leading-relaxed">{eventSettings.eventLocation || 'A confirmar'}</p>
+                                        </div>
+                                        {mapsUrl && (
+                                            <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                                                className="flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-brand-dark hover:-translate-y-0.5 transition-all flex-shrink-0">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
+                                                Abrir no Maps
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                                {eventSettings.eventLocation && (
+                                    <div className="aspect-video bg-bg-light overflow-hidden border-t border-border-soft/30">
+                                        <iframe
+                                            src={`https://maps.google.com/maps?q=${encodeURIComponent(eventSettings.eventLocation)}&output=embed&z=16`}
+                                            className="w-full h-full border-0" loading="lazy"
+                                        />
+                                    </div>
+                                )}
                             </div>
+                        ) : (
+                            <>
+                                {eventSettings.eventLocation && (
+                                    <div className="aspect-video bg-bg-light overflow-hidden">
+                                        <iframe
+                                            src={`https://maps.google.com/maps?q=${encodeURIComponent(eventSettings.eventLocation)}&output=embed&z=16`}
+                                            className="w-full h-full border-0" loading="lazy"
+                                        />
+                                    </div>
+                                )}
+                                <div className="p-8 md:p-10 flex flex-col md:flex-row items-center gap-6">
+                                    <div className="w-14 h-14 bg-brand-pale rounded-2xl flex items-center justify-center flex-shrink-0">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-brand"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
+                                    </div>
+                                    <div className="flex-1 text-center md:text-left">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-2">Endereço</p>
+                                        <p className="text-text-primary font-bold leading-relaxed">{eventSettings.eventLocation || 'A confirmar'}</p>
+                                        {eventSettings.eventTime && <p className="text-text-muted text-sm mt-2 font-bold">🕐 {eventSettings.eventTime}h</p>}
+                                    </div>
+                                    {mapsUrl && (
+                                        <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                                            className="flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-brand-dark hover:-translate-y-0.5 transition-all flex-shrink-0">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
+                                            Abrir no Maps
+                                        </a>
+                                    )}
+                                </div>
+                            </>
                         )}
-                        <div className="p-8 md:p-10 flex flex-col md:flex-row items-center gap-6">
-                            <div className="w-14 h-14 bg-brand-pale rounded-2xl flex items-center justify-center flex-shrink-0">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-brand"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
-                            </div>
-                            <div className="flex-1 text-center md:text-left">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-2">Endereço</p>
-                                <p className="text-text-primary font-bold leading-relaxed">{eventSettings.eventLocation || 'A confirmar'}</p>
-                                {eventSettings.eventTime && <p className="text-text-muted text-sm mt-2 font-bold">🕐 {eventSettings.eventTime}h</p>}
-                            </div>
-                            {mapsUrl && (
-                                <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
-                                    className="flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-brand-dark hover:-translate-y-0.5 transition-all flex-shrink-0">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
-                                    Abrir no Maps
-                                </a>
-                            )}
-                        </div>
 
                         {/* Informações de Estacionamento Display */}
                         {eventSettings.parkingSettings?.hasParking && (
@@ -358,37 +579,35 @@ export default function EventContent({ slug }: EventContentProps) {
                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-1.1 0-2 .9-2 2v9c0 1.1.9 2 2 2h2" /><circle cx="7" cy="17" r="2" /><path d="M9 17h6" /><circle cx="17" cy="17" r="2" /></svg>
                                     </div>
                                     <div className="flex-1 text-center md:text-left">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-2">Estacionamento</p>
-                                        <p className="text-text-primary font-bold text-sm">
-                                            {eventSettings.parkingSettings.type === 'free' ? 'Gratuito no local para convidados' :
-                                                eventSettings.parkingSettings.type === 'valet' ? 'Serviço de Valet / Manobrista disponível' :
-                                                    'Estacionamento pago no local'}
-                                            {eventSettings.parkingSettings.price && ` (${eventSettings.parkingSettings.price})`}
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-2">
+                                            Estacionamento (Local da Recepção)
                                         </p>
+                                        <div className="text-text-primary font-bold text-sm">
+                                            <p>{eventSettings.parkingSettings.type === 'free' ? 'Gratuito no local para convidados 🟢' :
+                                                eventSettings.parkingSettings.type === 'valet' ? 'Valet / Estacionamento no Local (Pago) 🟡' :
+                                                    'Estacionamentos Próximos (Sugestão) 🅿️'}</p>
+                                            {eventSettings.parkingSettings.price && (
+                                                <p className="mt-1 font-bold text-brand">
+                                                    Valor: {eventSettings.parkingSettings.price}
+                                                </p>
+                                            )}
+                                        </div>
                                         {eventSettings.parkingSettings.address && (
-                                            <p className="text-text-muted text-xs mt-2 italic">📍 Endereço: {eventSettings.parkingSettings.address}</p>
+                                            <p className="text-text-muted text-xs mt-2 font-bold">📍 Local: {eventSettings.parkingSettings.address}</p>
+                                        )}
+                                        {eventSettings.parkingSettings.wazeLocation && (
+                                            <a href={eventSettings.parkingSettings.wazeLocation} target="_blank" rel="noopener noreferrer"
+                                                className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-surface border border-brand/20 text-brand rounded-xl text-[8.5px] font-black uppercase tracking-widest shadow-sm hover:bg-brand-pale transition-all">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
+                                                Como Chegar ao Estacionamento
+                                            </a>
                                         )}
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* Sugestão de Traje Display */}
-                        {eventSettings.dressCode && (
-                            <div className="px-8 pb-10 md:px-10 border-t border-border-soft/50 pt-8 animate-in fade-in slide-in-from-top-4 duration-700">
-                                <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-                                    <div className="w-12 h-12 bg-brand/10 rounded-2xl flex items-center justify-center flex-shrink-0 text-brand">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 1.88v6.52a2 2 0 0 0 1.05 1.76l8 4.38a2 2 0 0 0 1.9 0l8-4.38a2 2 0 0 0 1.05-1.76V5.34a2 2 0 0 0-1.34-1.88Z" /><path d="M12 22V12" /></svg>
-                                    </div>
-                                    <div className="flex-1 text-center md:text-left">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-2">Sugestão de Traje</p>
-                                        <p className="text-text-primary font-bold text-sm">
-                                            {eventSettings.dressCode}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+
                     </div>
                 </div>
             </section>

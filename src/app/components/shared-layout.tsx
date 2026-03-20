@@ -1,10 +1,11 @@
 'use client'
 
 import { useAuth } from '@/lib/auth-context'
-import { useEvent } from '@/lib/event-context'
+import { useEvent, EventContext } from '@/lib/event-context'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import React, { useState, useContext } from 'react'
+import { ConfirmDialog } from './confirm-dialog'
 
 // ── SVG Outline Icons ──────────────────────────────────────────
 const IconHome = () => (
@@ -79,6 +80,8 @@ interface SharedLayoutProps {
     subtitle?: string | React.ReactNode
     headerActions?: React.ReactNode
     role: 'admin' | 'user'
+    onBeforeNavigate?: (href: string) => boolean | 'confirm_needed' | Promise<boolean | 'confirm_needed'>
+    onSave?: () => Promise<boolean>
 }
 
 export function SharedLayout({
@@ -86,22 +89,18 @@ export function SharedLayout({
     title,
     subtitle,
     headerActions,
-    role
+    role,
+    onBeforeNavigate,
+    onSave
 }: SharedLayoutProps) {
     const { user, logout } = useAuth()
     const router = useRouter()
     const pathname = usePathname()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
+    const [pendingHref, setPendingHref] = useState<string | null>(null)
 
     // Tentar pegar os nomes do casal do contexto de evento (para o avatar)
-    let eventContext: any = null
-    try {
-        eventContext = useEvent()
-    } catch (e) {
-        // useEvent pode falhar se estiver fora do provider
-    }
-
-    if (!user) return null
+    const eventContext = useContext(EventContext)
 
     // Iniciais personalizadas para o Avatar (ex: Isabella e Felipe -> I&F)
     const getInitials = (name: string) => {
@@ -118,7 +117,7 @@ export function SharedLayout({
     // Se for um usuário (noivos) e tivermos nomes do casal no evento, priorizamos isso
     const sourceName = (role === 'user' && eventContext?.eventSettings?.coupleNames && eventContext.eventSettings.coupleNames !== 'Nome do Casal')
         ? eventContext.eventSettings.coupleNames
-        : user.name
+        : user?.name || ''
 
     const initials = getInitials(sourceName)
 
@@ -140,9 +139,60 @@ export function SharedLayout({
     const isSettingsPage = pathname?.startsWith('/settings')
     const homeHref = role === 'admin' ? '/admin/dashboard' : '/dashboard'
     const isAtHome = pathname === homeHref
+
+    const [isSavingInProgress, setIsSavingInProgress] = useState(false)
     
+    // Handler centralizado de navegação
+    const handleNavigate = async (href: string, e?: React.MouseEvent) => {
+        if (e) e.preventDefault()
+        
+        if (onBeforeNavigate) {
+            const result = await onBeforeNavigate(href)
+            if (result === 'confirm_needed') {
+                setPendingHref(href)
+                return
+            }
+            if (!result) return
+        }
+        
+        router.push(href)
+        setIsMenuOpen(false)
+    }
+
+    const confirmNavigation = () => {
+        if (pendingHref) {
+            router.push(pendingHref)
+            setPendingHref(null)
+            setIsMenuOpen(false)
+        }
+    }
+
+    const handleSaveAndNavigate = async () => {
+        if (onSave) {
+            setIsSavingInProgress(true)
+            try {
+                const success = await onSave()
+                if (success) {
+                    confirmNavigation()
+                } else {
+                    // Se falhou (ex: slug duplicado), fecha o modal pra o user ver o erro
+                    setPendingHref(null)
+                }
+            } catch (error) {
+                console.error('Erro ao salvar no modal:', error)
+                setPendingHref(null)
+            } finally {
+                setIsSavingInProgress(false)
+            }
+        } else {
+            setPendingHref(null)
+        }
+    }
+
     // Mostramos botão voltar se não estivermos na home e formos admin em subpágina OU user em config
     const showBackButton = (role === 'admin' && isEventPage) || (role === 'user' && isSettingsPage)
+
+    if (!user) return null
 
     return (
         <div className="min-h-screen bg-background flex flex-col font-sans text-textPrimary overflow-x-hidden max-w-[100vw]">
@@ -155,6 +205,7 @@ export function SharedLayout({
                     <div className="flex items-center gap-4 flex-1">
                         <Link 
                             href={homeHref}
+                            onClick={(e) => handleNavigate(homeHref, e)}
                             className="flex items-center gap-2 flex-shrink-0 group hover:opacity-80 transition-all"
                         >
                             <div className="w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center border border-brand/10 group-hover:border-brand/30 transition-all">
@@ -164,13 +215,13 @@ export function SharedLayout({
                         </Link>
 
                         {showBackButton && (
-                            <Link
-                                href={homeHref}
+                            <button
+                                onClick={() => handleNavigate(homeHref)}
                                 className="flex items-center gap-2 px-3 py-1.5 bg-brand/5 text-brand rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-brand/10 transition-all border border-brand/10 shadow-sm group whitespace-nowrap"
                             >
                                 <span className="group-hover:-translate-x-1 transition-transform">←</span>
                                 <span>Voltar</span>
-                            </Link>
+                            </button>
                         )}
                     </div>
 
@@ -228,7 +279,7 @@ export function SharedLayout({
                                     <button
                                         key={link.href}
                                         id={link.href === '/settings' ? 'tour-settings' : undefined}
-                                        onClick={() => { router.push(link.href); setIsMenuOpen(false) }}
+                                        onClick={() => handleNavigate(link.href)}
                                         className="w-full text-left px-4 py-3 flex items-center gap-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-text-secondary hover:bg-bg-light hover:text-brand transition-all"
                                     >
                                         <span className="flex-shrink-0">{link.icon}</span>
@@ -280,7 +331,7 @@ export function SharedLayout({
                         <button
                             key={link.href}
                             id={link.href === '/settings' ? 'tour-settings-mobile' : undefined}
-                            onClick={() => router.push(link.href)}
+                            onClick={() => handleNavigate(link.href)}
                             className={`flex flex-col items-center gap-1.5 transition-all duration-300 ${isActive ? 'scale-110' : 'opacity-40 grayscale'}`}
                         >
                             <div className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${isActive ? 'bg-brand text-white shadow-lg shadow-brand-dark/20' : 'bg-bg-light text-text-muted'}`}>
@@ -293,6 +344,18 @@ export function SharedLayout({
                     )
                 })}
             </nav>
+
+            {/* Diálogo de Confirmação Customizado para Navegação Interna */}
+            <ConfirmDialog
+                isOpen={!!pendingHref}
+                title="Alterações não salvas! ⚠️"
+                message="Você fez alterações que ainda não foram salvas. Se você sair agora, perderá essas informações. Deseja continuar?"
+                confirmText={isSavingInProgress ? 'Salvando...' : 'Salvar alterações'}
+                cancelText="Sair sem salvar"
+                isDangerous={false} // Mantém cor de sucesso/brand no principal
+                onConfirm={handleSaveAndNavigate}
+                onCancel={confirmNavigation} // Agora onCancel navega (botão cinza/esquerda)
+            />
 
         </div>
     )

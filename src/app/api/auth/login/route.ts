@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Converter para hash para as próximas vezes
-                const hashedPassword = await bcrypt.hash(password, 10)
+                const hashedPassword = await bcrypt.hash(password, 8)
                 await supabase
                     .from('admin_users')
                     .update({ password_hash: hashedPassword })
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
             }
         } else {
             // Sem senha definida: primeiro login, salvar a senha fornecida como hash
-            const hashedPassword = await bcrypt.hash(password, 10)
+            const hashedPassword = await bcrypt.hash(password, 8)
             await supabase
                 .from('admin_users')
                 .update({ password_hash: hashedPassword })

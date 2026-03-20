@@ -19,7 +19,14 @@ function UsersManagementContent() {
     return Math.random().toString(36).slice(-8)
   }
 
-  const [newUser, setNewUser] = useState({ name: '', email: '', type: 'noivos' as 'noivos' | 'admin', password: generatePassword() })
+  const [newUser, setNewUser] = useState({ 
+    name: '', 
+    email: '', 
+    type: 'noivos' as 'noivos' | 'admin', 
+    password: generatePassword(),
+    coupleNames: '',
+    customSlug: ''
+  })
   const [editingUser, setEditingUser] = useState<any>(null)
 
   // Função para gerar iniciais inteligentes (ex: Isabella e Felipe -> I&F)
@@ -62,20 +69,21 @@ function UsersManagementContent() {
 
       // Criar evento automático se for Noivos (usando a nova função centralizada do contexto)
       if (newUser.type === 'noivos') {
-        await createDefaultEventForUser(newUser.email, newUser.name)
+        await createDefaultEventForUser(newUser.email, newUser.name, newUser.coupleNames, newUser.customSlug)
       }
 
       // Lógica de Onboarding Passo a Passo para o Email
       const onboardingSteps = newUser.type === 'noivos' ? `
-1️⃣  Acesse o link: ${window.location.origin}/
-2️⃣  Faça seu cadastro utilizando este e-mail.
+1️⃣  Clique em "Começar agora" no botão abaixo.
+2️⃣  Escolha sua senha de acesso pessoal.
 3️⃣  Configure as informações (Data, Local e Fotos).
 4️⃣  Importe sua lista de convidados pelo modelo Excel.
 5️⃣  Acompanhe as confirmações em tempo real! 📊
       ` : `
-1️⃣  Confirme seu acesso administrativo.
-2️⃣  Gerencie todos os eventos da plataforma.
-3️⃣  Acesse relatórios e métricas globais.
+1️⃣  Confirme seu acesso pelo botão abaixo.
+2️⃣  Defina sua senha de administrador.
+3️⃣  Gerencie todos os eventos da plataforma.
+4️⃣  Acesse relatórios e métricas globais.
       `
 
       // Chamada para a nova API de e-mail automático (Hostinger SMTP)
@@ -96,7 +104,14 @@ function UsersManagementContent() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.details || 'Falha no envio do e-mail')
 
-      setNewUser({ name: '', email: '', type: 'noivos', password: generatePassword() })
+      setNewUser({ 
+        name: '', 
+        email: '', 
+        type: 'noivos', 
+        password: generatePassword(),
+        coupleNames: '',
+        customSlug: ''
+      })
       setShowInviteModal(false)
       toast.success('Convite enviado com sucesso! 🎉', {
         description: `Um e-mail foi enviado para ${newUser.email} com os dados de acesso.`,
@@ -104,9 +119,21 @@ function UsersManagementContent() {
       })
     } catch (error: any) {
       console.error('Erro ao convidar usuário:', error)
-      toast.error('Erro ao enviar convite', {
-        description: error.message || 'O usuário foi cadastrado, mas o e-mail falhou.',
-        duration: 6000,
+      
+      let errorMessage = 'Não foi possível completar o convite.'
+      let description = error.message
+
+      if (error.code === '23505') {
+        errorMessage = 'Usuário já cadastrado!'
+        description = 'Este e-mail já possui acesso ao sistema.'
+      } else if (error.message?.includes('subdomínio')) {
+        errorMessage = 'URL Indisponível'
+        description = error.message
+      }
+
+      toast.error(errorMessage, {
+        description: description,
+        duration: 8000,
       })
     } finally {
       setIsSending(false)
@@ -379,6 +406,43 @@ function UsersManagementContent() {
                   </div>
                 </div>
 
+                {/* Campos extras apenas para Noivos */}
+                {newUser.type === 'noivos' && (
+                  <div className="space-y-5 py-2 animate-in fade-in slide-in-from-top-2">
+                    <div>
+                      <label className="block text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2.5 ml-1">Nomes do Casal</label>
+                      <input
+                        type="text"
+                        value={newUser.coupleNames}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          const slug = val.toLowerCase()
+                            .normalize('NFD')
+                            .replace(/[\u0300-\u036f]/g, '')
+                            .replace(/[^a-z0-9]/g, '-')
+                            .replace(/-+/g, '-')
+                            .replace(/^-|-$/g, '')
+                          setNewUser({ ...newUser, coupleNames: val, customSlug: slug })
+                        }}
+                        placeholder="Ex: Vanessa e Rodrigo"
+                        className="w-full px-6 py-4 bg-bg-light border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 shadow-inner text-text-primary transition-all outline-none placeholder:text-text-muted/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2.5 ml-1">Subdominío (URL do Site)</label>
+                      <div className="relative group">
+                        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-text-muted font-bold text-sm">/</span>
+                        <input
+                          type="text"
+                          value={newUser.customSlug}
+                          onChange={(e) => setNewUser({ ...newUser, customSlug: e.target.value })}
+                          placeholder="Ex: vanessa-e-rodrigo"
+                          className="w-full pl-9 pr-6 py-4 bg-bg-light border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 shadow-inner text-brand transition-all outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-4">

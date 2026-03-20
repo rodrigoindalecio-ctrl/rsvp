@@ -4,11 +4,14 @@ import { useEvent, Guest, GuestCategory } from '@/lib/event-context'
 import { useState } from 'react'
 import Link from 'next/link'
 import { formatDate } from '@/lib/date-utils'
+import { motion } from 'framer-motion'
+import { useAuth } from '@/lib/auth-context'
 
 interface Props { slug: string }
 
 export default function RSVPContent({ slug }: Props) {
-    const { eventSettings, guests, updateGuest, ownerEmail } = useEvent()
+    const { eventSettings, guests, updateGuest, ownerEmail, loading } = useEvent()
+    const { loading: authLoading } = useAuth()
     const [step, setStep] = useState<'idle' | 'search' | 'results' | 'group' | 'success'>('idle')
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
@@ -17,8 +20,10 @@ export default function RSVPContent({ slug }: Props) {
     const [isMainConfirmed, setIsMainConfirmed] = useState(true)
     const [groupConf, setGroupConf] = useState<{ [k: number]: boolean }>({})
     const [guestEmail, setGuestEmail] = useState('')
+    const [message, setMessage] = useState('')
 
-    const isCorrectEvent = eventSettings.slug === slug
+    const isLoading = loading || authLoading
+    const isCorrectEvent = eventSettings.slug === slug && slug !== 'dashboard'
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault()
@@ -48,7 +53,10 @@ export default function RSVPContent({ slug }: Props) {
             const updatedComps = selectedGuest.companionsList.map((c, i) => ({ ...c, isConfirmed: groupConf[i] || false }))
             await updateGuest(selectedGuest.id, {
                 status: isMainConfirmed ? 'confirmed' : 'declined',
-                email: guestEmail, companionsList: updatedComps, confirmedAt: new Date()
+                email: guestEmail, 
+                message: message.trim() || undefined,
+                companionsList: updatedComps, 
+                confirmedAt: new Date()
             })
             // Emails
             const confirmedNames: string[] = []
@@ -81,9 +89,59 @@ export default function RSVPContent({ slug }: Props) {
         finally { setIsSubmitting(false) }
     }
 
+    if (isLoading) return (
+        <div className="min-h-screen bg-[#FAFAF8] flex flex-col items-center justify-center p-6 text-center">
+            <motion.div 
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+                className="relative"
+            >
+                <div className="absolute inset-0 bg-brand/5 rounded-full blur-3xl animate-pulse" />
+                <div className="relative w-24 h-24 bg-white rounded-[2rem] shadow-xl border border-brand/5 flex items-center justify-center overflow-hidden mb-8 group mx-auto">
+                    <img src="/Logo-03.jpg" alt="Loading" className="w-16 h-16 object-contain" />
+                    <motion.div 
+                        className="absolute inset-0 border-2 border-brand/20 rounded-[2rem]"
+                        animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.2, 0.5] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                    />
+                </div>
+                <div className="space-y-3">
+                    <p className="font-serif italic text-text-primary text-xl tracking-tight">Carregando confirmação...</p>
+                    <div className="flex flex-col items-center gap-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">RSVP • Vanessa Bidinotti</p>
+                        <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-text-muted/60">Assessoria e Cerimonial</p>
+                    </div>
+                </div>
+            </motion.div>
+        </div>
+    )
+
     if (!isCorrectEvent) return (
-        <div className="min-h-screen flex items-center justify-center">
-            <p className="text-text-secondary font-serif italic">Evento não encontrado.</p>
+        <div className="min-h-screen bg-[#FAFAF8] flex flex-col items-center justify-center p-6 text-center">
+            <motion.div 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="max-w-xs space-y-8"
+            >
+                <div className="w-20 h-20 bg-white rounded-3xl shadow-lg border border-border-soft flex items-center justify-center mx-auto opacity-40 grayscale">
+                    <img src="/Logo-03.jpg" alt="VB" className="w-12 h-12 object-contain" />
+                </div>
+                
+                <div className="space-y-4">
+                    <h2 className="text-3xl font-serif text-text-primary">Ops!</h2>
+                    <p className="text-sm text-text-muted leading-relaxed font-medium">
+                        Parece que este convite ainda não existe ou o link está incorreto. 👋
+                    </p>
+                </div>
+
+                <div className="w-full h-px bg-border-soft" />
+
+                <div className="space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-[0.4em] text-text-muted">VB Assessoria</p>
+                    <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-text-muted/40 italic">Onde cada detalhe conta.</p>
+                </div>
+            </motion.div>
         </div>
     )
 
@@ -263,6 +321,18 @@ export default function RSVPContent({ slug }: Props) {
                                 <input required type="email" value={guestEmail} onChange={e => setGuestEmail(e.target.value)} placeholder="Seu melhor e-mail..."
                                     className="w-full px-6 py-4 bg-surface border border-border-soft rounded-2xl text-sm font-bold focus:ring-4 focus:ring-brand/10 focus:border-brand transition-all outline-none shadow-sm placeholder:text-text-muted text-text-primary" />
                                 <p className="text-[10px] text-text-muted font-medium mt-2 ml-1">Você receberá o resumo e informações do evento.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-brand uppercase tracking-widest mb-3 ml-1">Deixe um recado para os noivos (Opcional)</label>
+                                <textarea 
+                                    value={message} 
+                                    onChange={e => setMessage(e.target.value)} 
+                                    placeholder="Escreva aqui sua mensagem de carinho..."
+                                    rows={3}
+                                    className="w-full px-6 py-4 bg-surface border border-border-soft rounded-2xl text-sm font-serif italic focus:ring-4 focus:ring-brand/10 focus:border-brand transition-all outline-none shadow-sm placeholder:text-text-muted/50 text-text-primary resize-none" 
+                                />
+                                <p className="text-[10px] text-text-muted font-medium mt-2 ml-1">Sua mensagem aparecerá no mural dos noivos!</p>
                             </div>
 
                             <div className="flex gap-3 pt-2">

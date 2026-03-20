@@ -40,22 +40,28 @@ export default function LoginPage() {
             <div className="h-px w-12 bg-brand/20 mx-auto mt-4" />
           </div>
 
-          <form className="mt-10 space-y-6" onSubmit={(e) => { e.preventDefault(); login(email, password); }}>
+          <form 
+            className="mt-10 space-y-6" 
+            method="POST"
+            onSubmit={(e) => { 
+                e.preventDefault(); 
+                login(email, password); 
+            }}
+          >
             <div className="space-y-6">
               <div className="space-y-2">
                 <label htmlFor="email" className="text-[10px] font-black text-text-muted uppercase tracking-widest ml-1 block">
                   E-mail institucional
                 </label>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="w-full px-6 py-4 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-4 focus:ring-brand/5 focus:border-brand-light transition-all outline-none placeholder:text-text-muted text-text-primary"
-                  placeholder="nome@exemplo.com"
+                   id="email"
+                   type="email"
+                   autoComplete="email"
+                   required
+                   value={email}
+                   onChange={e => setEmail(e.target.value)}
+                   className="w-full px-6 py-4 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-4 focus:ring-brand/5 focus:border-brand-light transition-all outline-none placeholder:text-text-muted text-text-primary"
+                   placeholder="nome@exemplo.com"
                 />
               </div>
 
@@ -64,15 +70,14 @@ export default function LoginPage() {
                   Senha de segurança
                 </label>
                 <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full px-6 py-4 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-4 focus:ring-brand/5 focus:border-brand-light transition-all outline-none placeholder:text-text-muted text-text-primary"
-                  placeholder="••••••••"
+                   id="password"
+                   type="password"
+                   autoComplete="current-password"
+                   required
+                   value={password}
+                   onChange={e => setPassword(e.target.value)}
+                   className="w-full px-6 py-4 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-4 focus:ring-brand/5 focus:border-brand-light transition-all outline-none placeholder:text-text-muted text-text-primary"
+                   placeholder="••••••••"
                 />
               </div>
             </div>

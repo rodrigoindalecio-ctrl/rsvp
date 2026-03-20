@@ -48,7 +48,8 @@ function NovoEventoContent() {
           coverImage: form.image,
           coverImagePosition: 50,
           coverImageScale: 1.0,
-          customMessage: ''
+          customMessage: '',
+          isGiftListEnabled: false
         },
         guests: [],
         createdAt: new Date(),

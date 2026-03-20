@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react'
+import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { useAdmin } from './admin-context'
 import { useAuth } from './auth-context'
@@ -28,6 +28,7 @@ export type Guest = {
     category: GuestCategory
     updatedAt: Date
     confirmedAt?: Date
+    message?: string
 }
 
 export type EventSettings = {
@@ -38,7 +39,13 @@ export type EventSettings = {
     eventTime?: string
     confirmationDeadline: string
     eventLocation: string
+    eventAddress?: string
     wazeLocation?: string
+    hasSeparateCeremony?: boolean
+    ceremonyLocation?: string
+    ceremonyAddress?: string
+    ceremonyWazeLocation?: string
+    ceremonyTime?: string
     coverImage: string
     coverImagePosition: number
     coverImageScale: number
@@ -47,19 +54,24 @@ export type EventSettings = {
     notifyOwnerOnRSVP?: boolean
     carouselImages?: string[]
     coupleStory?: string
-    timelineEvents?: { emoji: string; title: string; description: string }[]
+    coupleStoryTitle?: string
+    timelineEvents?: { emoji: string; title: string; description: string; image?: string }[]
     galleryImages?: string[]
     dressCode?: string
     parkingSettings?: {
         hasParking: boolean
-        type: 'free' | 'valet' | 'paid'
+        type: 'free' | 'valet' | 'suggestion'
         price?: string
         address?: string
+        wazeLocation?: string
+        receptionOnly?: boolean
     }
     brandColor?: string
     brandFont?: string
     isGiftListEnabled?: boolean
     hasCompletedOnboarding?: boolean
+    emailConfirmationTitle?: string
+    emailConfirmationGreeting?: string
 }
 
 type EventContextType = {
@@ -129,11 +141,11 @@ const DEFAULT_EVENT_SETTINGS: EventSettings = {
     },
     brandColor: '#7b2d3d',
     brandFont: 'lora',
-    isGiftListEnabled: true,
+    isGiftListEnabled: false,
     hasCompletedOnboarding: false
 }
 
-const EventContext = createContext<EventContextType | undefined>(undefined)
+export const EventContext = createContext<EventContextType | undefined>(undefined)
 
 export function EventProvider({ children }: { children: ReactNode }) {
     const params = useParams()
@@ -246,9 +258,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
         loadGuests()
     }, [eventId])
 
-    const refreshData = async () => {
+    const refreshData = useCallback(async () => {
         await loadGuests()
-    }
+    }, [eventId]) // loadGuests uses eventId
 
     // REAL-TIME UPDATES
     useEffect(() => {
@@ -360,7 +372,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         }, initial)
     }, [guests])
 
-    async function addGuest(data: Omit<Guest, 'id' | 'updatedAt' | 'status'>) {
+    const addGuest = useCallback(async (data: Omit<Guest, 'id' | 'updatedAt' | 'status'>) => {
         if (!eventId) return false
         const newId = Math.random().toString(36).substr(2, 9)
         const newGuest: Guest = {
@@ -392,9 +404,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
             console.error('Erro ao adicionar convidado:', error)
             return false
         }
-    }
+    }, [eventId])
 
-    async function addGuestsBatch(dataList: Omit<Guest, 'id' | 'updatedAt' | 'status'>[]) {
+    const addGuestsBatch = useCallback(async (dataList: Omit<Guest, 'id' | 'updatedAt' | 'status'>[]) => {
         if (!eventId) {
             return { imported: 0, duplicates: [], error: 'Nenhum evento encontrado para o usuário atual.' }
         }
@@ -447,9 +459,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
         }
 
         return { imported: 0, duplicates }
-    }
+    }, [eventId, guests])
 
-    async function removeGuest(id: string) {
+    const removeGuest = useCallback(async (id: string) => {
         try {
             const { error } = await supabase.from('guests').delete().eq('id', id)
             if (error) throw error
@@ -457,9 +469,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
         } catch (error) {
             console.error('Erro ao remover convidado:', error)
         }
-    }
+    }, [])
 
-    async function updateGuestStatus(id: string, status: GuestStatus) {
+    const updateGuestStatus = useCallback(async (id: string, status: GuestStatus) => {
         try {
             const now = new Date()
             const { error } = await supabase.from('guests').update({
@@ -473,9 +485,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
         } catch (error) {
             console.error('Erro ao atualizar status:', error)
         }
-    }
+    }, [])
 
-    async function updateGuest(id: string, guestData: Partial<Guest>) {
+    const updateGuest = useCallback(async (id: string, guestData: Partial<Guest>) => {
         try {
             const now = new Date()
             const updates: any = { updated_at: now.toISOString() }
@@ -483,31 +495,49 @@ export function EventProvider({ children }: { children: ReactNode }) {
             if (guestData.email !== undefined) updates.email = guestData.email
             if (guestData.telefone !== undefined) updates.telefone = guestData.telefone
             if (guestData.grupo !== undefined) updates.grupo = guestData.grupo
-            if (guestData.status) updates.status = guestData.status
+            if (guestData.status) {
+                updates.status = guestData.status
+                // Se está confirmando agora e não tem data, ou se mudou o status
+                if (guestData.status === 'confirmed') {
+                    updates.confirmed_at = guestData.confirmedAt ? guestData.confirmedAt.toISOString() : now.toISOString()
+                } else {
+                    updates.confirmed_at = null
+                }
+            } else if (guestData.confirmedAt !== undefined) {
+                updates.confirmed_at = guestData.confirmedAt ? guestData.confirmedAt.toISOString() : null
+            }
             if (guestData.category) updates.category = guestData.category
             if (guestData.companionsList) updates.companions_list = guestData.companionsList
+            if (guestData.message !== undefined) updates.message = guestData.message
 
             const { error } = await supabase.from('guests').update(updates).eq('id', id)
             if (error) throw error
-            setGuests(prev => prev.map(g => g.id === id ? { ...g, ...guestData, updatedAt: now } : g))
+            setGuests(prev => prev.map(g => g.id === id ? { 
+                ...g, 
+                ...guestData, 
+                updatedAt: now,
+                confirmedAt: guestData.status === 'confirmed' 
+                    ? (guestData.confirmedAt || now) 
+                    : (guestData.status ? undefined : (guestData.confirmedAt || g.confirmedAt))
+            } : g))
         } catch (error) {
             console.error('Erro ao atualizar convidado:', error)
         }
-    }
+    }, [])
 
-    async function updateGuestCompanions(id: string, companions: Companion[]) {
+    const updateGuestCompanions = useCallback(async (id: string, companions: Companion[]) => {
         await updateGuest(id, { companionsList: companions })
-    }
+    }, [updateGuest])
 
-    async function removeCompanion(guestId: string, index: number) {
+    const removeCompanion = useCallback(async (guestId: string, index: number) => {
         const guest = guests.find(g => g.id === guestId)
         if (!guest) return
         const newList = [...guest.companionsList]
         newList.splice(index, 1)
         await updateGuest(guestId, { companionsList: newList })
-    }
+    }, [guests, updateGuest])
 
-    async function updateEventSettings(newSettings: Partial<EventSettings>) {
+    const updateEventSettings = useCallback(async (newSettings: Partial<EventSettings>) => {
         if (!eventId) return
         const updatedSettings = { ...eventSettings, ...newSettings }
 
@@ -519,9 +549,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
         // Atualiza estado local
         setEventSettings(updatedSettings)
-    }
+    }, [eventId, eventSettings, updateEvent])
 
-    async function submitRSVP(rsvpData: Omit<Guest, 'id' | 'updatedAt'>) {
+    const submitRSVP = useCallback(async (rsvpData: Omit<Guest, 'id' | 'updatedAt'>) => {
         if (!eventId) throw new Error('Evento não identificado')
 
         try {
@@ -536,6 +566,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
                 category: rsvpData.category,
                 companions: rsvpData.companions,
                 companions_list: rsvpData.companionsList,
+                message: rsvpData.message || null,
                 updated_at: now.toISOString(),
                 confirmed_at: now.toISOString()
             })
@@ -554,27 +585,36 @@ export function EventProvider({ children }: { children: ReactNode }) {
             console.error('Erro ao submeter RSVP:', error)
             throw error
         }
-    }
+    }, [eventId])
+
+    const value = useMemo(() => ({
+        eventId,
+        guests,
+        eventSettings,
+        ownerEmail,
+        loading,
+        metrics,
+        addGuest,
+        addGuestsBatch,
+        removeGuest,
+        updateGuestStatus,
+        updateGuest,
+        updateGuestCompanions,
+        removeCompanion,
+        updateEventSettings,
+        submitRSVP,
+        refreshData
+    }), [
+        eventId,
+        guests,
+        eventSettings,
+        ownerEmail,
+        loading,
+        metrics
+    ])
 
     return (
-        <EventContext.Provider value={{
-            eventId,
-            guests,
-            eventSettings,
-            ownerEmail,
-            loading,
-            metrics,
-            addGuest,
-            addGuestsBatch,
-            removeGuest,
-            updateGuestStatus,
-            updateGuest,
-            updateGuestCompanions,
-            removeCompanion,
-            updateEventSettings,
-            submitRSVP,
-            refreshData
-        }}>
+        <EventContext.Provider value={value}>
             {children}
         </EventContext.Provider>
     )

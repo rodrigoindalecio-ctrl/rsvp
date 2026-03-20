@@ -95,12 +95,14 @@ export default function MuralMessagesTab({ eventId }: Props) {
                             <Quote className="absolute -top-2 -right-2 text-brand/5 group-hover:text-brand/10 transition-colors" size={120} />
 
                             <div className="relative z-10 space-y-6">
-                                {/* Badge de presente (opcional se soubermos o presente, mas aqui temos a transação) */}
+                                {/* Status Badge Dinâmico baseada no tipo */}
                                 <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-xl bg-success-light text-success-dark flex items-center justify-center text-xs">
-                                        <Star size={14} fill="currentColor" />
+                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs ${msg.type === 'gift' ? 'bg-success-light text-success-dark' : 'bg-brand-pale text-brand'}`}>
+                                        {msg.type === 'gift' ? <Star size={14} fill="currentColor" /> : <MessageSquare size={14} />}
                                     </div>
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-success-dark/60">Presente Recebido</span>
+                                    <span className={`text-[9px] font-black uppercase tracking-widest ${msg.type === 'gift' ? 'text-success-dark/60' : 'text-brand/60'}`}>
+                                        {msg.type === 'gift' ? 'Presente Recebido' : 'Recado no RSVP'}
+                                    </span>
                                 </div>
 
                                 {/* O Recado */}

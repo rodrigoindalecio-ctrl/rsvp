@@ -45,6 +45,7 @@
   /* ── Tipografia ── */
   --font-sans:  var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-lora), 'Playfair Display', 'Georgia', serif;
+  --font-great-vibes: var(--font-great-vibes), cursive;
 
   /* ── Sombras ── */
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.04);

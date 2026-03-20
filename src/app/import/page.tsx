@@ -431,7 +431,15 @@ export default function ImportPage() {
                                 <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mb-8">
                                     <div>
                                         <h2 className="text-2xl font-black text-text-primary tracking-tight mb-1">Revisar Importação</h2>
-                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Confirme os dados antes de salvar</p>
+                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Confirme os dados antes de salvar</p>
+                                            <p className="text-[10px] font-black text-brand uppercase tracking-widest bg-brand-pale px-2 py-0.5 rounded-md">
+                                                {pendingGuest 
+                                                    ? `1 Convite • ${1 + pendingGuest.companionsList.length} Pessoas` 
+                                                    : `${parseResult?.convidados.length || 0} Convites • ${parseResult?.convidados.reduce((acc, g) => acc + 1 + (g.companionsList?.length || 0), 0) || 0} Pessoas Total`
+                                                }
+                                            </p>
+                                        </div>
                                     </div>
                                     <div className="flex gap-3 w-full sm:w-auto">
                                         <button
@@ -449,7 +457,7 @@ export default function ImportPage() {
                                     </div>
                                 </div>
 
-                                <div className="border border-border-soft rounded-[2rem] overflow-hidden shadow-inner bg-bg-light/30">
+                                <div className="border border-border-soft rounded-[2rem] overflow-y-auto max-h-[500px] shadow-inner bg-bg-light/30 custom-scrollbar">
                                     <table className="w-full text-left text-sm">
                                         <thead className="bg-bg-light/50 border-b border-border-soft text-[9px] font-black text-text-muted uppercase tracking-widest">
                                             <tr>
@@ -463,6 +471,15 @@ export default function ImportPage() {
                                                 <tr>
                                                     <td className="px-8 py-5">
                                                         <p className="font-black text-text-primary tracking-tight">{pendingGuest.name}</p>
+                                                        {pendingGuest.companionsList && pendingGuest.companionsList.length > 0 && (
+                                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                {pendingGuest.companionsList.map((c: any, i: number) => (
+                                                                    <span key={i} className="text-[8px] font-bold text-text-muted bg-white border border-border-soft px-2 py-0.5 rounded-md">
+                                                                        + {c.name}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td className="px-8 py-5">
                                                         <span className="bg-warning-light text-warning px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border border-warning/10">Pendente</span>
@@ -473,6 +490,15 @@ export default function ImportPage() {
                                                 <tr key={idx}>
                                                     <td className="px-8 py-4">
                                                         <p className="font-black text-text-primary tracking-tight">{guest.name}</p>
+                                                        {guest.companionsList && guest.companionsList.length > 0 && (
+                                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                {guest.companionsList.map((c, i) => (
+                                                                    <span key={i} className="text-[8px] font-bold text-text-muted bg-white border border-border-soft px-2 py-0.5 rounded-md">
+                                                                        + {c.name}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td className="px-8 py-4">
                                                         <span className="bg-success-light text-success-dark px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border border-success/10">Válido</span>
