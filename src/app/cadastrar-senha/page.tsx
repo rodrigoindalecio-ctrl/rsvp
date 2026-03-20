@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { toast } from 'sonner'
 
-export default function SetupPasswordPage() {
+function SetupPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
@@ -159,5 +159,17 @@ export default function SetupPasswordPage() {
         <div className="absolute bottom-1/4 left-[5%] w-[40%] h-[40%] bg-brand/[0.02] rounded-full blur-[100px]" />
       </div>
     </div>
+  )
+}
+
+export default function SetupPasswordPage() {
+  return (
+    <Suspense fallback={
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-brand/20 border-t-brand rounded-full animate-spin" />
+        </div>
+      }>
+      <SetupPasswordContent />
+    </Suspense>
   )
 }
