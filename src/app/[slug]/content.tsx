@@ -115,7 +115,7 @@ export default function EventContent({ slug }: EventContentProps) {
         { id: 'historia', label: 'Nossa História' },
         ...(eventSettings.galleryImages && eventSettings.galleryImages.length > 0 ? [{ id: 'galeria', label: 'Galeria' }] : []),
         { id: 'local', label: 'Local' },
-        ...(eventSettings.isGiftListEnabled !== false ? [{ id: 'presentes-link', label: 'Presentes' }] : []),
+        ...(eventSettings.isGiftListEnabled || eventSettings.giftListInternalEnabled ? [{ id: 'presentes-link', label: 'Presentes' }] : []),
     ]
 
     if (isLoading) return (
@@ -362,7 +362,7 @@ export default function EventContent({ slug }: EventContentProps) {
                                 className="px-10 py-4.5 bg-brand text-white rounded-full font-black uppercase tracking-widest text-[11px] shadow-xl shadow-brand/20 hover:-translate-y-1 active:scale-95 transition-all text-center">
                                 Confirmar Presença
                             </Link>
-                            {eventSettings.isGiftListEnabled !== false && (
+                            {(eventSettings.isGiftListEnabled || eventSettings.giftListInternalEnabled) && (
                                 <Link href={`/${slug}/presentes`}
                                     className="px-10 py-4.5 bg-white border border-border-soft text-text-primary rounded-full font-black uppercase tracking-widest text-[11px] hover:bg-bg-light hover:-translate-y-1 shadow-sm transition-all text-center">
                                     Lista de Presentes
@@ -620,7 +620,7 @@ export default function EventContent({ slug }: EventContentProps) {
                         <h2 className="text-4xl font-serif text-text-primary mt-3">Como posso participar?</h2>
                         <div className="w-16 h-px bg-brand/20 mx-auto mt-6" />
                     </div>
-                    <div className={`grid grid-cols-1 ${eventSettings.isGiftListEnabled !== false ? 'md:grid-cols-2' : 'max-w-md mx-auto'} gap-6`}>
+                    <div className={`grid grid-cols-1 ${eventSettings.isGiftListEnabled || eventSettings.giftListInternalEnabled ? 'md:grid-cols-2' : 'max-w-md mx-auto'} gap-6`}>
 
                         {/* RSVP Card */}
                         <Link href={`/${slug}/confirmar`}
@@ -647,7 +647,7 @@ export default function EventContent({ slug }: EventContentProps) {
                         </Link>
 
                         {/* Presentes Card */}
-                        {eventSettings.isGiftListEnabled !== false && (
+                        {(eventSettings.isGiftListEnabled || eventSettings.giftListInternalEnabled) && (
                             <Link href={`/${slug}/presentes`}
                                 className="group block bg-surface border border-border-soft rounded-[2.5rem] p-10 overflow-hidden relative shadow-sm hover:shadow-xl hover:-translate-y-2 hover:border-brand/30 transition-all duration-300">
                                 <div className="absolute top-0 right-0 p-8 text-brand/10 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500">

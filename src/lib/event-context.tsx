@@ -69,6 +69,7 @@ export type EventSettings = {
     brandColor?: string
     brandFont?: string
     isGiftListEnabled?: boolean
+    giftListInternalEnabled?: boolean
     hasCompletedOnboarding?: boolean
     emailConfirmationTitle?: string
     emailConfirmationGreeting?: string
@@ -142,6 +143,7 @@ const DEFAULT_EVENT_SETTINGS: EventSettings = {
     brandColor: '#7b2d3d',
     brandFont: 'lora',
     isGiftListEnabled: false,
+    giftListInternalEnabled: false,
     hasCompletedOnboarding: false
 }
 
@@ -203,13 +205,17 @@ export function EventProvider({ children }: { children: ReactNode }) {
             if (slug || eventId) {
                 setLoading(true)
                 try {
-                    let query = supabase.from('events').select('event_settings')
+                    let query = supabase.from('events').select('event_settings, gift_list_enabled')
                     if (eventId) query = query.eq('id', eventId)
                     else query = query.eq('slug', slug)
 
                     const { data, error } = await query.maybeSingle()
                     if (data && data.event_settings) {
-                        setEventSettings(data.event_settings as EventSettings)
+                        const settings = data.event_settings as EventSettings
+                        setEventSettings({
+                            ...settings,
+                            giftListInternalEnabled: data.gift_list_enabled ?? false
+                        })
                     }
                 } catch (err) {
                     console.error('Erro ao buscar configurações do evento:', err)

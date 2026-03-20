@@ -17,13 +17,19 @@ export async function POST(req: NextRequest) {
         // 1. Atualizar no Banco de Dados
         const now = new Date()
         const dbUpdates: any = { 
-            ...updates,
             updated_at: now.toISOString(),
-            confirmed_at: updates.status === 'confirmed' ? now.toISOString() : null
+            status: updates.status,
+            email: updates.email,
+            message: updates.message,
+            name: updates.name,
+            companions_list: updates.companionsList // Mapear para snake_case
         }
-        
-        // Conversão de data se necessário
-        if (updates.confirmedAt) dbUpdates.confirmed_at = updates.confirmedAt
+
+        if (updates.status === 'confirmed') {
+            dbUpdates.confirmed_at = updates.confirmedAt || now.toISOString()
+        } else {
+            dbUpdates.confirmed_at = null
+        }
 
         const { error: dbError } = await supabase
             .from('guests')

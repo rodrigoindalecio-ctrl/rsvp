@@ -186,6 +186,52 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
         }
     }
 
+    // Sync state when eventSettings changes (e.g. after initial fetch)
+    // only if the user hasn't made any edits yet.
+    useEffect(() => {
+        if (!isDirty && eventSettings) {
+            setEventType(eventSettings.eventType)
+            setCoupleNames(eventSettings.coupleNames)
+            setSlug(eventSettings.slug)
+            setEventDate(eventSettings.eventDate)
+            setEventTime(eventSettings.eventTime || '21:00')
+            setConfirmationDeadline(eventSettings.confirmationDeadline)
+            setEventLocation(eventSettings.eventLocation)
+            setWazeLocation(eventSettings.wazeLocation || '')
+            setGiftListLinks(eventSettings.giftListLinks || [])
+            setCoverImage(eventSettings.coverImage)
+            setCoverImagePosition(eventSettings.coverImagePosition || 50)
+            setCoverImageScale(eventSettings.coverImageScale || 1)
+            setCustomMessage(eventSettings.customMessage)
+            setNotifyOwnerOnRSVP(eventSettings.notifyOwnerOnRSVP ?? true)
+            setCarouselImages(eventSettings.carouselImages || [])
+            setGalleryImages(eventSettings.galleryImages || [])
+            setCoupleStory(eventSettings.coupleStory || '')
+            setCoupleStoryTitle(eventSettings.coupleStoryTitle || 'Como Tudo Começou')
+            setEmailConfirmationTitle(eventSettings.emailConfirmationTitle || 'Confirmação de Presença')
+            setEmailConfirmationGreeting(eventSettings.emailConfirmationGreeting || 'Ficamos muito felizes com a sua confirmação! 🎉 Sua presença é o que tornará este dia verdadeiramente especial para nós.')
+            setTimelineEvents(eventSettings.timelineEvents || [])
+            setDressCode(eventSettings.dressCode || '')
+            setParkingSettings({
+                hasParking: eventSettings.parkingSettings?.hasParking ?? false,
+                type: eventSettings.parkingSettings?.type ?? 'free',
+                price: eventSettings.parkingSettings?.price ?? '',
+                address: eventSettings.parkingSettings?.address ?? '',
+                receptionOnly: eventSettings.parkingSettings?.receptionOnly ?? false
+            })
+            setBrandColor(eventSettings.brandColor || '#7b2d3d')
+            setBrandFont(eventSettings.brandFont || 'lora')
+            setHasSeparateCeremony(eventSettings.hasSeparateCeremony ?? false)
+            setCeremonyLocation(eventSettings.ceremonyLocation || '')
+            setCeremonyAddress(eventSettings.ceremonyAddress || '')
+            setCeremonyWazeLocation(eventSettings.ceremonyWazeLocation || '')
+            setCeremonyTime(eventSettings.ceremonyTime || '19:00')
+            setIsGiftListEnabled(eventSettings.isGiftListEnabled ?? true)
+            setEventAddress(eventSettings.eventAddress || '')
+            setImagePreview(eventSettings.coverImage)
+        }
+    }, [eventSettings]);
+
     const handleImageMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
         setIsDragging(true)
         setDragStartX(e.clientX - dragOffsetX)
@@ -552,7 +598,8 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
         confirmationDeadline, eventLocation, wazeLocation, 
         giftListLinks, coverImage, coverImagePosition, 
         coverImageScale, customMessage, notifyOwnerOnRSVP,
-        carouselImages, galleryImages, coupleStory, 
+        carouselImages, galleryImages, coupleStory, coupleStoryTitle,
+        emailConfirmationTitle, emailConfirmationGreeting,
         timelineEvents, dressCode, parkingSettings,
         brandColor, brandFont, isGiftListEnabled,
         ceremonyAddress, eventAddress, hasSeparateCeremony,

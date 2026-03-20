@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { decrypt } from '@/lib/auth-utils'
 
 // Rotas que exigem autenticação (qualquer usuário logado)
 const AUTH_REQUIRED_PATHS = ['/dashboard', '/settings']
@@ -6,7 +7,7 @@ const AUTH_REQUIRED_PATHS = ['/dashboard', '/settings']
 // Rotas que exigem papel de ADMIN
 const ADMIN_REQUIRED_PATHS = ['/admin']
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
     const pathname = request.nextUrl.pathname
 
     // Verificar se a rota exige algum tipo de proteção
@@ -30,7 +31,11 @@ export function middleware(request: NextRequest) {
     }
 
     try {
-        const session = JSON.parse(decodeURIComponent(sessionCookie.value))
+        const session = await decrypt(sessionCookie.value)
+
+        if (!session) {
+            throw new Error('Sessão inválida')
+        }
 
         // Rota de admin: exige role === 'admin'
         if (requiresAdmin && session.role !== 'admin') {
@@ -39,10 +44,8 @@ export function middleware(request: NextRequest) {
 
         return NextResponse.next()
     } catch {
-        // Cookie corrompido: limpar e redirecionar
-        const response = NextResponse.redirect(new URL('/login', request.url))
-        response.cookies.delete('rsvp_session')
-        return response
+        // Sessão inválida ou expirada: redirecionar
+        return NextResponse.redirect(new URL('/login', request.url))
     }
 }
 

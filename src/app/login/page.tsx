@@ -22,6 +22,7 @@ export default function LoginPage() {
                 src="/Logo-03.jpg"
                 alt="Logo Vanessa Bidinotti"
                 fill
+                sizes="96px"
                 className="object-contain p-1"
               />
             </div>

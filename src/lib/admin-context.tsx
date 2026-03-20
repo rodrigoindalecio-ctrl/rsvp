@@ -64,7 +64,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       // Mas usuários e métricas globais dependem de quem está logado.
       setLoading(true)
       try {
-        let eventsQuery = supabase.from('events').select('id, slug, event_settings, created_at, created_by')
+        let eventsQuery = supabase.from('events').select('id, slug, event_settings, created_at, created_by, gift_list_enabled')
         let usersQuery = supabase.from('admin_users').select('id, name, email, type, created_at')
 
         // Se for NOIVOS, filtragem de isolamento:
@@ -87,7 +87,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         const formattedEvents = (eventsData || []).map(e => ({
           id: e.id,
           slug: e.slug,
-          eventSettings: e.event_settings,
+          eventSettings: {
+            ...(e.event_settings as EventSettings),
+            giftListInternalEnabled: e.gift_list_enabled ?? false
+          },
           guests: [],
           createdAt: new Date(e.created_at),
           createdBy: e.created_by
@@ -159,6 +162,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
       const { error } = await supabase.from('events').update(updates).eq('id', id)
       if (error) throw error
+
+      // Se atualizamos eventSettings e ele contém giftListInternalEnabled, 
+      // precisamos atualizar a coluna 'gift_list_enabled' também para manter o sync total
+      // se este componente for o responsável. Mas geralmente GiftManagementTab cuida disso.
 
       setEvents(prev => prev.map(e => e.id === id ? { ...e, ...eventData } : e))
 

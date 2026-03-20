@@ -57,7 +57,7 @@ export default function PresentsContent({ slug }: Props) {
         </div>
     )
 
-    if (eventSettings.isGiftListEnabled === false) {
+    if (!eventSettings.isGiftListEnabled && !eventSettings.giftListInternalEnabled) {
         return (
             <div className="min-h-screen bg-bg-light flex flex-col items-center justify-center p-6 text-center">
                 <div className="w-20 h-20 bg-brand-pale rounded-full flex items-center justify-center mb-6">
@@ -107,7 +107,7 @@ export default function PresentsContent({ slug }: Props) {
                     </p>
 
                     {/* Links Externos / Lojas */}
-                    {eventSettings.giftListLinks && eventSettings.giftListLinks.length > 0 && (
+                    {eventSettings.isGiftListEnabled && eventSettings.giftListLinks && eventSettings.giftListLinks.length > 0 && (
                         <div className="flex flex-wrap items-center justify-center gap-3">
                             {eventSettings.giftListLinks.map((link, i) => (
                                 <a
@@ -143,7 +143,7 @@ export default function PresentsContent({ slug }: Props) {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                        {gifts.map(gift => (
+                        {eventSettings.giftListInternalEnabled && gifts.map(gift => (
                             <div key={gift.id} onClick={() => setSelected(gift)}
                                 className="group bg-surface rounded-[2rem] overflow-hidden border border-border-soft hover:shadow-xl hover:border-brand/30 hover:-translate-y-1.5 transition-all cursor-pointer">
                                 {/* Imagem */}
