@@ -110,12 +110,40 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
         libraries: libraries
     })
 
+    const formatGoogleAddress = (place: google.maps.places.PlaceResult) => {
+        if (!place.address_components) return place.formatted_address || '';
+        
+        let route = '';
+        let number = 'S/N';
+        let neighborhood = '';
+        
+        for (const component of place.address_components) {
+            if (component.types.includes('route')) {
+                route = component.long_name;
+            } else if (component.types.includes('street_number')) {
+                number = component.long_name;
+            } else if (component.types.includes('sublocality_level_1')) {
+                neighborhood = component.long_name;
+            }
+        }
+        
+        if (!route) return place.formatted_address || '';
+        
+        let result = `${route}, ${number}`;
+        if (neighborhood) {
+            result += ` - ${neighborhood}`;
+        }
+        
+        return result;
+    }
+
     const onCeremonyPlaceChanged = () => {
         if (ceremonyAutocompleteRef.current) {
             const place = ceremonyAutocompleteRef.current.getPlace()
-            if (place.formatted_address) {
-                setCeremonyLocation(place.name || place.formatted_address)
-                setCeremonyAddress(place.formatted_address)
+            if (place.address_components) {
+                const formatted = formatGoogleAddress(place)
+                setCeremonyLocation(place.name || formatted)
+                setCeremonyAddress(formatted)
                 if (place.url) setCeremonyWazeLocation(place.url)
             }
         }
@@ -124,9 +152,10 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
     const onReceptionPlaceChanged = () => {
         if (receptionAutocompleteRef.current) {
             const place = receptionAutocompleteRef.current.getPlace()
-            if (place.formatted_address) {
-                setEventLocation(place.name || place.formatted_address)
-                setEventAddress(place.formatted_address)
+            if (place.address_components) {
+                const formatted = formatGoogleAddress(place)
+                setEventLocation(place.name || formatted)
+                setEventAddress(formatted)
                 if (place.url) setWazeLocation(place.url)
             }
         }
@@ -135,10 +164,14 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
     const onParkingPlaceChanged = () => {
         if (parkingAutocompleteRef.current) {
             const place = parkingAutocompleteRef.current.getPlace()
-            if (place.formatted_address) {
+            if (place.address_components) {
+                const formatted = formatGoogleAddress(place)
+                // Concatenamos Nome + Endereço com quebra de linha para o site exibir ambos
+                const fullNameAndAddress = place.name ? `${place.name}\n${formatted}` : formatted
+                
                 setParkingSettings({
                     ...parkingSettings,
-                    address: place.name || place.formatted_address,
+                    address: fullNameAndAddress,
                     wazeLocation: place.url || undefined
                 })
             }
