@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { Guest, Companion, GuestCategory } from '@/lib/event-context'
+import { toast } from 'sonner'
 
 interface GuestEditModalProps {
     guest: Guest | null
     isOpen: boolean
     onClose: () => void
-    onSave: (updatedGuest: Guest) => void
+    onSave: (updatedGuest: Guest) => Promise<void>
     onDelete: (guestId: string) => void
 }
 
@@ -96,27 +97,34 @@ export function GuestEditModal({ guest, isOpen, onClose, onSave, onDelete }: Gue
         e.preventDefault()
 
         if (!formData.name.trim()) {
-            alert('Por favor, preencha o nome')
+            toast.warning('Nome obrigatório', { description: 'Por favor, preencha o nome do convidado.' })
             return
         }
 
         if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-            alert('Email inválido')
+            toast.warning('E-mail inválido', { description: 'Informe um e-mail válido ou deixe em branco.' })
             return
         }
 
         setIsSaving(true)
 
-        // Simular delay de salvamento
-        setTimeout(() => {
+        try {
             const updatedGuest: Guest = {
                 ...formData,
                 companionsList: companionsList.filter(c => c.name.trim() !== '')
             }
-            onSave(updatedGuest)
-            setIsSaving(false)
+            
+            // Chama o onSave do componente pai (Dashboard) e aguarda a conclusão (persistência)
+            await onSave(updatedGuest)
+            
+            toast.success('Alterações salvas!', { description: `Os dados de "${formData.name}" foram atualizados.` })
             onClose()
-        }, 300)
+        } catch (error: any) {
+            console.error('Erro ao salvar convidado:', error)
+            toast.error('Erro ao salvar', { description: 'Ocorreu um erro ao persistir os dados no banco.' })
+        } finally {
+            setIsSaving(false)
+        }
     }
 
     return (

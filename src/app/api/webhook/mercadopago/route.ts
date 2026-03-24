@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { mpPayment } from '@/lib/mercadopago';
 
 export async function POST(req: Request) {
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
                 const releaseDate = new Date();
                 releaseDate.setDate(releaseDate.getDate() + days);
 
-                await supabase
+                await supabaseAdmin
                     .from('gift_transactions')
                     .update({
                         status: 'APPROVED',
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
                 // --- Enviar Notificação por E-mail ---
                 try {
                     // Buscar dados da transação para a notificação
-                    const { data: tx } = await supabase
+                    const { data: tx } = await supabaseAdmin
                         .from('gift_transactions')
                         .select('*, gifts(*), events(*)')
                         .eq('id', transactionId)

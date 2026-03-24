@@ -61,7 +61,7 @@ export default function GiftSuccessPage() {
                     <span className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">Presente Enviado</span>
                     <h1 className="text-4xl font-serif text-text-primary mt-3 mb-6 tracking-tight tracking-tight">Muitíssimo Obrigado!</h1>
 
-                    <p className="text-text-secondary text-sm leading-relaxed mb-10 font-serif italic text-lg opacity-80 decoration-brand-pale decoration-wavy">
+                    <p className="text-text-secondary leading-relaxed mb-10 text-base font-medium opacity-80 decoration-brand-pale decoration-wavy">
                         "Seu presente foi recebido com muito carinho e celebra a união que estamos prestes a viver. Mal podemos esperar para te dar um abraço!"
                     </p>
 

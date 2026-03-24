@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import bcrypt from 'bcryptjs'
 import { encrypt } from '@/lib/auth-utils'
 import { cookies } from 'next/headers'
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 1. Verificar se usuário já existe
-        const { data: existingUser } = await supabase
+        const { data: existingUser } = await supabaseAdmin
             .from('admin_users')
             .select('id')
             .eq('email', email.toLowerCase())
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
         const userId = crypto.randomUUID()
 
         // 3. Criar usuário
-        const { error: userError } = await supabase.from('admin_users').insert({
+        const { error: userError } = await supabaseAdmin.from('admin_users').insert({
             id: userId,
             name,
             email: email.toLowerCase(),
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         const eventId = crypto.randomUUID()
         const defaultSlug = name.toLowerCase().replace(/\s+/g, '-') + '-' + Math.random().toString(36).substr(2, 4)
 
-        const { error: eventError } = await supabase.from('events').insert({
+        const { error: eventError } = await supabaseAdmin.from('events').insert({
             id: eventId,
             slug: defaultSlug,
             event_settings: {

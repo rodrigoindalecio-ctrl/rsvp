@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function DELETE(
     req: Request,
@@ -7,7 +7,7 @@ export async function DELETE(
 ) {
     try {
         const giftId = params.giftId;
-        const { error } = await supabase.from('gifts').delete().eq('id', giftId);
+        const { error } = await supabaseAdmin.from('gifts').delete().eq('id', giftId);
 
         if (error) throw error;
 

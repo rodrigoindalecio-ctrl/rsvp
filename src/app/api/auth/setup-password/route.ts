@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import bcrypt from 'bcryptjs'
 
 export async function POST(request: NextRequest) {
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 1. Buscar usuário
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
             .from('admin_users')
             .select('id, name, email, password_hash')
             .eq('email', email.toLowerCase())
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
         const hashedPassword = await bcrypt.hash(password, 10)
 
         // 4. Salvar a nova senha
-        const { error: updateError } = await supabase
+        const { error: updateError } = await supabaseAdmin
             .from('admin_users')
             .update({ password_hash: hashedPassword })
             .eq('id', data.id)

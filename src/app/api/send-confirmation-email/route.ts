@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { verifyInternalKey } from '@/lib/auth-utils'
+import fs from 'fs';
+import path from 'path';
+
+const logPath = path.join(process.cwd(), 'rsvp_debug.log');
+const logEntry = (msg: string) => {
+    try { fs.appendFileSync(logPath, `[${new Date().toISOString()}] [WORKER] ${msg}\n`); } catch(e) {}
+};
 
 // Função para parsear data ISO sem problemas de timezone
 function parseDateString(dateString: string): Date {
@@ -27,12 +34,19 @@ const createTransporter = () => {
 
 export async function POST(request: NextRequest) {
     try {
+        logEntry(`>>> Worker acionado.`);
+        
         if (!verifyInternalKey(request)) {
+            logEntry(`!!! Falha de Autenticação Interna (401)`);
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
+        
+        logEntry(`... Autenticação OK.`);
 
         const body = await request.json()
         const { email, guestName, eventSettings, confirmedCompanions, confirmedNames, confirmedDetails, giftListLinks } = body
+        
+        logEntry(`... Destino: ${email} (Guest: ${guestName})`);
 
         // Validar email
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -354,14 +368,18 @@ export async function POST(request: NextRequest) {
             </div>
             ` : ''}
 
+            ${eventSettings.isGiftListEnabled !== false ? `
             <div class="section-title">🎁 Sugestões de Presentes</div>
             <div class="info-card">
                 <p style="font-size: 14px; color: #555; margin-top: 0; line-height: 1.5;">
                     Ter você conosco já é o nosso maior presente! Se desejar nos agraciar com algo mais, preparamos algumas opções:
                 </p>
+                
+                ${eventSettings.giftListInternalEnabled !== false ? `
                 <div style="margin: 15px 0;">
                     <a href="${internalGiftLink}" class="cta-button" style="background-color: #D4AF37;">Ver Nossa Lista de Presentes</a>
                 </div>
+                ` : ''}
                 
                 ${eventSettings.giftListLinks && eventSettings.giftListLinks.length > 0 ? `
                 <div style="margin-top: 20px; border-top: 1px solid #E6E2DC; pt-15px;">
@@ -374,6 +392,7 @@ export async function POST(request: NextRequest) {
                 </div>
                 ` : ''}
             </div>
+            ` : ''}
 
             ${eventSettings.customMessage ? `
             <div style="margin-top: 40px; padding: 25px; border-left: 2px solid #8B2D4F; background-color: #FAFAF8; font-style: italic; color: #555; font-size: 15px; line-height: 1.6;">

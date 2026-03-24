@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { verifyEventOwnership } from '@/lib/verify-ownership';
 
 export async function POST(
@@ -19,7 +19,7 @@ export async function POST(
         }
 
         // 1. Criar a solicitação de saque (Withdrawal)
-        const { data: withdrawal, error } = await supabase
+        const { data: withdrawal, error } = await supabaseAdmin
             .from('withdrawals')
             .insert({
                 event_id: eventId,

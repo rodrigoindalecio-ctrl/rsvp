@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { verifyEventOwnership } from '@/lib/verify-ownership';
 
 export async function PATCH(
@@ -16,7 +16,7 @@ export async function PATCH(
         const data = await req.json();
 
         if (data.slug) {
-            const { data: existing } = await supabase
+            const { data: existing } = await supabaseAdmin
                 .from('events')
                 .select('id')
                 .eq('slug', data.slug)
@@ -28,7 +28,7 @@ export async function PATCH(
             }
         }
 
-        const { data: updated, error } = await supabase
+        const { data: updated, error } = await supabaseAdmin
             .from('events')
             .update({
                 slug: data.slug,

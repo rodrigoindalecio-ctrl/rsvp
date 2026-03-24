@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import bcrypt from 'bcryptjs'
 import { encrypt } from '@/lib/auth-utils'
 import { cookies } from 'next/headers'
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 2. Verificar usuários cadastrados no Supabase
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
             .from('admin_users')
             .select('id, name, email, type, password_hash')
             .eq('email', email.toLowerCase())
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
         } else {
             // Sem senha definida: primeiro login, salvar a senha fornecida como hash
             const hashedPassword = await bcrypt.hash(password, 8)
-            await supabase
+            await supabaseAdmin
                 .from('admin_users')
                 .update({ password_hash: hashedPassword })
                 .eq('id', data.id)

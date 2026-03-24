@@ -6,6 +6,7 @@ import { useAdmin } from '@/lib/admin-context'
 import { useRouter, useParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { SharedLayout } from '@/app/components/shared-layout'
+import { toast } from 'sonner'
 
 function AdminEventoConfigContent() {
     const { events, updateEvent } = useAdmin()
@@ -75,10 +76,10 @@ function AdminEventoConfigContent() {
                 slug: form.coupleNames.toLowerCase().replace(/\s+/g, '-')
             })
 
-            alert('Configurações atualizadas com sucesso!')
+            toast.success('Configurações atualizadas com sucesso!')
             router.push(`/admin/evento/${eventId}`)
         } catch (err) {
-            alert('Erro ao atualizar: ' + (err as Error).message)
+            toast.error('Erro ao atualizar', { description: (err as Error).message })
         } finally {
             setLoading(false)
         }

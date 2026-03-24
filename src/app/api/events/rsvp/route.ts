@@ -1,18 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sendOwnerEmail } from '../../send-owner-notification/route';
+import fs from 'fs';
+import path from 'path';
 
-/**
- * Rota segura para processar o RSVP de um convidado.
- * Faz a atualização no banco E dispara os e-mails necessários pelo servidor.
- */
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json()
-        const { guestId, updates, eventSettings, ownerEmail } = body
+        const { guestId, updates, eventSettings } = body
+
+        const logPath = path.join(process.cwd(), 'rsvp_debug.log');
+        const logEntry = (msg: string) => {
+            try { fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`); } catch(e) {}
+        };
+
+        logEntry(`>>> Rota de RSVP: ${updates.name} (${updates.status})`);
 
         if (!guestId || !updates) {
+            logEntry(`!!! Dados inválidos`);
             return NextResponse.json({ error: 'Dados insuficientes' }, { status: 400 })
         }
+
+        // Recuperar o ownerEmail
+        let ownerEmail = body.ownerEmail;
+        if (!ownerEmail) {
+            logEntry(`... buscando ownerEmail...`);
+            const { data: guestData } = await supabaseAdmin.from('guests').select('event_id').eq('id', guestId).single();
+            if (guestData?.event_id) {
+                const { data: eventData } = await supabaseAdmin.from('events').select('created_by').eq('id', guestData.event_id).single();
+                if (eventData?.created_by) ownerEmail = eventData.created_by;
+            }
+        }
+        logEntry(`... ownerEmail: ${ownerEmail}`);
 
         // 1. Atualizar no Banco de Dados
         const now = new Date()
@@ -22,7 +41,7 @@ export async function POST(req: NextRequest) {
             email: updates.email,
             message: updates.message,
             name: updates.name,
-            companions_list: updates.companionsList // Mapear para snake_case
+            companions_list: updates.companionsList
         }
 
         if (updates.status === 'confirmed') {
@@ -31,56 +50,66 @@ export async function POST(req: NextRequest) {
             dbUpdates.confirmed_at = null
         }
 
-        const { error: dbError } = await supabase
-            .from('guests')
-            .update(dbUpdates)
-            .eq('id', guestId)
+        await supabaseAdmin.from('guests').update(dbUpdates).eq('id', guestId)
+        logEntry(`... Banco atualizado.`);
 
-        if (dbError) throw dbError
+        // 2. Disparar E-mails
+        const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+        const baseUrl = origin.replace(/['"]+/g, '').trim();
+        const internalKey = (process.env.INTERNAL_API_KEY || '').trim();
 
-        // 2. Disparar E-mails em background (pelo servidor para o servidor interno)
-        const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000').replace(/['"]+/g, '').trim();
-        const internalKey = process.env.INTERNAL_API_KEY;
+        const emailPromises = [];
 
-        // E-mail para o Convidado
+        // Convidado
         if (updates.status === 'confirmed' && updates.email) {
-            const confirmedNames = [updates.name || '']; // Simplificado para o exemplo, idealmente passar os nomes
-            fetch(`${baseUrl}/api/send-confirmation-email`, {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${internalKey}`
-                },
-                body: JSON.stringify({ 
-                    email: updates.email, 
-                    guestName: updates.name, 
-                    eventSettings,
-                    confirmedNames: body.confirmedNames || []
-                })
-            }).catch(e => console.error('RSVP Webhook Email Error:', e))
+            logEntry(`... Tentando e-mail do convidado para ${updates.email}`);
+            const totalPeople = (body.confirmedNames && Array.isArray(body.confirmedNames)) ? body.confirmedNames.length : 1;
+            
+            emailPromises.push(
+                fetch(`${baseUrl}/api/send-confirmation-email`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${internalKey}`
+                    },
+                    body: JSON.stringify({ 
+                        email: updates.email, 
+                        guestName: updates.name, 
+                        eventSettings,
+                        confirmedCompanions: totalPeople,
+                        confirmedNames: body.confirmedNames || [updates.name]
+                    })
+                }).then(async res => {
+                    logEntry(`... Resposta Convidado (Status: ${res.status})`);
+                    if (!res.ok) logEntry(`... Erro: ${await res.text()}`);
+                }).catch(e => logEntry(`... Erro Fatal Convidado: ${e.message}`))
+            );
         }
 
-        // Notificação para os Noivos
-        if (eventSettings.notifyOwnerOnRSVP !== false) {
-            fetch(`${baseUrl}/api/send-owner-notification`, {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${internalKey}`
-                },
-                body: JSON.stringify({ 
+        // Noivos
+        if (eventSettings.notifyOwnerOnRSVP !== false && ownerEmail) {
+            logEntry(`... Tentando notificação para os noivos (${ownerEmail})`);
+            emailPromises.push(
+                sendOwnerEmail({ 
                     ownerEmail, 
                     guestName: updates.name, 
                     eventSettings, 
                     confirmedNames: body.confirmedNames || [],
-                    status: updates.status 
-                })
-            }).catch(e => console.error('RSVP Owner Notif Error:', e))
+                    status: updates.status,
+                    reqBaseUrl: baseUrl
+                }).then(r => {
+                    logEntry(`... Resposta Noivos: ${r.success ? ('ENVIADO (ID:' + r.messageId + ')') : ('FALHA:' + r.error)}`);
+                }).catch(e => logEntry(`... Erro Fatal Noivos: ${e.message}`))
+            );
         }
 
+        if (emailPromises.length > 0) {
+            await Promise.allSettled(emailPromises);
+        }
+        
+        logEntry(`>>> Fluxo Concluído.`);
         return NextResponse.json({ ok: true })
     } catch (error: any) {
-        console.error('[RSVP API ERROR]', error)
-        return NextResponse.json({ error: error.message || 'Erro ao processar RSVP' }, { status: 500 })
+        return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }

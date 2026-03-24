@@ -4,6 +4,7 @@ import { createContext, useContext, useState, ReactNode, useEffect, useMemo } fr
 import { EventSettings, Guest } from './event-context'
 import { useAuth } from './auth-context'
 import { supabase } from './supabase'
+import { toast } from 'sonner'
 
 export type UserType = 'admin' | 'noivos'
 
@@ -84,17 +85,21 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         if (eventsError) throw eventsError
         if (usersError) throw usersError
 
-        const formattedEvents = (eventsData || []).map(e => ({
-          id: e.id,
-          slug: e.slug,
-          eventSettings: {
-            ...(e.event_settings as EventSettings),
-            giftListInternalEnabled: e.gift_list_enabled ?? false
-          },
-          guests: [],
-          createdAt: new Date(e.created_at),
-          createdBy: e.created_by
-        }))
+        const formattedEvents = (eventsData || []).map(e => {
+          const settings = (e.event_settings as any) || {}
+          return {
+            id: e.id,
+            slug: e.slug,
+            eventSettings: {
+              ...settings,
+              isGiftListEnabled: settings.isGiftListEnabled ?? true, // Master Switch
+              giftListInternalEnabled: e.gift_list_enabled ?? false // Column Switch
+            },
+            guests: [],
+            createdAt: new Date(e.created_at),
+            createdBy: e.created_by
+          }
+        })
 
         // Mapear contagem de eventos
         const eventCounts: Record<string, number> = {}
@@ -140,7 +145,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       setEvents(prev => [event, ...prev])
     } catch (error) {
       console.error('Erro ao adicionar evento:', error)
-      alert('Erro ao salvar no banco de dados')
+      toast.error('Erro ao salvar evento', { description: 'Não foi possível salvar no banco de dados. Tente novamente.' })
     }
   }
 
@@ -158,18 +163,37 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     try {
       const updates: any = {}
       if (eventData.slug) updates.slug = eventData.slug
-      if (eventData.eventSettings) updates.event_settings = eventData.eventSettings
+      if (eventData.eventSettings) {
+        updates.event_settings = eventData.eventSettings
+        // Sync root column if present in settings object
+        if (eventData.eventSettings.giftListInternalEnabled !== undefined) {
+          updates.gift_list_enabled = eventData.eventSettings.giftListInternalEnabled
+        }
+      }
 
-      const { error } = await supabase.from('events').update(updates).eq('id', id)
-      if (error) throw error
+      // 🔄 Chamada via API para contornar RLS
+      const response = await fetch(`/api/events/save`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id, updates }),
+      })
 
-      // Se atualizamos eventSettings e ele contém giftListInternalEnabled, 
-      // precisamos atualizar a coluna 'gift_list_enabled' também para manter o sync total
-      // se este componente for o responsável. Mas geralmente GiftManagementTab cuida disso.
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type')
+        if (contentType && contentType.includes('application/json')) {
+          const errData = await response.json()
+          throw new Error(errData.error || 'Erro ao persistir no servidor')
+        } else {
+          throw new Error(`Servidor retornou erro ${response.status}: ${response.statusText}`)
+        }
+      }
 
+      // 🛠️ Se persistiu no servidor, atualiza o estado local
       setEvents(prev => prev.map(e => e.id === id ? { ...e, ...eventData } : e))
 
-      // Se o slug mudou, atualizar também no eventSettings
+      // Se o slug mudou, atualizar também no eventSettings local
       if (eventData.slug) {
         setEvents(prev => prev.map(e => e.id === id ? {
           ...e,
@@ -196,7 +220,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       setUsers(prev => [user, ...prev])
     } catch (error) {
       console.error('Erro ao adicionar usuário:', error)
-      alert('Erro ao salvar usuário no banco de dados.')
+      toast.error('Erro ao salvar usuário', { description: 'Não foi possível salvar no banco de dados. Tente novamente.' })
     }
   }
 

@@ -1,6 +1,6 @@
 import './globals.css'
 import type { Metadata, Viewport } from 'next'
-import { Manrope, Lora, Playfair_Display, Inter, Outfit, Great_Vibes } from 'next/font/google'
+import { Manrope, Lora, Playfair_Display, Inter, Outfit } from 'next/font/google'
 import { AuthProvider } from '@/lib/auth-context'
 import { EventProvider } from '@/lib/event-context'
 import { AdminProvider } from '@/lib/admin-context'
@@ -37,12 +37,7 @@ const outfit = Outfit({
   display: 'swap',
 })
 
-const greatVibes = Great_Vibes({
-  weight: '400',
-  subsets: ['latin'],
-  variable: '--font-great-vibes',
-  display: 'swap',
-})
+
 
 
 export const viewport: Viewport = {
@@ -76,7 +71,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="pt-BR" className={`${manrope.variable} ${lora.variable} ${playfair.variable} ${inter.variable} ${outfit.variable} ${greatVibes.variable}`}>
+    <html lang="pt-BR" className={`${manrope.variable} ${lora.variable} ${playfair.variable} ${inter.variable} ${outfit.variable}`}>
       <body className="bg-background text-textPrimary font-sans antialiased min-h-screen flex flex-col">
         <AuthProvider>
           <AdminProvider>

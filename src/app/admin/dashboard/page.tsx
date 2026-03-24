@@ -7,6 +7,8 @@ import { useAdmin } from '@/lib/admin-context'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/app/components/confirm-dialog'
 
 function AdminDashboardContent() {
   const { user } = useAuth()
@@ -16,6 +18,7 @@ function AdminDashboardContent() {
   const [guestCounts, setGuestCounts] = useState<Record<string, any>>({})
   const [giftTotals, setGiftTotals] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
+  const [deleteEventDialog, setDeleteEventDialog] = useState<{ isOpen: boolean; id?: string; name?: string }>({ isOpen: false })
 
   // Carregar contagens de convidados para cada evento
   useEffect(() => {
@@ -82,15 +85,20 @@ function AdminDashboardContent() {
     fetchGiftTotals()
   }, [events])
 
-  const handleDeleteEvent = async (e: React.MouseEvent, id: string, name: string) => {
-    e.stopPropagation() // Evita abrir o evento ao clicar no lixo
-    if (confirm(`⚠️ ATENÇÃO: Tem certeza que deseja excluir permanentemente o evento "${name}"?\n\nIsso removerá TODOS os convidados e dados vinculados.`)) {
-      try {
-        await removeEvent(id)
-        alert('Evento removido com sucesso.')
-      } catch (err) {
-        alert('Erro ao remover evento.')
-      }
+  const handleDeleteEvent = (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation()
+    setDeleteEventDialog({ isOpen: true, id, name })
+  }
+
+  const confirmDeleteEvent = async () => {
+    if (!deleteEventDialog.id) return
+    try {
+      await removeEvent(deleteEventDialog.id)
+      toast.success('Evento removido com sucesso.')
+    } catch (err) {
+      toast.error('Erro ao remover evento', { description: 'Não foi possível excluir. Tente novamente.' })
+    } finally {
+      setDeleteEventDialog({ isOpen: false })
     }
   }
 
@@ -246,6 +254,14 @@ function AdminDashboardContent() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={deleteEventDialog.isOpen}
+        title="Excluir Evento"
+        message={`Tem certeza que deseja excluir permanentemente o evento "${deleteEventDialog.name}"? Isso removerá TODOS os convidados e dados vinculados.`}
+        onConfirm={confirmDeleteEvent}
+        onCancel={() => setDeleteEventDialog({ isOpen: false })}
+      />
     </SharedLayout>
   )
 }

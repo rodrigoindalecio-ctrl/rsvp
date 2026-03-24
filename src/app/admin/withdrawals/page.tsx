@@ -5,6 +5,8 @@ import { ProtectedRoute } from '@/lib/protected-route'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Check, X, Clock, Wallet, ArrowUpRight, Search, Filter } from 'lucide-react'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/app/components/confirm-dialog'
 
 function AdminWithdrawalsContent() {
     const [withdrawals, setWithdrawals] = useState<any[]>([])
@@ -12,6 +14,7 @@ function AdminWithdrawalsContent() {
     const [processingId, setProcessingId] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
     const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'COMPLETED' | 'REJECTED'>('ALL')
+    const [statusUpdateDialog, setStatusUpdateDialog] = useState<{ isOpen: boolean; id?: string; newStatus?: string }>({ isOpen: false })
 
     useEffect(() => {
         fetchWithdrawals()
@@ -40,8 +43,13 @@ function AdminWithdrawalsContent() {
     }
 
     async function handleUpdateStatus(id: string, newStatus: string) {
-        if (!confirm(`Deseja alterar o status para ${newStatus}?`)) return
+        setStatusUpdateDialog({ isOpen: true, id, newStatus })
+    }
 
+    async function confirmUpdateStatus() {
+        const { id, newStatus } = statusUpdateDialog
+        if (!id || !newStatus) return
+        setStatusUpdateDialog({ isOpen: false })
         setProcessingId(id)
         try {
             const { error } = await supabase
@@ -55,8 +63,9 @@ function AdminWithdrawalsContent() {
             if (error) throw error
 
             setWithdrawals(prev => prev.map(w => w.id === id ? { ...w, status: newStatus } : w))
+            toast.success(`Status atualizado para ${newStatus === 'COMPLETED' ? 'Pago' : 'Recusado'}.`)
         } catch (err) {
-            alert('Erro ao atualizar status')
+            toast.error('Erro ao atualizar status', { description: 'Tente novamente em instantes.' })
             console.error(err)
         } finally {
             setProcessingId(null)
@@ -224,6 +233,14 @@ function AdminWithdrawalsContent() {
                     <p className="text-[9px] font-black text-text-muted/40 uppercase tracking-[0.3em]">Gestão Financeira • Vanessa Bidinotti</p>
                 </div>
             </div>
+
+            <ConfirmDialog
+                isOpen={statusUpdateDialog.isOpen}
+                title="Atualizar Status"
+                message={`Deseja alterar o status para ${statusUpdateDialog.newStatus === 'COMPLETED' ? 'Pago ✅' : 'Recusado ❌'}?`}
+                onConfirm={confirmUpdateStatus}
+                onCancel={() => setStatusUpdateDialog({ isOpen: false })}
+            />
         </SharedLayout>
     )
 }

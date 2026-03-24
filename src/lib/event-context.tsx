@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, usePathname } from 'next/navigation'
 import { useAdmin } from './admin-context'
 import { useAuth } from './auth-context'
 import { supabase } from './supabase'
@@ -151,6 +151,7 @@ export const EventContext = createContext<EventContextType | undefined>(undefine
 
 export function EventProvider({ children }: { children: ReactNode }) {
     const params = useParams()
+    const pathname = usePathname()
     const slug = params?.slug as string
     const { user } = useAuth()
     const { events, updateEvent, loading: adminLoading } = useAdmin()
@@ -181,12 +182,13 @@ export function EventProvider({ children }: { children: ReactNode }) {
     const [guests, setGuests] = useState<Guest[]>([])
     const [eventSettings, setEventSettings] = useState<EventSettings>(DEFAULT_EVENT_SETTINGS)
     const [loading, setLoading] = useState(false)
+    const [ownerEmailFallback, setOwnerEmailFallback] = useState<string | null>(null)
 
 
     const ownerEmail = useMemo(() => {
         const found = events.find(e => e.id === eventId || e.slug === slug)
-        return found?.createdBy
-    }, [eventId, slug, events])
+        return found?.createdBy || ownerEmailFallback || undefined
+    }, [eventId, slug, events, ownerEmailFallback])
 
     useEffect(() => {
         async function fetchSettings() {
@@ -201,19 +203,32 @@ export function EventProvider({ children }: { children: ReactNode }) {
                 return
             }
 
-            // 2. Se não estiver no contexto (Público ou logado como outro casal), buscar direto no Supabase
-            if (slug || eventId) {
+            // 2. Se não estiver no contexto or o contexto falhou (timeout), buscar direto no Supabase
+            if (slug || eventId || user?.email) {
                 setLoading(true)
                 try {
-                    let query = supabase.from('events').select('event_settings, gift_list_enabled')
-                    if (eventId) query = query.eq('id', eventId)
-                    else query = query.eq('slug', slug)
+                    let query = supabase.from('events').select('id, event_settings, gift_list_enabled, created_by')
+                    
+                    if (eventId) {
+                        query = query.eq('id', eventId)
+                    } else if (slug) {
+                        query = query.eq('slug', slug)
+                    } else if (user?.email) {
+                        // Busca o evento criado por este usuário em caso de Dashboard sem ID/Slug
+                        query = query.eq('created_by', user.email).order('created_at', { ascending: false }).limit(1)
+                    }
 
-                    const { data, error } = await query.maybeSingle()
+                    const { data: result, error } = await query.maybeSingle()
+                    const data = Array.isArray(result) ? result[0] : result
+
                     if (data && data.event_settings) {
+                        if (data.created_by) {
+                            setOwnerEmailFallback(data.created_by)
+                        }
                         const settings = data.event_settings as EventSettings
                         setEventSettings({
                             ...settings,
+                            isGiftListEnabled: settings.isGiftListEnabled ?? true,
                             giftListInternalEnabled: data.gift_list_enabled ?? false
                         })
                     }
@@ -277,35 +292,40 @@ export function EventProvider({ children }: { children: ReactNode }) {
             .on(
                 'postgres_changes',
                 {
-                    event: 'UPDATE',
+                    event: '*',
                     schema: 'public',
                     table: 'guests',
                     filter: `event_id=eq.${eventId}`
                 },
                 (payload) => {
-                    const newGuest = payload.new as any
-                    const oldGuest = payload.old as any
+                    // Independente da transação, atualizamos a lista para refletir
+                    loadGuests()
 
-                    // Verificamos se o status mudou e se não é um status pendente
-                    // Nota: payload.old pode ser parcial dependendo da replica identity
-                    if (newGuest.status !== 'pending') {
-                        const isConfirmed = newGuest.status === 'confirmed'
+                    if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+                        const newGuest = payload.new as any
+                        const oldGuest = payload.old as any
 
-                        toast.success(
-                            <div className="flex flex-col gap-1">
-                                <span className="font-black text-xs uppercase tracking-widest block">
-                                    {isConfirmed ? '🔔 Nova Confirmação!' : '✗ Nova Ausência'}
-                                </span>
-                                <span className="text-sm">
-                                    <strong>{newGuest.name}</strong> {isConfirmed ? 'confirmou' : 'recusou'} presença.
-                                </span>
-                            </div>,
-                            {
-                                duration: 5000,
-                                icon: isConfirmed ? '✅' : '❌'
-                            }
-                        )
-                        loadGuests()
+                        // Apenas enviar toast se confirmou ou recusou agora e se estivermos no dashboard
+                        const isManagementPage = pathname?.startsWith('/dashboard') || pathname?.startsWith('/settings') || pathname?.startsWith('/admin')
+                        
+                        if (isManagementPage && newGuest.status !== 'pending' && (!oldGuest || oldGuest.status !== newGuest.status)) {
+                            const isConfirmed = newGuest.status === 'confirmed'
+
+                            toast.success(
+                                <div className="flex flex-col gap-1">
+                                    <span className="font-black text-xs uppercase tracking-widest block">
+                                        {isConfirmed ? '🔔 Nova Confirmação!' : '✗ Nova Ausência'}
+                                    </span>
+                                    <span className="text-sm">
+                                        <strong>{newGuest.name}</strong> {isConfirmed ? 'confirmou' : 'recusou'} presença.
+                                    </span>
+                                </div>,
+                                {
+                                    duration: 5000,
+                                    icon: isConfirmed ? '✅' : '❌'
+                                }
+                            )
+                        }
                     }
                 }
             )
@@ -469,13 +489,25 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
     const removeGuest = useCallback(async (id: string) => {
         try {
-            const { error } = await supabase.from('guests').delete().eq('id', id)
-            if (error) throw error
+            if (!eventId) throw new Error('Evento não identificado')
+
+            // Usar API para garantir permissão no servidor
+            const res = await fetch(`/api/guests/${id}?eventId=${eventId}`, {
+                method: 'DELETE'
+            })
+
+            if (!res.ok) {
+                const data = await res.json()
+                throw new Error(data.error || 'Erro ao excluir convidado')
+            }
+
             setGuests(prev => prev.filter(g => g.id !== id))
-        } catch (error) {
+            toast.success('Convidado removido.')
+        } catch (error: any) {
             console.error('Erro ao remover convidado:', error)
+            toast.error('Erro ao excluir', { description: error.message })
         }
-    }, [])
+    }, [eventId])
 
     const updateGuestStatus = useCallback(async (id: string, status: GuestStatus) => {
         try {
@@ -490,34 +522,54 @@ export function EventProvider({ children }: { children: ReactNode }) {
             setGuests(prev => prev.map(g => g.id === id ? { ...g, status, updatedAt: now, confirmedAt: status === 'confirmed' ? now : undefined } : g))
         } catch (error) {
             console.error('Erro ao atualizar status:', error)
+            throw error // Re-lança para o chamador tratar
         }
     }, [])
 
     const updateGuest = useCallback(async (id: string, guestData: Partial<Guest>) => {
+        if (!eventId) {
+            console.error('updateGuest: eventId não identificado')
+            throw new Error('Evento não identificado')
+        }
+        
         try {
             const now = new Date()
-            const updates: any = { updated_at: now.toISOString() }
-            if (guestData.name) updates.name = guestData.name
-            if (guestData.email !== undefined) updates.email = guestData.email
-            if (guestData.telefone !== undefined) updates.telefone = guestData.telefone
-            if (guestData.grupo !== undefined) updates.grupo = guestData.grupo
-            if (guestData.status) {
-                updates.status = guestData.status
-                // Se está confirmando agora e não tem data, ou se mudou o status
-                if (guestData.status === 'confirmed') {
-                    updates.confirmed_at = guestData.confirmedAt ? guestData.confirmedAt.toISOString() : now.toISOString()
-                } else {
-                    updates.confirmed_at = null
-                }
-            } else if (guestData.confirmedAt !== undefined) {
-                updates.confirmed_at = guestData.confirmedAt ? guestData.confirmedAt.toISOString() : null
+            
+            // Formatamos os dados para o padrão do banco (snakes_case) para a API
+            const payload: any = { 
+                eventId,
+                name: guestData.name,
+                email: guestData.email,
+                telefone: guestData.telefone,
+                grupo: guestData.grupo,
+                status: guestData.status,
+                category: guestData.category,
+                companions_list: guestData.companionsList, // No EventContext, as chaves têm CamelCase, mas passamos como snake para a API
+                message: guestData.message
             }
-            if (guestData.category) updates.category = guestData.category
-            if (guestData.companionsList) updates.companions_list = guestData.companionsList
-            if (guestData.message !== undefined) updates.message = guestData.message
+            
+            console.log(`[EventContext] Enviando atualização de convidado para ${id}:`, {
+                eventId,
+                guestId: id,
+                status: guestData.status
+            })
 
-            const { error } = await supabase.from('guests').update(updates).eq('id', id)
-            if (error) throw error
+            // Chamar a API em vez de ir direto no banco (evita bloqueios de RLS no frontend)
+            const res = await fetch(`/api/guests/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+
+            const responseData = await res.json()
+            if (!res.ok) {
+                console.error('[EventContext] Erro retornado pela API:', responseData)
+                throw new Error(responseData.error || 'Erro ao persistir no servidor')
+            }
+            
+            console.log(`[EventContext] Resposta da API:`, responseData)
+
+            // Atualiza o estado local para garantir resposta imediata na UI
             setGuests(prev => prev.map(g => g.id === id ? { 
                 ...g, 
                 ...guestData, 
@@ -526,10 +578,13 @@ export function EventProvider({ children }: { children: ReactNode }) {
                     ? (guestData.confirmedAt || now) 
                     : (guestData.status ? undefined : (guestData.confirmedAt || g.confirmedAt))
             } : g))
+            
+            console.log(`[EventContext] Convidado ${id} atualizado com sucesso via API.`)
         } catch (error) {
-            console.error('Erro ao atualizar convidado:', error)
+            console.error('Erro ao atualizar convidado via API:', error)
+            throw error // Re-lança para o modal tratar e mostrar o toast
         }
-    }, [])
+    }, [eventId])
 
     const updateGuestCompanions = useCallback(async (id: string, companions: Companion[]) => {
         await updateGuest(id, { companionsList: companions })
@@ -598,7 +653,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         guests,
         eventSettings,
         ownerEmail,
-        loading,
+        loading: loading || adminLoading,
         metrics,
         addGuest,
         addGuestsBatch,
@@ -616,6 +671,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         eventSettings,
         ownerEmail,
         loading,
+        adminLoading,
         metrics
     ])
 

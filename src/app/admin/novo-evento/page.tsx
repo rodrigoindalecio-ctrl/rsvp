@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { SharedLayout } from '@/app/components/shared-layout'
+import { toast } from 'sonner'
 
 function NovoEventoContent() {
   const { user } = useAuth()
@@ -29,7 +30,7 @@ function NovoEventoContent() {
     e.preventDefault()
 
     if (!form.coupleNames || !form.eventDate || !form.rsvpDeadline) {
-      alert('Preencha todos os campos obrigatórios')
+      toast.warning('Campos obrigatórios', { description: 'Preencha nome, data do evento e prazo de RSVP.' })
       return
     }
 
@@ -57,10 +58,10 @@ function NovoEventoContent() {
       }
 
       await addEvent(newEventData)
-      alert('Evento criado com sucesso!')
+      toast.success('Evento criado com sucesso!')
       router.push('/admin/dashboard')
     } catch (error) {
-      alert('Erro ao criar evento: ' + (error as Error).message)
+      toast.error('Erro ao criar evento', { description: (error as Error).message })
     } finally {
       setLoading(false)
     }

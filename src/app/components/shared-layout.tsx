@@ -225,7 +225,7 @@ export function SharedLayout({
                             className="flex items-center gap-2 flex-shrink-0 group hover:opacity-80 transition-all"
                         >
                             <div className="w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center border border-brand/10 group-hover:border-brand/30 transition-all">
-                                <img src="/Logo-03.jpg" alt="Logo" className="w-full h-full object-cover" />
+                                <img src={isDarkMode ? "/logo_branco.png" : "/logo_marsala.png"} alt="Logo" className="w-full h-full object-contain p-1" />
                             </div>
                             <span className="font-serif font-black text-[10px] text-brand uppercase tracking-tighter hidden sm:block">RSVP Manager</span>
                         </Link>

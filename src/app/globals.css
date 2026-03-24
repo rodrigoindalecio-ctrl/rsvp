@@ -45,7 +45,6 @@
   /* ── Tipografia ── */
   --font-sans:  var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-lora), 'Playfair Display', 'Georgia', serif;
-  --font-great-vibes: var(--font-great-vibes), cursive;
 
   /* ── Sombras ── */
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.04);
@@ -259,6 +258,15 @@
   .card-stat:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(123, 45, 61, 0.1); }
 
   /* ── Formulários ─────────────────────────────────────────── */
+
+  /* REGRA GLOBAL: inputs e textareas SEMPRE usam fonte do sistema */
+  textarea,
+  input,
+  select {
+    font-family: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, sans-serif !important;
+    font-style: normal !important;
+  }
+
   .form-input {
     width: 100%;
     padding: 12px 16px;
@@ -267,7 +275,8 @@
     font-size: 1rem;
     color: var(--color-text-primary);
     border-radius: var(--radius-md);
-    font-family: inherit;
+    font-family: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, sans-serif !important;
+    font-style: normal !important;
     transition: var(--transition-base);
     outline: none;
   }

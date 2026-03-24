@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
 import { parseGuestsList, generateImportTemplate, ParseSheetResult } from '@/lib/utils/parseSheets'
 import { SharedLayout } from '@/app/components/shared-layout'
+import { toast } from 'sonner'
 
 export default function ImportPage() {
     const { user, loading: authLoading, logout } = useAuth()
@@ -66,7 +67,7 @@ export default function ImportPage() {
     const handleManualAdd = (e: React.FormEvent) => {
         e.preventDefault()
         if (!manualName.trim()) {
-            alert('O nome do convidado é obrigatório')
+            toast.warning('Nome obrigatório', { description: 'O nome do convidado é obrigatório.' })
             return
         }
 
@@ -103,7 +104,7 @@ export default function ImportPage() {
         })
 
         if (!success) {
-            alert('Erro ao salvar convidado no banco de dados.')
+            toast.error('Erro ao salvar', { description: 'Não foi possível salvar o convidado no banco de dados.' })
             return
         }
 
@@ -128,7 +129,7 @@ export default function ImportPage() {
         const result = await (addGuestsBatch(parseResult.convidados) as any)
 
         if (result.error) {
-            alert(result.error)
+            toast.error('Erro na importação', { description: result.error })
             return
         }
 
@@ -153,7 +154,7 @@ export default function ImportPage() {
             document.body.removeChild(link)
             URL.revokeObjectURL(url)
         } catch (error) {
-            alert('Erro ao gerar modelo: ' + (error instanceof Error ? error.message : 'Desconhecido'))
+            toast.error('Erro ao gerar modelo', { description: error instanceof Error ? error.message : 'Desconhecido' })
         }
     }
 
@@ -438,90 +439,77 @@ export default function ImportPage() {
                     )}
 
                     {step === 'review' && (
-                        <div className="max-w-4xl mx-auto animate-in slide-in-from-right-8 duration-500">
-                            <div className="bg-surface p-8 rounded-[2.5rem] border border-border-soft shadow-sm mb-6">
-                                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mb-8">
-                                    <div>
-                                        <h2 className="text-2xl font-black text-text-primary tracking-tight mb-1">Revisar Importação</h2>
-                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Confirme os dados antes de salvar</p>
-                                            <p className="text-[10px] font-black text-brand uppercase tracking-widest bg-brand-pale px-2 py-0.5 rounded-md">
-                                                {pendingGuest 
-                                                    ? `1 Convite • ${1 + pendingGuest.companionsList.length} Pessoas` 
-                                                    : `${parseResult?.convidados.length || 0} Convites • ${parseResult?.convidados.reduce((acc, g) => acc + 1 + (g.companionsList?.length || 0), 0) || 0} Pessoas Total`
-                                                }
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-3 w-full sm:w-auto">
-                                        <button
-                                            onClick={() => setStep('input')}
-                                            className="flex-1 sm:flex-none px-6 py-3 bg-bg-light text-[10px] font-black uppercase tracking-widest text-text-muted rounded-xl hover:bg-brand-pale transition-all border border-border-soft"
-                                        >
-                                            Corrigir
-                                        </button>
-                                        <button
-                                            onClick={pendingGuest ? confirmAdd : confirmBatch}
-                                            className="flex-1 sm:flex-none px-8 py-3 bg-brand text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-brand/20 hover:scale-105 transition-all flex items-center justify-center gap-2"
-                                        >
-                                            <CheckIcon /> Salvar Agora
-                                        </button>
+                        <div className="max-w-3xl mx-auto animate-in slide-in-from-bottom-8 duration-700">
+                            <div className="bg-surface p-6 sm:p-10 rounded-[3rem] border border-border-soft shadow-xl shadow-brand/5 mb-6">
+
+                                {/* HEADER TEXT & PILL */}
+                                <div className="mb-8 pl-2">
+                                    <h2 className="text-3xl font-black text-text-primary tracking-tight mb-2">Revisar Importação</h2>
+                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-3">Confirme os dados antes de salvar</p>
+                                    <div className="inline-block bg-brand-pale text-brand text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-brand/10">
+                                        {pendingGuest 
+                                            ? `1 Convite • ${1 + pendingGuest.companionsList.length} Pessoas Total` 
+                                            : `${parseResult?.convidados.length || 0} Convites • ${parseResult?.convidados.reduce((acc, g) => acc + 1 + (g.companionsList?.length || 0), 0) || 0} Pessoas Total`
+                                        }
                                     </div>
                                 </div>
 
-                                <div className="border border-border-soft rounded-[2rem] overflow-y-auto max-h-[500px] shadow-inner bg-bg-light/30 custom-scrollbar">
-                                    <table className="w-full text-left text-sm">
-                                        <thead className="bg-bg-light/50 border-b border-border-soft text-[9px] font-black text-text-muted uppercase tracking-widest">
-                                            <tr>
-                                                <th className="px-8 py-4">Nome</th>
-                                                <th className="px-8 py-4">Status</th>
-                                                <th className="px-8 py-4 text-right">Membros</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-border-soft">
-                                            {pendingGuest ? (
-                                                <tr>
-                                                    <td className="px-8 py-5">
-                                                        <p className="font-black text-text-primary tracking-tight">{pendingGuest.name}</p>
-                                                        {pendingGuest.telefone && <p className="text-[10px] text-brand font-bold mt-1">📞 {pendingGuest.telefone}</p>}
-                                                        {pendingGuest.companionsList && pendingGuest.companionsList.length > 0 && (
-                                                            <div className="mt-2 flex flex-wrap gap-1.5">
-                                                                {pendingGuest.companionsList.map((c: any, i: number) => (
-                                                                    <span key={i} className="text-[8px] font-bold text-text-muted bg-white border border-border-soft px-2 py-0.5 rounded-md">
-                                                                        + {c.name}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-8 py-5">
-                                                        <span className="bg-warning-light text-warning px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border border-warning/10">Pendente</span>
-                                                    </td>
-                                                    <td className="px-8 py-5 text-right font-black text-brand">{1 + pendingGuest.companionsList.length}</td>
-                                                </tr>
-                                            ) : parseResult?.convidados.map((guest, idx) => (
-                                                <tr key={idx}>
-                                                    <td className="px-8 py-4">
-                                                        <p className="font-black text-text-primary tracking-tight">{guest.name}</p>
-                                                        {guest.telefone && <p className="text-[10px] text-brand font-bold mt-1">📞 {guest.telefone}</p>}
-                                                        {guest.companionsList && guest.companionsList.length > 0 && (
-                                                            <div className="mt-2 flex flex-wrap gap-1.5">
-                                                                {guest.companionsList.map((c, i) => (
-                                                                    <span key={i} className="text-[8px] font-bold text-text-muted bg-white border border-border-soft px-2 py-0.5 rounded-md">
-                                                                        + {c.name}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-8 py-4">
-                                                        <span className="bg-success-light text-success-dark px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border border-success/10">Válido</span>
-                                                    </td>
-                                                    <td className="px-8 py-4 text-right font-black text-brand">{1 + (guest.companionsList?.length || 0)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                {/* BUTTONS */}
+                                <div className="flex flex-row gap-3 mb-10">
+                                    <button
+                                        onClick={() => setStep('input')}
+                                        className="flex-1 py-4 bg-bg-light text-[10px] sm:text-xs font-black uppercase tracking-widest text-text-muted rounded-[1.25rem] hover:bg-white transition-all border border-border-soft hover:border-text-muted/30 hover:text-text-primary"
+                                    >
+                                        Corrigir
+                                    </button>
+                                    <button
+                                        onClick={pendingGuest ? confirmAdd : confirmBatch}
+                                        className="flex-[1.5] py-4 bg-brand text-white text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-[1.25rem] shadow-lg shadow-brand/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <CheckIcon /> Salvar Agora
+                                    </button>
+                                </div>
+
+                                {/* LIST CONTAINER */}
+                                <div className="border border-border-soft rounded-[2rem] overflow-hidden bg-white shadow-sm">
+                                    <div className="overflow-y-auto max-h-[500px] custom-scrollbar divide-y divide-border-soft/50">
+                                        {(pendingGuest ? [pendingGuest] : (parseResult?.convidados || [])).map((guest: any, idx: number) => {
+                                            const totalMembers = 1 + (guest.companionsList?.length || 0);
+                                            
+                                            return (
+                                                <div key={idx} className="p-6 hover:bg-bg-light/30 transition-colors flex flex-col justify-center">
+                                                    {/* TOP ROW: NAME & BADGE */}
+                                                    <div className="flex flex-wrap items-center gap-3 mb-1.5">
+                                                        <p className="font-black text-text-primary tracking-tight text-sm sm:text-base">
+                                                            {guest.name}
+                                                        </p>
+                                                        
+                                                        <span className="flex-shrink-0 bg-brand-pale text-brand px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-brand/10">
+                                                            {totalMembers} {totalMembers === 1 ? 'Membro' : 'Membros'}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* TELEFONE */}
+                                                    {guest.telefone && (
+                                                        <p className="text-[10px] sm:text-xs text-brand/80 font-bold mb-3">
+                                                            📞 {guest.telefone}
+                                                        </p>
+                                                    )}
+
+                                                    {/* COMPANION PILLS (Horizontal Wrap) */}
+                                                    {guest.companionsList && guest.companionsList.length > 0 && (
+                                                        <div className={`flex flex-wrap gap-2 ${guest.telefone ? 'mt-1' : 'mt-3'}`}>
+                                                            {guest.companionsList.map((c: any, i: number) => (
+                                                                <span key={i} className="text-[10px] font-bold text-text-secondary bg-white border border-border-soft px-3 py-1.5 rounded-[0.8rem] shadow-sm whitespace-nowrap">
+                                                                    + {c.name}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             </div>
                         </div>

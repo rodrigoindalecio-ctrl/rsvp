@@ -3,11 +3,13 @@
 import { useEvent } from '@/lib/event-context'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
+import { motion } from 'framer-motion'
 
 interface Props { slug: string }
 
 export default function PresentsContent({ slug }: Props) {
-    const { eventSettings } = useEvent()
+    const { eventSettings, loading: contextLoading } = useEvent()
     const [gifts, setGifts] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [selected, setSelected] = useState<any | null>(null)
@@ -46,10 +48,38 @@ export default function PresentsContent({ slug }: Props) {
             if (!res.ok) throw new Error(data.error)
             window.location.href = data.init_point
         } catch (err: any) {
-            alert('Erro ao processar: ' + err.message)
+            toast.error('Erro ao processar', { description: err.message })
             setSubmitting(false)
         }
     }
+
+    if (contextLoading) return (
+        <div className="min-h-screen bg-[#FAFAF8] flex flex-col items-center justify-center p-6 text-center">
+            <motion.div 
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+                className="relative"
+            >
+                <div className="absolute inset-0 bg-brand/5 rounded-full blur-3xl animate-pulse" />
+                <div className="relative w-24 h-24 bg-white rounded-[2rem] shadow-xl border border-brand/5 flex items-center justify-center overflow-hidden mb-8 group mx-auto">
+                    <img src="/logo_marsala.png" alt="Loading" className="w-20 h-20 object-contain drop-shadow-md" />
+                    <motion.div 
+                        className="absolute inset-0 border-2 border-brand/20 rounded-[2rem]"
+                        animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.2, 0.5] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                    />
+                </div>
+                <div className="space-y-3">
+                    <p className="font-serif italic text-text-primary text-xl tracking-tight">Carregando lista...</p>
+                    <div className="flex flex-col items-center gap-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">RSVP • Vanessa Bidinotti</p>
+                        <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-text-muted/60">Assessoria e Cerimonial</p>
+                    </div>
+                </div>
+            </motion.div>
+        </div>
+    )
 
     if (!isCorrectEvent) return (
         <div className="min-h-screen flex items-center justify-center p-6 text-center">
@@ -64,7 +94,7 @@ export default function PresentsContent({ slug }: Props) {
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-brand opacity-40"><path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16M7 12v8h10v-8" /></svg>
                 </div>
                 <h1 className="text-3xl font-serif text-text-primary mb-4">Lista de Presentes</h1>
-                <p className="text-text-secondary font-serif italic max-w-md mx-auto">
+                <p className={`text-text-secondary max-w-md mx-auto ${eventSettings?.brandFont === 'great-vibes' ? 'font-sans font-medium text-base' : 'font-serif italic'}`}>
                     A lista de presentes deste evento ainda não está disponível ou foi pausada pelos organizadores.
                     Por favor, tente novamente mais tarde.
                 </p>
@@ -102,7 +132,7 @@ export default function PresentsContent({ slug }: Props) {
                     </div>
                     <span className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">Lista de Presentes</span>
                     <h1 className="text-4xl font-serif text-text-primary mt-2 mb-4">{eventSettings.coupleNames}</h1>
-                    <p className="text-text-secondary font-serif italic text-base leading-relaxed mb-10">
+                    <p className={`text-text-secondary leading-relaxed mb-10 ${eventSettings?.brandFont === 'great-vibes' ? 'font-sans font-medium text-lg' : 'font-serif italic text-base'}`}>
                         "Ter você ao nosso lado já é o maior presente. Mas, se quiser nos presentear, preparamos esta lista com muito carinho."
                     </p>
 
@@ -127,56 +157,58 @@ export default function PresentsContent({ slug }: Props) {
             </div>
 
             {/* Grid de presentes */}
-            <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-12">
-                {loading ? (
-                    <div className="flex flex-col items-center justify-center py-24 gap-4">
-                        <div className="w-10 h-10 border-4 border-brand/20 border-t-brand rounded-full animate-spin" />
-                        <p className="text-[10px] font-black uppercase tracking-widest text-brand">Carregando presentes...</p>
-                    </div>
-                ) : gifts.length === 0 ? (
-                    <div className="text-center py-24">
-                        <div className="w-16 h-16 bg-bg-light rounded-3xl flex items-center justify-center mx-auto mb-6 border border-border-soft">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted"><path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16" /></svg>
+            {eventSettings.giftListInternalEnabled && (
+                <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-12">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-24 gap-4">
+                            <div className="w-10 h-10 border-4 border-brand/20 border-t-brand rounded-full animate-spin" />
+                            <p className="text-[10px] font-black uppercase tracking-widest text-brand">Carregando presentes...</p>
                         </div>
-                        <p className="text-text-muted font-serif italic">A lista de presentes ainda não foi publicada.</p>
-                        <Link href={`/${slug}`} className="mt-6 inline-block text-[10px] font-black uppercase tracking-widest text-brand hover:opacity-70">← Voltar ao Início</Link>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                        {eventSettings.giftListInternalEnabled && gifts.map(gift => (
-                            <div key={gift.id} onClick={() => setSelected(gift)}
-                                className="group bg-surface rounded-[2rem] overflow-hidden border border-border-soft hover:shadow-xl hover:border-brand/30 hover:-translate-y-1.5 transition-all cursor-pointer">
-                                {/* Imagem */}
-                                <div className="aspect-square relative overflow-hidden bg-bg-light">
-                                    {gift.image_url ? (
-                                        <img src={gift.image_url} alt={gift.name}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                                    ) : (
-                                        <div className="absolute inset-0 flex items-center justify-center text-brand/15">
-                                            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                                                <path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16M7 12v8h10v-8" />
-                                            </svg>
-                                        </div>
-                                    )}
-                                </div>
-                                {/* Info */}
-                                <div className="p-5">
-                                    <h3 className="font-serif text-text-primary text-sm mb-1 line-clamp-2 leading-snug">{gift.name}</h3>
-                                    {gift.description && <p className="text-[11px] text-text-muted mb-3 line-clamp-2 leading-relaxed">{gift.description}</p>}
-                                    <div className="flex items-center justify-between pt-3 border-t border-border-soft">
-                                        <span className="font-black text-brand text-sm">
-                                            R$ {Number(gift.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                        </span>
-                                        <div className="w-8 h-8 bg-brand-pale rounded-xl flex items-center justify-center text-brand group-hover:bg-brand group-hover:text-white transition-all">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
+                    ) : gifts.length === 0 ? (
+                        <div className="text-center py-24">
+                            <div className="w-16 h-16 bg-bg-light rounded-3xl flex items-center justify-center mx-auto mb-6 border border-border-soft">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted"><path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16" /></svg>
+                            </div>
+                            <p className="text-text-muted font-serif italic">Nenhum presente na lista interna ainda.</p>
+                            <Link href={`/${slug}`} className="mt-6 inline-block text-[10px] font-black uppercase tracking-widest text-brand hover:opacity-70">← Voltar ao Início</Link>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                            {gifts.map(gift => (
+                                <div key={gift.id} onClick={() => setSelected(gift)}
+                                    className="group bg-surface rounded-[2rem] overflow-hidden border border-border-soft hover:shadow-xl hover:border-brand/30 hover:-translate-y-1.5 transition-all cursor-pointer">
+                                    {/* Imagem */}
+                                    <div className="aspect-square relative overflow-hidden bg-bg-light">
+                                        {gift.image_url ? (
+                                            <img src={gift.image_url} alt={gift.name}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                                        ) : (
+                                            <div className="absolute inset-0 flex items-center justify-center text-brand/15">
+                                                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                                                    <path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16M7 12v8h10v-8" />
+                                                </svg>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {/* Info */}
+                                    <div className="p-5">
+                                        <h3 className="font-serif text-text-primary text-sm mb-1 line-clamp-2 leading-snug">{gift.name}</h3>
+                                        {gift.description && <p className="text-[11px] text-text-muted mb-3 line-clamp-2 leading-relaxed">{gift.description}</p>}
+                                        <div className="flex items-center justify-between pt-3 border-t border-border-soft">
+                                            <span className="font-black text-brand text-sm">
+                                                R$ {Number(gift.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </span>
+                                            <div className="w-8 h-8 bg-brand-pale rounded-xl flex items-center justify-center text-brand group-hover:bg-brand group-hover:text-white transition-all">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </main>
+                            ))}
+                        </div>
+                    )}
+                </main>
+            )}
 
             {/* Footer mínimo */}
             <footer className="py-8 text-center border-t border-border-soft">

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { MessageSquare, Heart, Star, Quote, Search, Trash2, X, CheckSquare } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/app/components/confirm-dialog'
 
 interface Props {
     eventId: string
@@ -15,6 +16,8 @@ export default function MuralMessagesTab({ eventId }: Props) {
     const [searchTerm, setSearchTerm] = useState('')
     const [isSelectionMode, setIsSelectionMode] = useState(false)
     const [selectedItems, setSelectedItems] = useState<{id: string, type: string}[]>([])
+    const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, item: null as any })
+    const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
 
     useEffect(() => {
         if (!eventId) return
@@ -24,7 +27,7 @@ export default function MuralMessagesTab({ eventId }: Props) {
     const fetchMessages = async () => {
         setLoading(true)
         try {
-            const res = await fetch(`/api/events/${eventId}/gifts`)
+            const res = await fetch(`/api/events/${eventId}/gifts`, { cache: 'no-store' })
             const data = await res.json()
             if (data && data.transactions) {
                 const sorted = data.transactions.sort((a: any, b: any) =>
@@ -50,7 +53,11 @@ export default function MuralMessagesTab({ eventId }: Props) {
 
     const handleDeleteSelected = async () => {
         if (selectedItems.length === 0) return
-        if (!confirm(`Excluir permanentemente ${selectedItems.length} recado(s)?`)) return
+        setBulkDeleteConfirm(true)
+    }
+
+    const confirmBulkDelete = async () => {
+        setBulkDeleteConfirm(false)
 
         try {
             const res = await fetch(`/api/events/${eventId}/mural`, {
@@ -72,6 +79,13 @@ export default function MuralMessagesTab({ eventId }: Props) {
     }
 
     const handleDeleteSingle = async (item: any) => {
+        setDeleteConfirm({ isOpen: true, item })
+    }
+
+    const confirmSingleDelete = async () => {
+        const item = deleteConfirm.item
+        if (!item) return
+        setDeleteConfirm({ isOpen: false, item: null })
         try {
             const res = await fetch(`/api/events/${eventId}/mural`, {
                 method: 'POST',
@@ -87,9 +101,12 @@ export default function MuralMessagesTab({ eventId }: Props) {
         }
     }
 
-    const filteredMessages = messages.filter(m =>
-        m.guestName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        m.message?.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredMessages = messages.filter(m => 
+        m.message !== null && // Se for null, foi excluído/escondido do mural
+        (
+            (m.guestName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (m.message || '').toLowerCase().includes(searchTerm.toLowerCase())
+        )
     )
 
     if (loading) {
@@ -250,6 +267,23 @@ export default function MuralMessagesTab({ eventId }: Props) {
             <div className="py-12 text-center">
                 <p className="text-[9px] font-black text-text-muted/30 uppercase tracking-[0.4em]">Mural de Amor • Inteligência em RSVP</p>
             </div>
+
+            {/* Diálogos de Confirmação */}
+            <ConfirmDialog
+                isOpen={bulkDeleteConfirm}
+                title="Excluir Recados"
+                message={`Deseja realmente excluir permanentemente os ${selectedItems.length} recados selecionados?`}
+                onConfirm={confirmBulkDelete}
+                onCancel={() => setBulkDeleteConfirm(false)}
+            />
+
+            <ConfirmDialog
+                isOpen={deleteConfirm.isOpen}
+                title="Remover Recado"
+                message="Deseja remover este recado do mural? O registro do convidado será mantido."
+                onConfirm={confirmSingleDelete}
+                onCancel={() => setDeleteConfirm({ isOpen: false, item: null })}
+            />
         </div>
     )
 }

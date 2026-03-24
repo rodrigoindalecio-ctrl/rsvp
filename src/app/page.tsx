@@ -236,8 +236,8 @@ export default function Home() {
       {/* ── FOOTER MINIMALISTA ─────────────────────────────────────── */}
       <footer className="py-20 bg-white border-t border-border-soft/40 text-center">
         <div className="flex flex-col items-center gap-6 opacity-40 hover:opacity-100 transition-all duration-700">
-          <div className="w-8 h-8 rounded-lg overflow-hidden grayscale brightness-150">
-            <img src="/Logo-03.jpg" alt="VB" className="w-full h-full object-cover" />
+          <div className="w-12 h-12 flex justify-center items-center">
+            <img src="/logo_marsala.png" alt="VB" className="w-full h-full object-contain" />
           </div>
           <p className="text-[9px] font-black uppercase tracking-[0.5em] text-text-primary">RSVP • Gestão de Eventos</p>
           <p className="text-[7px] font-bold uppercase tracking-[0.2em] text-text-muted mt-2">© 2026 VB Assessoria e Cerimonial</p>

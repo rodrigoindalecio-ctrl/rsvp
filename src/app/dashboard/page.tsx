@@ -3,7 +3,7 @@
 import { useAuth } from '@/lib/auth-context'
 import { useEvent, Guest, GuestStatus, GuestCategory } from '@/lib/event-context'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import Image from 'next/image'
 import { GuestEditModal } from './guest-edit-modal'
 import { ConfirmDialog } from '@/app/components/confirm-dialog'
@@ -13,10 +13,11 @@ import Link from 'next/link'
 import GiftManagementTab from '@/app/components/GiftManagementTab'
 import MuralMessagesTab from '@/app/components/MuralMessagesTab'
 import { OnboardingTour, TourStep } from '@/app/components/onboarding-tour'
+import { toast } from 'sonner'
 
 export default function DashboardPage() {
-  const { user, loading, logout } = useAuth()
-  const { guests, eventSettings, metrics, updateGuestStatus, removeGuest, removeCompanion, updateGuest, refreshData, eventId } = useEvent()
+  const { user, loading: authLoading, logout } = useAuth()
+  const { guests, eventSettings, metrics, updateGuestStatus, removeGuest, removeCompanion, updateGuest, refreshData, eventId, loading: eventLoading } = useEvent()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'guests' | 'gifts' | 'messages'>('guests')
 
@@ -70,35 +71,54 @@ export default function DashboardPage() {
   ]
 
   const { updateEventSettings } = useEvent()
+  // Ref para garantir que o tour abre no máximo UMA vez por sessão de página
+  const tourShownRef = useRef(false)
 
   useEffect(() => {
-    // Só inicia o tour se as configurações já foram carregadas e o onboarding não foi feito
-    if (!loading && user && eventSettings && eventSettings.hasCompletedOnboarding !== true && !isTourOpen) {
-       // Pequeno delay para garantir que o DOM renderizou
-       const timer = setTimeout(() => setIsTourOpen(true), 1500)
-       return () => clearTimeout(timer)
+    // Só inicia o tour se:
+    // 1. O carregamento terminou
+    // 2. O usuário está logado
+    // 3. As configs do evento existem
+    // 4. O onboarding ainda NÃO foi concluído (nem no DB, nem no localStorage como fallback)
+    // 5. O tour ainda não foi mostrado nesta sessão de página
+    const alreadyDoneLocally = localStorage.getItem('rsvp_onboarding_done') === 'true'
+    if (
+      !authLoading && !eventLoading &&
+      user &&
+      eventSettings &&
+      eventSettings.hasCompletedOnboarding !== true &&
+      !alreadyDoneLocally &&
+      !tourShownRef.current
+    ) {
+      tourShownRef.current = true
+      const timer = setTimeout(() => setIsTourOpen(true), 1500)
+      return () => clearTimeout(timer)
     }
-  }, [loading, user, eventSettings, isTourOpen])
+    // Intencionalmente NÃO incluímos isTourOpen como dependência,
+    // para evitar que o effect reabra o tour quando ele fecha.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, eventLoading, user, eventSettings?.hasCompletedOnboarding])
 
   const handleTourComplete = async () => {
     setIsTourOpen(false)
+    localStorage.setItem('rsvp_onboarding_done', 'true') // fallback imediato para a sessão
     await updateEventSettings({ hasCompletedOnboarding: true })
-    // Após o término do tour, redireciona para configurações
     router.push('/settings?onboarding=true')
   }
 
   const handleTourSkip = async () => {
     setIsTourOpen(false)
+    localStorage.setItem('rsvp_onboarding_done', 'true') // fallback imediato para a sessão
     await updateEventSettings({ hasCompletedOnboarding: true })
   }
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push('/login')
     } else if (user) {
       refreshData()
     }
-  }, [user, loading, router, refreshData])
+  }, [user, authLoading, router, refreshData])
 
   // Reset tab if module is disabled
   useEffect(() => {
@@ -107,14 +127,18 @@ export default function DashboardPage() {
     }
   }, [eventSettings.isGiftListEnabled, activeTab])
 
+  useEffect(() => {
+    console.log('🎁 Gift List Status:', eventSettings?.isGiftListEnabled);
+  }, [eventSettings?.isGiftListEnabled]);
+
   const handleEditClick = (guest: Guest) => {
     setEditingGuest(guest)
     setIsEditModalOpen(true)
   }
 
-  const handleSaveEdit = (updatedGuest: Guest) => {
-    // Atualiza todos os campos do guest em uma única operação
-    updateGuest(updatedGuest.id, {
+  const handleSaveEdit = async (updatedGuest: Guest) => {
+    // Atualiza todos os campos do guest em uma única operação e aguarda a persistência no banco
+    await updateGuest(updatedGuest.id, {
       name: updatedGuest.name,
       email: updatedGuest.email,
       telefone: updatedGuest.telefone,
@@ -124,6 +148,9 @@ export default function DashboardPage() {
       companions: updatedGuest.companions,
       companionsList: updatedGuest.companionsList
     })
+    
+    // O fechamento do modal e limpeza de estado são feitos AGORA, após o await,
+    // garantindo que, se o modal fechar, o dado foi para o DB.
     setIsEditModalOpen(false)
     setEditingGuest(null)
   }
@@ -224,7 +251,7 @@ export default function DashboardPage() {
     })
   }, [allPeople, searchTerm, filter, activeCategory])
 
-  if (loading) {
+  if (authLoading || eventLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-brand/20 border-t-brand rounded-full animate-spin" />
@@ -246,7 +273,7 @@ export default function DashboardPage() {
 
   const handleExportCSV = async () => {
     if (guests.length === 0) {
-      alert('Nenhum convidado para exportar')
+      toast.warning('Nada para exportar', { description: 'Nenhum convidado foi adicionado ainda.' })
       return
     }
 
@@ -303,7 +330,9 @@ export default function DashboardPage() {
           categoryLabel(person.category),
           person.groupName || '-',
           person.status === 'confirmed' ? 'CONFIRMADO' : (person.status === 'declined' ? 'RECUSADO' : 'PENDENTE'),
-          person.confirmedAt ? formatDate(person.confirmedAt.toISOString(), { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'
+          person.confirmedAt && !isNaN(person.confirmedAt.getTime()) ? 
+            `${person.confirmedAt.toLocaleDateString('pt-BR')} ${person.confirmedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : 
+            '-'
         ])
 
         // Estilo condicional para Status
@@ -341,7 +370,7 @@ export default function DashboardPage() {
       link.click()
     } catch (error) {
       console.error('❌ ERRO na exportação:', error)
-      alert('Erro ao exportar: ' + (error instanceof Error ? error.message : String(error)))
+      toast.error('Erro ao exportar', { description: error instanceof Error ? error.message : String(error) })
     }
   }
 
@@ -376,26 +405,6 @@ export default function DashboardPage() {
     }
 
     setDeleteAllConfirmDialog({ isOpen: false, step: 1 })
-  }
-
-  const handleDeleteAllGuestsOld = () => {
-    if (!window.confirm(`Tem certeza que deseja excluir TODOS os ${metrics.total} convidados? Esta ação é irreversível.`)) {
-      return
-    }
-
-    if (!window.confirm('⚠️ AVISO: Esta ação é PERMANENTE e não pode ser desfeita. Deseja continuar?')) {
-      return
-    }
-
-    // Remover cada convidado
-    guests.forEach(guest => {
-      removeGuest(guest.id)
-    })
-
-    // Também limpar localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('rsvp_guests', JSON.stringify([]))
-    }
   }
 
   return (
@@ -487,38 +496,37 @@ export default function DashboardPage() {
 
       {/* TABS MENU */}
       <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between mb-10 gap-4">
-        <div className="flex flex-wrap justify-center sm:justify-start gap-2 sm:gap-4 w-full sm:w-auto">
-          <button
-            onClick={() => setActiveTab('guests')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'guests' ? 'bg-brand text-white shadow-xl' : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'}`}
-          >
-            <UsersIconMini /> <span className="whitespace-nowrap">Lista de Convidados</span>
-          </button>
-          <button
-            onClick={() => {
-              if (eventSettings.isGiftListEnabled === false) return;
-              setActiveTab('gifts');
-            }}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${eventSettings.isGiftListEnabled === false
-              ? 'bg-bg-light border border-dashed border-border-soft text-text-muted opacity-50 cursor-not-allowed select-none'
-              : activeTab === 'gifts'
-                ? 'bg-brand text-white shadow-xl'
-                : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'
-              }`}
-            title={eventSettings.isGiftListEnabled === false ? "Este módulo está desativado nas configurações" : ""}
-          >
-            <HeartIcon /> <span className="whitespace-nowrap">Presentes {eventSettings.isGiftListEnabled === false && '🔒'}</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('messages')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'messages'
-                ? 'bg-brand text-white shadow-xl'
-                : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'
-              }`}
-          >
-            <MessageSquareIcon /> <span className="whitespace-nowrap">Mural</span>
-          </button>
-        </div>
+        {(!authLoading && !eventLoading && eventSettings) && (
+          <div className="flex flex-wrap justify-center sm:justify-start gap-2 sm:gap-4 w-full sm:w-auto">
+            <button
+              onClick={() => setActiveTab('guests')}
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'guests' ? 'bg-brand text-white shadow-xl' : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'}`}
+            >
+              <UsersIconMini /> <span className="whitespace-nowrap">Lista de Convidados</span>
+            </button>
+            {eventSettings.isGiftListEnabled === true && (
+              <button
+                id="tour-gifts"
+                onClick={() => setActiveTab('gifts')}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'gifts'
+                    ? 'bg-brand text-white shadow-xl'
+                    : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'
+                  }`}
+              >
+                <HeartIcon /> <span className="whitespace-nowrap">Presentes</span>
+              </button>
+            )}
+            <button
+              onClick={() => setActiveTab('messages')}
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'messages'
+                  ? 'bg-brand text-white shadow-xl'
+                  : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'
+                }`}
+            >
+              <MessageSquareIcon /> <span className="whitespace-nowrap">Mural</span>
+            </button>
+          </div>
+        )}
 
         <button
           onClick={() => setIsTourOpen(true)}
@@ -834,7 +842,7 @@ export default function DashboardPage() {
       {/* Diálogo de Confirmação para WhatsApp sem Telefone */}
       <ConfirmDialog
         isOpen={whatsappConfirmDialog.isOpen}
-        onClose={() => setWhatsappConfirmDialog({ isOpen: false })}
+        onCancel={() => setWhatsappConfirmDialog({ isOpen: false })}
         onConfirm={() => {
           if (whatsappConfirmDialog.guest) {
             handleEditClick(whatsappConfirmDialog.guest)

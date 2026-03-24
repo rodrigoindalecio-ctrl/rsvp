@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function GET(
     req: Request,
@@ -9,7 +9,7 @@ export async function GET(
         const { slug } = params;
 
         // Primeiro tenta pela coluna direta (novo formato)
-        let { data: event } = await supabase
+        let { data: event } = await supabaseAdmin
             .from('events')
             .select('id, gift_list_enabled, tax_payer')
             .eq('slug', slug)
@@ -17,7 +17,7 @@ export async function GET(
 
         // Fallback: busca pelo JSON eventSettings (formato legado controle_acesso)
         if (!event) {
-            const { data: events } = await supabase
+            const { data: events } = await supabaseAdmin
                 .from('events')
                 .select('id, gift_list_enabled, tax_payer, eventSettings')
                 .not('eventSettings', 'is', null);
@@ -46,7 +46,7 @@ export async function GET(
         }
 
         // Busca os presentes ativos (independente de gift_list_enabled para não bloquear o dev)
-        const { data: gifts, error } = await supabase
+        const { data: gifts, error } = await supabaseAdmin
             .from('gifts')
             .select('id, name, description, price, image_url, active, "order"')
             .eq('event_id', event.id)

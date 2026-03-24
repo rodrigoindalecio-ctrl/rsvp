@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { verifyEventOwnership } from '@/lib/verify-ownership'
 
 /**
@@ -14,9 +14,14 @@ export async function POST(
         const eventId = params.id
         const { items } = await req.json() // [{ id, type }]
 
+        console.log('[MURAL DELETE] Request received:', { eventId, itemsCount: items?.length })
+
         // 🔒 Verificar propriedade do evento
         const ownership = await verifyEventOwnership(req, eventId)
-        if (!ownership.authorized) return ownership.response
+        if (!ownership.authorized) {
+            console.error('[MURAL DELETE] Unauthorized access attempt for event:', eventId)
+            return ownership.response
+        }
 
         if (!items || !Array.isArray(items)) {
             return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
@@ -24,27 +29,36 @@ export async function POST(
 
         // Separar por tipo para otimizar queries
         const giftIds = items.filter(i => i.type === 'gift').map(i => i.id)
-        const rsvpIds = items.filter(i => i.type === 'rsvp').map(i => i.id)
+        const rsvpIds = items.filter(i => i.type === 'rsvp' || i.type === 'guest').map(i => i.id)
 
         const tasks = []
 
-        // Para presentes, apenas limpamos a mensagem (mantendo a transação financeira)
+        // Para presentes, "limpamos" a mensagem setando explicitamente para string vazia
+        // Isso garante que filtros como .not('message', 'is', null) ou .neq('message', '') funcionem.
         if (giftIds.length > 0) {
+            console.log('[MURAL DELETE] Erasing messages from gift_transactions:', giftIds)
             tasks.push(
-                supabase
+                supabaseAdmin
                     .from('gift_transactions')
-                    .update({ message: null })
+                    .update({ 
+                        message: '', // Usar string vazia para garantir que saia do filtro
+                        updated_at: new Date().toISOString()
+                    })
                     .in('id', giftIds)
                     .eq('event_id', eventId)
             )
         }
 
-        // Para RSVP, limpamos a mensagem na tabela de convidados
+        // Para RSVP, limpamos a mensagem na tabela de convidados (guests)
         if (rsvpIds.length > 0) {
+            console.log('[MURAL DELETE] Erasing messages from guests:', rsvpIds)
             tasks.push(
-                supabase
+                supabaseAdmin
                     .from('guests')
-                    .update({ message: null })
+                    .update({ 
+                        message: '', // String vazia
+                        updated_at: new Date().toISOString()
+                    })
                     .in('id', rsvpIds)
                     .eq('event_id', eventId)
             )
@@ -54,9 +68,12 @@ export async function POST(
         const hasError = results.some(r => r.error)
 
         if (hasError) {
-            return NextResponse.json({ error: 'Erro parcial ao excluir' }, { status: 500 })
+            const errors = results.filter(r => r.error).map(r => r.error)
+            console.error('[MURAL DELETE] Database errors:', errors)
+            return NextResponse.json({ error: 'Erro parcial ao excluir', details: errors }, { status: 500 })
         }
 
+        console.log('[MURAL DELETE] Success for event:', eventId)
         return NextResponse.json({ ok: true })
     } catch (error: any) {
         console.error('[MURAL DELETE ERROR]', error)

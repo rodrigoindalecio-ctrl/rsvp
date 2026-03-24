@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { mpPreference } from '@/lib/mercadopago';
 
 export async function POST(
@@ -11,7 +11,7 @@ export async function POST(
         const { name, email, message, eventId } = await req.json();
 
         // 1. Fetch gift data
-        const { data: gift, error: giftError } = await supabase
+        const { data: gift, error: giftError } = await supabaseAdmin
             .from('gifts')
             .select('*')
             .eq('id', giftId)
@@ -24,7 +24,7 @@ export async function POST(
 
         // 2. Fetch event data separately to be safe
         const eventToLookup = gift.event_id || eventId;
-        const { data: event, error: eventError } = await supabase
+        const { data: event, error: eventError } = await supabaseAdmin
             .from('events')
             .select('id, slug, tax_payer, event_settings')
             .eq('id', eventToLookup)
@@ -84,7 +84,7 @@ export async function POST(
             status: 'PENDING'
         };
 
-        const { data: transaction, error: txError } = await supabase
+        const { data: transaction, error: txError } = await supabaseAdmin
             .from('gift_transactions')
             .insert(txData)
             .select()
@@ -98,7 +98,7 @@ export async function POST(
                 const retryData = { ...txData, amount_bruto: amountBruto };
                 delete retryData.amount_gross;
 
-                const { data: retryTx, error: retryError } = await supabase
+                const { data: retryTx, error: retryError } = await supabaseAdmin
                     .from('gift_transactions')
                     .insert(retryData)
                     .select()
@@ -168,7 +168,7 @@ export async function POST(
 
                 const preference = await mpPreference.create({ body: preferenceBody });
 
-                await supabase.from('gift_transactions').update({ mp_preference_id: preference.id }).eq('id', tx.id);
+                await supabaseAdmin.from('gift_transactions').update({ mp_preference_id: preference.id }).eq('id', tx.id);
                 return NextResponse.json({ init_point: preference.init_point, transactionId: tx.id });
             } catch (mpError) {
                 console.error('Mercado Pago Error Details:', JSON.stringify(mpError, null, 2));

@@ -19,20 +19,13 @@ const createTransporter = () => {
     })
 }
 
-export async function POST(request: NextRequest) {
+export async function sendOwnerEmail(body: any) {
     try {
-        if (!verifyInternalKey(request)) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
-        const body = await request.json()
-        const { ownerEmail, guestName, eventSettings, confirmedNames, status } = body
+        const { ownerEmail, guestName, eventSettings, confirmedNames, status, reqBaseUrl = 'http://localhost:3000' } = body
 
         if (!ownerEmail) {
-            return NextResponse.json({ error: 'Email do proprietário não informado' }, { status: 400 })
+            return { error: 'Email do proprietário não informado', status: 400 }
         }
-
-        const reqBaseUrl = request.headers.get('origin') || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
 
         const isConfirmed = status === 'confirmed' || confirmedNames.length > 0
 
@@ -88,21 +81,38 @@ export async function POST(request: NextRequest) {
 
         const transporter = createTransporter()
         
-        const senderName = process.env.SMTP_FROM_NAME?.replace(/['"]/g, '') || "Vanessa Bidinotti"
+        const senderName = (process.env.SMTP_FROM_NAME || "Vanessa Bidinotti • RSVP Manager").replace(/['"]/g, '')
+        const fromEmail = process.env.SMTP_FROM_EMAIL
         
-        await transporter.sendMail({
-            from: {
-                name: senderName,
-                address: process.env.SMTP_FROM_EMAIL as string
-            },
+        const info = await transporter.sendMail({
+            from: `"${senderName}" <${fromEmail}>`,
             to: ownerEmail,
             subject: `🔔 Novo RSVP: ${guestName} ${isConfirmed ? 'confirmou' : 'recusou'} presença`,
-            html: emailHTML
+            html: emailHTML,
+            replyTo: fromEmail
         })
 
+        return { success: true, messageId: info.messageId }
+    } catch (error: any) {
+        console.error('Erro ao enviar notificação para o proprietário:', error)
+        return { error: error.message || 'Erro interno', status: 500 }
+    }
+}
+
+export async function POST(request: NextRequest) {
+    try {
+        if (!verifyInternalKey(request)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+        const body = await request.json()
+        body.reqBaseUrl = request.headers.get('origin') || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+        
+        const result = await sendOwnerEmail(body)
+        if (result.error) {
+            return NextResponse.json({ error: result.error }, { status: result.status })
+        }
         return NextResponse.json({ success: true })
     } catch (error) {
-        console.error('Erro ao enviar notificação para o proprietário:', error)
         return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
     }
 }

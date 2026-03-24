@@ -115,7 +115,7 @@ export default function EventContent({ slug }: EventContentProps) {
         { id: 'historia', label: 'Nossa História' },
         ...(eventSettings.galleryImages && eventSettings.galleryImages.length > 0 ? [{ id: 'galeria', label: 'Galeria' }] : []),
         { id: 'local', label: 'Local' },
-        ...(eventSettings.isGiftListEnabled || eventSettings.giftListInternalEnabled ? [{ id: 'presentes-link', label: 'Presentes' }] : []),
+        ...(eventSettings.isGiftListEnabled ? [{ id: 'presentes-link', label: 'Presentes' }] : []),
     ]
 
     if (isLoading) return (
@@ -128,7 +128,7 @@ export default function EventContent({ slug }: EventContentProps) {
             >
                 <div className="absolute inset-0 bg-brand/5 rounded-full blur-3xl animate-pulse" />
                 <div className="relative w-24 h-24 bg-white rounded-[2rem] shadow-xl border border-brand/5 flex items-center justify-center overflow-hidden mb-8 group mx-auto">
-                    <img src="/Logo-03.jpg" alt="Loading" className="w-16 h-16 object-contain" />
+                    <img src="/logo_marsala.png" alt="Loading" className="w-20 h-20 object-contain drop-shadow-md" />
                     <motion.div 
                         className="absolute inset-0 border-2 border-brand/20 rounded-[2rem]"
                         animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.2, 0.5] }}
@@ -136,7 +136,7 @@ export default function EventContent({ slug }: EventContentProps) {
                     />
                 </div>
                 <div className="space-y-3">
-                    <p className="font-serif italic text-text-primary text-xl tracking-tight">Carregando site...</p>
+                    <p className="text-text-primary text-xl tracking-tight font-serif italic mb-6">Carregando site...</p>
                     <div className="flex flex-col items-center gap-2">
                         <p className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">RSVP • Vanessa Bidinotti</p>
                         <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-text-muted/60">Assessoria e Cerimonial</p>
@@ -153,8 +153,8 @@ export default function EventContent({ slug }: EventContentProps) {
                 animate={{ y: 0, opacity: 1 }}
                 className="max-w-xs space-y-8"
             >
-                <div className="w-20 h-20 bg-white rounded-3xl shadow-lg border border-border-soft flex items-center justify-center mx-auto opacity-40 grayscale">
-                    <img src="/Logo-03.jpg" alt="VB" className="w-12 h-12 object-contain" />
+                <div className="w-20 h-20 flex items-center justify-center mx-auto opacity-70">
+                    <img src="/logo_marsala.png" alt="VB" className="w-20 h-20 object-contain" />
                 </div>
                 
                 <div className="space-y-4">
@@ -257,11 +257,10 @@ export default function EventContent({ slug }: EventContentProps) {
                             transition={{ delay: 0.5 }}
                         >
                             <h1 
-                                className="text-4xl sm:text-5xl md:text-6xl text-white tracking-normal leading-tight mx-auto"
+                                className="text-4xl sm:text-5xl md:text-7xl text-white tracking-tight leading-tight mx-auto font-serif italic"
                                 style={{ 
-                                    fontFamily: 'var(--font-great-vibes), cursive',
                                     textShadow: '0 4px 15px rgba(0,0,0,0.6), 0 0 30px rgba(0,0,0,0.3)',
-                                    marginBottom: '-0.1em'
+                                    marginBottom: '0.2em'
                                 }}
                             >
                                 {eventSettings.coupleNames}
@@ -311,7 +310,7 @@ export default function EventContent({ slug }: EventContentProps) {
                     <div className="space-y-4 max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
                         <div className="w-10 h-px bg-brand/30 mx-auto" />
                         <p className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">Bem-vindos</p>
-                        <p className="text-sm text-text-secondary font-serif italic leading-relaxed">
+                        <p className={`text-text-secondary leading-relaxed font-serif italic text-lg`}>
                             {eventSettings.customMessage && eventSettings.customMessage !== 'Ficamos muito felizes em receber a sua confirmação de presença.'
                                 ? eventSettings.customMessage
                                 : 'Ficamos muito felizes em compartilhar este momento tão especial com você. Sejam bem-vindos ao nosso site!'}
@@ -359,10 +358,10 @@ export default function EventContent({ slug }: EventContentProps) {
 
                         <div className="flex flex-col sm:flex-row justify-center gap-4">
                             <Link href={`/${slug}/confirmar`}
-                                className="px-10 py-4.5 bg-brand text-white rounded-full font-black uppercase tracking-widest text-[11px] shadow-xl shadow-brand/20 hover:-translate-y-1 active:scale-95 transition-all text-center">
+                                className="px-7 py-3 bg-brand text-white rounded-full font-black uppercase tracking-widest text-[10px] shadow-xl shadow-brand/20 hover:-translate-y-1 active:scale-95 transition-all text-center">
                                 Confirmar Presença
                             </Link>
-                            {(eventSettings.isGiftListEnabled || eventSettings.giftListInternalEnabled) && (
+                            {eventSettings.isGiftListEnabled && (
                                 <Link href={`/${slug}/presentes`}
                                     className="px-10 py-4.5 bg-white border border-border-soft text-text-primary rounded-full font-black uppercase tracking-widest text-[11px] hover:bg-bg-light hover:-translate-y-1 shadow-sm transition-all text-center">
                                     Lista de Presentes
@@ -381,7 +380,7 @@ export default function EventContent({ slug }: EventContentProps) {
                     <span className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">Nossa História</span>
                     <h2 className="text-4xl font-serif text-text-primary mt-3 mb-6">{eventSettings.coupleStoryTitle || 'Como Tudo Começou'}</h2>
                     <div className="w-16 h-px bg-brand/20 mx-auto mb-10" />
-                    <p className={`text-text-secondary leading-relaxed ${eventSettings.brandFont === 'great-vibes' ? 'font-sans font-medium' : 'font-serif italic'} text-lg mb-16 whitespace-pre-line`}>
+                    <p className={`text-text-secondary max-w-md mx-auto font-serif italic text-sm tracking-wide leading-relaxed`}>
                         {eventSettings.coupleStory ||
                             'O destino nos colocou no mesmo caminho e, desde então, cada dia ao lado um do outro é uma nova página da história mais bonita que já vivemos. Com alegria e gratidão, convidamos você para celebrar conosco este momento tão especial — a união de duas almas que escolheram caminhar juntas para sempre.'}
                     </p>
@@ -396,7 +395,7 @@ export default function EventContent({ slug }: EventContentProps) {
                             <div key={i} className="flex items-start gap-5 group">
                                 <div className="w-14 h-14 bg-brand-pale border border-brand/10 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform overflow-hidden">
                                     {item.image ? (
-                                        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                                        <img src={item.image} alt={item.title} className="w-full h-full object-contain" />
                                     ) : item.emoji}
                                 </div>
                                 <div className="pt-2 border-b border-border-soft pb-6 flex-1">
@@ -620,7 +619,7 @@ export default function EventContent({ slug }: EventContentProps) {
                         <h2 className="text-4xl font-serif text-text-primary mt-3">Como posso participar?</h2>
                         <div className="w-16 h-px bg-brand/20 mx-auto mt-6" />
                     </div>
-                    <div className={`grid grid-cols-1 ${eventSettings.isGiftListEnabled || eventSettings.giftListInternalEnabled ? 'md:grid-cols-2' : 'max-w-md mx-auto'} gap-6`}>
+                    <div className={`grid grid-cols-1 ${eventSettings.isGiftListEnabled ? 'md:grid-cols-2' : 'max-w-md mx-auto'} gap-6`}>
 
                         {/* RSVP Card */}
                         <Link href={`/${slug}/confirmar`}
@@ -647,7 +646,7 @@ export default function EventContent({ slug }: EventContentProps) {
                         </Link>
 
                         {/* Presentes Card */}
-                        {(eventSettings.isGiftListEnabled || eventSettings.giftListInternalEnabled) && (
+                        {eventSettings.isGiftListEnabled && (
                             <Link href={`/${slug}/presentes`}
                                 className="group block bg-surface border border-border-soft rounded-[2.5rem] p-10 overflow-hidden relative shadow-sm hover:shadow-xl hover:-translate-y-2 hover:border-brand/30 transition-all duration-300">
                                 <div className="absolute top-0 right-0 p-8 text-brand/10 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500">
@@ -675,8 +674,8 @@ export default function EventContent({ slug }: EventContentProps) {
             {/* ── FOOTER ─────────────────────────────────────────────── */}
             <footer className="py-16 bg-brand-dark text-center">
                 <div className="flex flex-col items-center gap-4 opacity-50 hover:opacity-100 transition-all duration-700">
-                    <div className="w-10 h-10 rounded-xl overflow-hidden grayscale brightness-200 border border-white/10">
-                        <img src="/Logo-03.jpg" alt="VB Assessoria" className="w-full h-full object-cover" />
+                    <div className="w-16 h-16 flex justify-center items-center drop-shadow-md">
+                        <img src="/logo_branco.png" alt="VB Assessoria" className="w-full h-full object-cover" />
                     </div>
                     <p className="text-[9px] font-black uppercase tracking-[0.4em] text-white">RSVP • Vanessa Bidinotti</p>
                     <p className="text-[7px] font-bold uppercase tracking-[0.2em] text-white/40">Assessoria e Cerimonial</p>

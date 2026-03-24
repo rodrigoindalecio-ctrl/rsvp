@@ -15,10 +15,10 @@ const libraries: ("places")[] = ["places"]
 
 export default function SettingsPage() {
     const { user, loading: authLoading, logout } = useAuth()
-    const { eventSettings, updateEventSettings } = useEvent()
+    const { eventSettings, updateEventSettings, loading: eventLoading } = useEvent()
     const router = useRouter()
     
-    if (authLoading || !eventSettings) {
+    if (authLoading || eventLoading || !eventSettings) {
         return <div className="min-h-screen bg-bg-light flex items-center justify-center"><div className="w-12 h-12 border-4 border-brand/20 border-t-brand rounded-full animate-spin" /></div>
     }
 
@@ -481,18 +481,6 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
         }
     }, [user, authLoading, router])
 
-    if (authLoading) {
-        return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
-                <div className="w-12 h-12 border-4 border-brand/20 border-t-brand rounded-full animate-spin" />
-            </div>
-        )
-    }
-
-    if (!user) {
-        return null
-    }
-
     const handleAddGiftLink = () => {
         setGiftListLinks([...giftListLinks, { name: '', url: '' }])
     }
@@ -537,10 +525,10 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
     }
 
     // Timeline Handlers
-    const handleAddTimelineEvent = () => setTimelineEvents(prev => [...prev, { emoji: '✨', title: '', description: '', image: '' }])
-    const handleRemoveTimelineEvent = (index: number) => setTimelineEvents(prev => prev.filter((_: any, i: number) => i !== index))
+    const handleAddTimelineEvent = () => setTimelineEvents((prev: any[]) => [...prev, { emoji: '✨', title: '', description: '', image: '' }])
+    const handleRemoveTimelineEvent = (index: number) => setTimelineEvents((prev: any[]) => prev.filter((_: any, i: number) => i !== index))
     const handleUpdateTimelineEvent = (index: number, field: string, value: string) => {
-        setTimelineEvents(prev => {
+        setTimelineEvents((prev: any[]) => {
             const updated = [...prev]
             updated[index] = { ...updated[index], [field]: value }
             return updated
@@ -808,7 +796,19 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                             </div>
                             <button
                                 type="button"
-                                onClick={() => setNotifyOwnerOnRSVP(!notifyOwnerOnRSVP)}
+                                onClick={async () => {
+                                    const newValue = !notifyOwnerOnRSVP;
+                                    setNotifyOwnerOnRSVP(newValue);
+                                    
+                                    // Auto-save instantâneo
+                                    try {
+                                        await updateEventSettings({ notifyOwnerOnRSVP: newValue });
+                                        toast.success('Aviso por e-mail ' + (newValue ? 'ativado' : 'desativado') + '!');
+                                    } catch (err) {
+                                        toast.error('Erro ao salvar alteração');
+                                        setNotifyOwnerOnRSVP(!newValue); // rollback
+                                    }
+                                }}
                                 className={`w-14 h-8 rounded-full relative transition-all duration-300 ${notifyOwnerOnRSVP ? 'bg-brand' : 'bg-border-soft'}`}
                             >
                                 <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${notifyOwnerOnRSVP ? 'left-7' : 'left-1'}`} />
@@ -854,13 +854,12 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                         {/* Fonte Principal */}
                         <div className={activeTab === 'visual' ? 'space-y-4 animate-in fade-in duration-300' : 'hidden'}>
                             <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Estilo de Fonte Principal</label>
-                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 {[
                                     { id: 'lora', label: 'Clássica', sample: 'Aa', fontStyle: 'var(--font-lora)' },
                                     { id: 'playfair', label: 'Elegante', sample: 'Aa', fontStyle: 'var(--font-playfair)' },
                                     { id: 'inter', label: 'Moderna', sample: 'Aa', fontStyle: 'var(--font-inter)' },
                                     { id: 'outfit', label: 'Descontraída', sample: 'Aa', fontStyle: 'var(--font-outfit)' },
-                                    { id: 'great-vibes', label: 'Caligrafia', sample: 'Aa', fontStyle: 'var(--font-great-vibes)' },
                                 ].map((font) => (
                                     <button
                                         key={font.id}
@@ -988,7 +987,17 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                             type="checkbox"
                                             className="sr-only peer"
                                             checked={hasSeparateCeremony}
-                                            onChange={(e) => setHasSeparateCeremony(e.target.checked)}
+                                            onChange={async (e) => {
+                                                const newValue = e.target.checked;
+                                                setHasSeparateCeremony(newValue);
+                                                try {
+                                                    await updateEventSettings({ hasSeparateCeremony: newValue });
+                                                    toast.success(newValue ? 'Locais separados ativado!' : 'Local único ativado!');
+                                                } catch (err) {
+                                                    toast.error('Erro ao salvar alteração');
+                                                    setHasSeparateCeremony(!newValue);
+                                                }
+                                            }}
                                         />
                                         <div className="w-11 h-6 bg-border-soft peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand"></div>
                                     </label>
@@ -1123,7 +1132,18 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                             type="checkbox"
                                             className="sr-only peer"
                                             checked={parkingSettings.hasParking}
-                                            onChange={(e) => setParkingSettings({ ...parkingSettings, hasParking: e.target.checked })}
+                                            onChange={async (e) => {
+                                                const newValue = e.target.checked;
+                                                const newSettings = { ...parkingSettings, hasParking: newValue };
+                                                setParkingSettings(newSettings);
+                                                try {
+                                                    await updateEventSettings({ parkingSettings: newSettings });
+                                                    toast.success(newValue ? 'Estacionamento ativado!' : 'Estacionamento desativado!');
+                                                } catch (err) {
+                                                    toast.error('Erro ao salvar alteração');
+                                                    setParkingSettings({ ...parkingSettings, hasParking: !newValue });
+                                                }
+                                            }}
                                         />
                                         <div className="w-11 h-6 bg-border-soft peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand"></div>
                                     </label>
@@ -1203,12 +1223,22 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                     <div className="w-10 h-10 bg-bg-light border border-border-soft rounded-xl flex items-center justify-center text-text-muted">
                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16M7 12v8h10v-8" /></svg>
                                     </div>
-                                    <h3 className="text-lg font-black text-text-primary tracking-tight">Listas de Presentes Externas</h3>
+                                    <h3 className="text-lg font-black text-text-primary tracking-tight">Lista de Lojas Externas (Links)</h3>
                                 </div>
                                 <div className="flex items-center gap-4">
                                     <button
                                         type="button"
-                                        onClick={() => setIsGiftListEnabled(!isGiftListEnabled)}
+                                        onClick={async () => {
+                                            const newValue = !isGiftListEnabled;
+                                            setIsGiftListEnabled(newValue);
+                                            try {
+                                                await updateEventSettings({ isGiftListEnabled: newValue });
+                                                toast.success('Módulo de presentes ' + (newValue ? 'ativado' : 'desativado') + '!');
+                                            } catch (err) {
+                                                toast.error('Erro ao salvar alteração');
+                                                setIsGiftListEnabled(!newValue);
+                                            }
+                                        }}
                                         className={`w-14 h-8 rounded-full relative transition-all duration-300 ${isGiftListEnabled ? 'bg-brand' : 'bg-border-soft'}`}
                                     >
                                         <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${isGiftListEnabled ? 'left-7' : 'left-1'}`} />
@@ -1225,12 +1255,12 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
 
                             <div className={`p-4 rounded-2xl border mb-6 transition-all ${isGiftListEnabled ? 'bg-brand-pale/20 border-brand-pale/50' : 'bg-bg-light border-border-soft opacity-60'}`}>
                                 <p className="text-[10px] font-black uppercase tracking-widest text-text-primary mb-1">
-                                    {isGiftListEnabled ? '✨ Módulo Ativo' : '⚪ Módulo Desativado'}
+                                    {isGiftListEnabled ? '✨ Lojas Externas Ativas' : '⚪ Lojas Externas Ocultas'}
                                 </p>
                                 <p className="text-[10px] font-bold text-text-muted leading-relaxed">
                                     {isGiftListEnabled
-                                        ? 'A lista de presentes está visível no seu site para todos os convidados.'
-                                        : 'A lista de presentes está oculta do site. Útil para testes ou se vocês não quiserem exibir agora.'}
+                                        ? 'Os links para suas lojas externas (Amazon, Magalu, etc) estão visíveis no site.'
+                                        : 'Os links externos estão ocultos. O módulo de presentes interno (Pix) é controlado pela administração.'}
                                 </p>
                             </div>
 
@@ -1575,41 +1605,8 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                     />
                                     <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mt-3 ml-1">Dica: Use parágrafos curtos para melhor leitura no celular.</p>
                                 </div>
-                            </div>
+                            </div>                            
 
-                            <div className="pt-10 border-t border-border-soft space-y-6">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-bg-light border border-border-soft rounded-xl flex items-center justify-center text-text-muted">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
-                                    </div>
-                                    <h3 className="text-lg font-black text-text-primary tracking-tight">E-mail de Confirmação</h3>
-                                </div>
-                                
-                                <div className="space-y-6">
-                                    <div>
-                                        <label htmlFor="emailConfirmationTitle" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Título do Cabeçalho do E-mail</label>
-                                        <input
-                                            type="text"
-                                            id="emailConfirmationTitle"
-                                            value={emailConfirmationTitle}
-                                            onChange={(e) => setEmailConfirmationTitle(e.target.value)}
-                                            placeholder="Ex: Confirmação de Presença"
-                                            className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label htmlFor="emailConfirmationGreeting" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Mensagem de Boas-vindas (E-mail)</label>
-                                        <textarea
-                                            id="emailConfirmationGreeting"
-                                            value={emailConfirmationGreeting}
-                                            onChange={(e) => setEmailConfirmationGreeting(e.target.value)}
-                                            rows={4}
-                                            placeholder="Escreva a mensagem que o convidado verá no início do e-mail..."
-                                            className="w-full px-5 py-4 bg-bg-light border border-border-soft rounded-[2rem] text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary resize-none placeholder:text-text-muted"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
 
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between">

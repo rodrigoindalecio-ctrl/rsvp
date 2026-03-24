@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { formatDate } from '@/lib/date-utils'
 import { motion } from 'framer-motion'
 import { useAuth } from '@/lib/auth-context'
+import { toast } from 'sonner'
 
 interface Props { slug: string }
 
@@ -27,11 +28,18 @@ export default function RSVPContent({ slug }: Props) {
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault()
-        if (searchTerm.length < 3) return
-        setSearchResults(guests.filter(g =>
-            g.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            g.grupo?.toLowerCase().includes(searchTerm.toLowerCase())
-        ))
+        const term = searchTerm.toLowerCase().trim()
+        if (term.length < 3) return
+        
+        setSearchResults(guests.filter(g => {
+            const mainNameMatch = g.name.toLowerCase().includes(term)
+            const groupMatch = g.grupo?.toLowerCase().includes(term)
+            const companionMatch = g.companionsList?.some(comp => 
+                comp.name.toLowerCase().includes(term)
+            )
+            
+            return mainNameMatch || groupMatch || companionMatch
+        }))
         setStep('results')
     }
 
@@ -86,7 +94,7 @@ export default function RSVPContent({ slug }: Props) {
             await refreshData()
             
             setStep('success')
-        } catch { alert('Erro ao confirmar. Tente novamente.') }
+        } catch { toast.error('Erro ao confirmar', { description: 'Verifique sua conexão e tente novamente.' }) }
         finally { setIsSubmitting(false) }
     }
 
@@ -100,7 +108,7 @@ export default function RSVPContent({ slug }: Props) {
             >
                 <div className="absolute inset-0 bg-brand/5 rounded-full blur-3xl animate-pulse" />
                 <div className="relative w-24 h-24 bg-white rounded-[2rem] shadow-xl border border-brand/5 flex items-center justify-center overflow-hidden mb-8 group mx-auto">
-                    <img src="/Logo-03.jpg" alt="Loading" className="w-16 h-16 object-contain" />
+                    <img src="/logo_marsala.png" alt="Loading" className="w-20 h-20 object-contain drop-shadow-md" />
                     <motion.div 
                         className="absolute inset-0 border-2 border-brand/20 rounded-[2rem]"
                         animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.2, 0.5] }}
@@ -125,8 +133,8 @@ export default function RSVPContent({ slug }: Props) {
                 animate={{ y: 0, opacity: 1 }}
                 className="max-w-xs space-y-8"
             >
-                <div className="w-20 h-20 bg-white rounded-3xl shadow-lg border border-border-soft flex items-center justify-center mx-auto opacity-40 grayscale">
-                    <img src="/Logo-03.jpg" alt="VB" className="w-12 h-12 object-contain" />
+                <div className="w-20 h-20 flex items-center justify-center mx-auto opacity-70">
+                    <img src="/logo_marsala.png" alt="VB" className="w-20 h-20 object-contain" />
                 </div>
                 
                 <div className="space-y-4">
@@ -223,7 +231,7 @@ export default function RSVPContent({ slug }: Props) {
                     {/* IDLE */}
                     {step === 'idle' && (
                         <div className="bg-surface rounded-[2.5rem] border border-border-soft p-8 shadow-sm text-center">
-                            <p className="text-text-secondary text-sm font-serif italic mb-8 leading-relaxed">
+                            <p className={`text-text-secondary ${eventSettings.brandFont === 'great-vibes' ? 'font-sans font-medium text-base' : 'font-serif italic text-sm'} mb-8 leading-relaxed`}>
                                 {eventSettings.customMessage && eventSettings.customMessage !== 'Ficamos muito felizes em receber a sua confirmação de presença.'
                                     ? eventSettings.customMessage
                                     : 'Por favor, confirme sua presença para que possamos organizar tudo com muito carinho.'}
@@ -331,7 +339,8 @@ export default function RSVPContent({ slug }: Props) {
                                     onChange={e => setMessage(e.target.value)} 
                                     placeholder="Escreva aqui sua mensagem de carinho..."
                                     rows={3}
-                                    className="w-full px-6 py-4 bg-surface border border-border-soft rounded-2xl text-sm font-serif italic focus:ring-4 focus:ring-brand/10 focus:border-brand transition-all outline-none shadow-sm placeholder:text-text-muted/50 text-text-primary resize-none" 
+                                    className="w-full px-6 py-4 bg-surface border border-border-soft rounded-2xl text-sm focus:ring-4 focus:ring-brand/10 focus:border-brand transition-all outline-none shadow-sm placeholder:text-text-muted/50 text-text-primary resize-none"
+                                    style={{ fontFamily: 'Manrope, ui-sans-serif, system-ui, -apple-system, sans-serif', fontStyle: 'normal' }}
                                 />
                                 <p className="text-[10px] text-text-muted font-medium mt-2 ml-1">Sua mensagem aparecerá no mural dos noivos!</p>
                             </div>

@@ -73,7 +73,7 @@ function SetupPasswordContent() {
           <div className="flex flex-col items-center gap-4 mb-8">
             <div className="relative w-24 h-24 mb-2 overflow-hidden rounded-2xl border border-brand/5 shadow-sm bg-white p-2">
               <Image
-                src="/Logo-03.jpg"
+                src="/logo_marsala.png"
                 alt="Logo Vanessa Bidinotti"
                 fill
                 className="object-contain p-1"

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { verifyEventOwnership } from '@/lib/verify-ownership';
 
 export async function GET(
@@ -21,31 +21,32 @@ export async function GET(
             { data: withdrawals },
             { data: rsvpMessages }
         ] = await Promise.all([
-            supabase
+            supabaseAdmin
                 .from('events')
                 .select('id, slug, gift_list_enabled, tax_payer, bank_pix_key, bank_type, bank_beneficiary, event_settings')
                 .eq('id', eventId)
                 .single(),
-            supabase
+            supabaseAdmin
                 .from('gifts')
                 .select('*')
                 .eq('event_id', eventId)
                 .order('order', { ascending: true }),
-            supabase
+            supabaseAdmin
                 .from('gift_transactions')
                 .select('*')
                 .eq('event_id', eventId)
                 .eq('status', 'APPROVED')
                 .order('created_at', { ascending: false }),
-            supabase
+            supabaseAdmin
                 .from('withdrawals')
                 .select('*')
                 .eq('event_id', eventId),
-            supabase
+            supabaseAdmin
                 .from('guests')
                 .select('id, name, message, confirmed_at')
                 .eq('event_id', eventId)
                 .not('message', 'is', null)
+                .neq('message', '')
                 .order('confirmed_at', { ascending: false })
         ]);
 
@@ -69,7 +70,10 @@ export async function GET(
         stats.availableNet -= totalWithdrawn;
 
         // Combinar transações de presentes com recados do RSVP
-        const giftMessages = (transactions || []).map(t => ({
+        // Só inclui presentes que possuam mensagem real (não excluídas do mural)
+        const giftMessages = (transactions || [])
+            .filter((t: any) => t.message !== null && t.message !== undefined && t.message !== '')
+            .map((t: any) => ({
             id: t.id,
             guestName: t.guest_name,
             message: t.message,

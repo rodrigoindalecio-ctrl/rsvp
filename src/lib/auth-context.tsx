@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from './supabase'
+import { toast } from 'sonner'
 
 type User = {
   name: string
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json()
 
       if (!res.ok) {
-        alert(data.error || 'Acesso negado.')
+        toast.error(data.error || 'Acesso negado.', { description: 'Verifique o e-mail e a senha e tente novamente.' })
         return
       }
 
@@ -76,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (err) {
       console.error('Erro no login:', err)
-      alert('Erro de conexão. Tente novamente.')
+      toast.error('Erro de conexão', { description: 'Verifique sua internet e tente novamente.' })
     }
   }
 
@@ -92,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json()
 
       if (!res.ok) {
-        alert(data.error || 'Erro ao criar conta.')
+        toast.error(data.error || 'Erro ao criar conta.')
         return
       }
 
@@ -106,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       router.push('/dashboard')
     } catch (err) {
       console.error('Erro ao registrar:', err)
-      alert('Erro de conexão.')
+      toast.error('Erro de conexão', { description: 'Verifique sua internet e tente novamente.' })
     } finally {
       setLoading(false)
     }

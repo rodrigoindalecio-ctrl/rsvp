@@ -6,6 +6,7 @@ import { useEvent, Companion } from '@/lib/event-context'
 import { useRouter, useParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { SharedLayout } from '@/app/components/shared-layout'
+import { toast } from 'sonner'
 
 function AdminNovoConvidadoContent() {
     const { events } = useAdmin()
@@ -45,7 +46,7 @@ function AdminNovoConvidadoContent() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!formData.name) {
-            alert('O nome do convidado é obrigatório')
+            toast.warning('Nome obrigatório', { description: 'O nome do convidado é obrigatório.' })
             return
         }
 
@@ -62,12 +63,12 @@ function AdminNovoConvidadoContent() {
             })
 
             setLoading(false)
-            alert('Convidado adicionado com sucesso!')
+            toast.success('Convidado adicionado com sucesso!')
             router.push(`/admin/evento/${eventId}`)
         } catch (error) {
             console.error(error)
             setLoading(false)
-            alert('Erro ao adicionar convidado')
+            toast.error('Erro ao adicionar convidado', { description: 'Verifique os dados e tente novamente.' })
         }
     }
 

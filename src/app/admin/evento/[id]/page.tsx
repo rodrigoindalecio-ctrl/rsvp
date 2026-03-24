@@ -231,17 +231,21 @@ function AdminEventoPageContent() {
                   onClick={async () => {
                     const newValue = !(event.eventSettings.isGiftListEnabled ?? true);
                     await updateEvent(eventId, {
-                      eventSettings: { ...event.eventSettings, isGiftListEnabled: newValue }
+                      eventSettings: { 
+                        ...event.eventSettings, 
+                        isGiftListEnabled: newValue,
+                        giftListInternalEnabled: newValue 
+                      }
                     });
                   }}
-                  className={`w-10 h-5 rounded-full relative transition-all duration-300 ${event.eventSettings.isGiftListEnabled !== false ? 'bg-brand' : 'bg-border-soft'}`}
+                  className={`w-10 h-5 rounded-full relative transition-all duration-300 ${(event.eventSettings.isGiftListEnabled ?? true) ? 'bg-brand' : 'bg-border-soft'}`}
                 >
-                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300 ${event.eventSettings.isGiftListEnabled !== false ? 'left-5.5' : 'left-0.5'}`} />
+                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300 ${(event.eventSettings.isGiftListEnabled ?? true) ? 'left-5.5' : 'left-0.5'}`} />
                 </button>
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-text-primary leading-none mb-1">Lista Presentes</span>
-                  <span className={`text-[8px] font-bold uppercase ${event.eventSettings.isGiftListEnabled !== false ? 'text-success' : 'text-text-muted'}`}>
-                    {event.eventSettings.isGiftListEnabled !== false ? 'Habilitada' : 'Desativada'}
+                  <span className="text-[10px] font-black uppercase tracking-widest text-text-primary leading-none mb-1">Lista App (Pix)</span>
+                  <span className={`text-[8px] font-bold uppercase ${(event.eventSettings.isGiftListEnabled ?? true) ? 'text-success' : 'text-text-muted'}`}>
+                    {(event.eventSettings.isGiftListEnabled ?? true) ? 'Habilitada' : 'Desativada'}
                   </span>
                 </div>
               </div>

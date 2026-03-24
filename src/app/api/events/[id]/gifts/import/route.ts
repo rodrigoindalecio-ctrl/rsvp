@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { GIFT_TEMPLATES } from '@/lib/gift-templates';
 
 export async function POST(
@@ -30,7 +30,7 @@ export async function POST(
             order: index
         }));
 
-        const { error } = await supabase.from('gifts').insert(inserts);
+        const { error } = await supabaseAdmin.from('gifts').insert(inserts);
 
         if (error) {
             console.error('[GIFT IMPORT] Supabase error:', JSON.stringify(error));
