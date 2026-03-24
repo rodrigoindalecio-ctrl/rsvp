@@ -386,7 +386,7 @@ export default function EventContent({ slug }: EventContentProps) {
                     </p>
 
                     {/* Timeline */}
-                    <div className="flex flex-col gap-6 text-left">
+                    <div className="flex flex-col gap-6 text-left mt-16 md:mt-24">
                         {(eventSettings.timelineEvents || [
                             { emoji: '💫', title: 'O primeiro encontro', description: 'O começo de tudo', image: '' },
                             { emoji: '💌', title: 'Nossa memória favorita', description: 'A decisão mais fácil das nossas vidas', image: '' },
