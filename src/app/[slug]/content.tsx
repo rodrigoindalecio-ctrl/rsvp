@@ -579,24 +579,24 @@ export default function EventContent({ slug }: EventContentProps) {
                                     
                                     <div className="max-w-md mx-auto">
                                         {/* Título do Estacionamento (Nome do Local ou Sugestão) */}
-                                        <h4 className="text-text-primary font-serif italic text-xl mb-1">
+                                        <h4 className="text-text-primary font-serif italic text-xl mb-4">
                                             {eventSettings.parkingSettings.type === 'free' ? 'Gratuito no local para convidados' :
                                                 eventSettings.parkingSettings.type === 'valet' ? 'Valet / Estacionamento no Local' :
                                                     'Estacionamentos Próximos (Sugestão)'}
                                         </h4>
 
-                                        {eventSettings.parkingSettings.price && (
-                                            <p className="font-bold text-brand text-[10px] uppercase tracking-widest mb-3">
-                                                Valor: {eventSettings.parkingSettings.price}
-                                            </p>
-                                        )}
-
                                         {eventSettings.parkingSettings.address && (
-                                            <div className="mb-6">
+                                            <div className="mb-2">
                                                 <p className="text-text-primary text-sm font-bold leading-relaxed px-4 whitespace-pre-line">
                                                     {eventSettings.parkingSettings.address}
                                                 </p>
                                             </div>
+                                        )}
+
+                                        {eventSettings.parkingSettings.price && (
+                                            <p className="font-bold text-brand text-[10px] uppercase tracking-widest mb-6">
+                                                Valor: {eventSettings.parkingSettings.price}
+                                            </p>
                                         )}
                                         
                                         {(eventSettings.parkingSettings.wazeLocation || eventSettings.parkingSettings.address) && (
