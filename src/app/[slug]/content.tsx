@@ -485,9 +485,12 @@ export default function EventContent({ slug }: EventContentProps) {
                                         <div className="flex-1 text-center md:text-left">
                                             <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
                                                 <span className="text-[9px] font-black uppercase tracking-widest text-brand">A Cerimônia</span>
-                                                {eventSettings.eventTime && <span className="text-[10px] font-bold text-text-muted opacity-60">• {eventSettings.eventTime}h</span>}
+                                                {eventSettings.ceremonyTime && <span className="text-[10px] font-bold text-text-muted opacity-60">• {eventSettings.ceremonyTime}h</span>}
                                             </div>
-                                            <p className="text-text-primary font-bold leading-relaxed">{eventSettings.ceremonyLocation || 'Endereço da Cerimônia'}</p>
+                                            <p className="text-text-primary font-bold leading-relaxed">{eventSettings.ceremonyLocation || 'A confirmar'}</p>
+                                            {eventSettings.ceremonyAddress && (
+                                                <p className="text-[11px] text-text-muted mt-1 leading-relaxed font-medium">{eventSettings.ceremonyAddress}</p>
+                                            )}
                                         </div>
                                         {ceremonyMapsUrl && (
                                             <a href={ceremonyMapsUrl} target="_blank" rel="noopener noreferrer"
@@ -500,7 +503,7 @@ export default function EventContent({ slug }: EventContentProps) {
                                 {eventSettings.ceremonyLocation && (
                                     <div className="aspect-video bg-bg-light overflow-hidden border-y border-border-soft/30">
                                         <iframe
-                                            src={`https://maps.google.com/maps?q=${encodeURIComponent(eventSettings.ceremonyLocation)}&output=embed&z=16`}
+                                            src={`https://maps.google.com/maps?q=${encodeURIComponent(`${eventSettings.ceremonyLocation} ${eventSettings.ceremonyAddress || ''}`)}&output=embed&z=16`}
                                             className="w-full h-full border-0" loading="lazy"
                                         />
                                     </div>
@@ -518,9 +521,12 @@ export default function EventContent({ slug }: EventContentProps) {
                                         <div className="flex-1 text-center md:text-left">
                                             <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
                                                 <span className="text-[9px] font-black uppercase tracking-widest text-brand">{eventSettings.hasSeparateCeremony ? 'A Recepção' : 'Endereço'}</span>
-                                                {(!eventSettings.hasSeparateCeremony && eventSettings.eventTime) && <span className="text-[10px] font-bold text-text-muted opacity-60">• {eventSettings.eventTime}h</span>}
+                                                {eventSettings.eventTime && <span className="text-[10px] font-bold text-text-muted opacity-60">• {eventSettings.eventTime}h</span>}
                                             </div>
                                             <p className="text-text-primary font-bold leading-relaxed">{eventSettings.eventLocation || 'A confirmar'}</p>
+                                            {eventSettings.eventAddress && (
+                                                <p className="text-[11px] text-text-muted mt-1 leading-relaxed font-medium">{eventSettings.eventAddress}</p>
+                                            )}
                                         </div>
                                         {mapsUrl && (
                                             <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
@@ -533,7 +539,7 @@ export default function EventContent({ slug }: EventContentProps) {
                                 {eventSettings.eventLocation && (
                                     <div className="aspect-video bg-bg-light overflow-hidden border-t border-border-soft/30">
                                         <iframe
-                                            src={`https://maps.google.com/maps?q=${encodeURIComponent(eventSettings.eventLocation)}&output=embed&z=16`}
+                                            src={`https://maps.google.com/maps?q=${encodeURIComponent(`${eventSettings.eventLocation} ${eventSettings.eventAddress || ''}`)}&output=embed&z=16`}
                                             className="w-full h-full border-0" loading="lazy"
                                         />
                                     </div>
@@ -544,7 +550,7 @@ export default function EventContent({ slug }: EventContentProps) {
                                 {eventSettings.eventLocation && (
                                     <div className="aspect-video bg-bg-light overflow-hidden">
                                         <iframe
-                                            src={`https://maps.google.com/maps?q=${encodeURIComponent(eventSettings.eventLocation)}&output=embed&z=16`}
+                                            src={`https://maps.google.com/maps?q=${encodeURIComponent(`${eventSettings.eventLocation} ${eventSettings.eventAddress || ''}`)}&output=embed&z=16`}
                                             className="w-full h-full border-0" loading="lazy"
                                         />
                                     </div>
@@ -556,7 +562,10 @@ export default function EventContent({ slug }: EventContentProps) {
                                     <div className="flex-1 text-center md:text-left">
                                         <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-2">Endereço</p>
                                         <p className="text-text-primary font-bold leading-relaxed">{eventSettings.eventLocation || 'A confirmar'}</p>
-                                        {eventSettings.eventTime && <p className="text-text-muted text-sm mt-2 font-bold">🕐 {eventSettings.eventTime}h</p>}
+                                        {eventSettings.eventAddress && (
+                                            <p className="text-[11px] text-text-muted mt-1 leading-relaxed font-medium">{eventSettings.eventAddress}</p>
+                                        )}
+                                        {eventSettings.eventTime && <p className="text-text-muted text-[10px] mt-2 font-black uppercase tracking-widest leading-none">🕐 {eventSettings.eventTime}h</p>}
                                     </div>
                                     {mapsUrl && (
                                         <a href={mapsUrl} target="_blank" rel="noopener noreferrer"

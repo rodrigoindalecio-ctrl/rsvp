@@ -1045,31 +1045,43 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                     </div>
 
                                     <div>
-                                        <label htmlFor="ceremonyLocation" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Local da Cerimônia</label>
-                                        {isLoaded ? (
-                                            <Autocomplete
-                                                onLoad={(autocomplete) => (ceremonyAutocompleteRef.current = autocomplete)}
-                                                onPlaceChanged={onCeremonyPlaceChanged}
-                                            >
+                                        <div className="relative group/auto">
+                                            {isLoaded ? (
+                                                <Autocomplete
+                                                    key="ceremony-auto"
+                                                    onLoad={(autocomplete) => (ceremonyAutocompleteRef.current = autocomplete)}
+                                                    onPlaceChanged={onCeremonyPlaceChanged}
+                                                >
+                                                    <input
+                                                        type="text"
+                                                        id="ceremonyLocation"
+                                                        value={ceremonyLocation}
+                                                        onChange={(e) => {
+                                                            setCeremonyLocation(e.target.value);
+                                                            if (!e.target.value) setCeremonyAddress('');
+                                                        }}
+                                                        placeholder="Ex: Igreja Matriz, Capela São Pedro..."
+                                                        className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted pr-12"
+                                                    />
+                                                </Autocomplete>
+                                            ) : (
                                                 <input
                                                     type="text"
-                                                    id="ceremonyLocation"
-                                                    value={ceremonyLocation}
-                                                    onChange={(e) => setCeremonyLocation(e.target.value)}
-                                                    placeholder="Ex: Igreja Matriz, Capela São Pedro..."
-                                                    className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
+                                                    disabled
+                                                    placeholder="Carregando busca do Google..."
+                                                    className="w-full px-5 py-3.5 bg-bg-light border border-border-soft border-dashed rounded-2xl text-sm font-bold text-text-muted animate-pulse"
                                                 />
-                                            </Autocomplete>
-                                        ) : (
-                                            <input
-                                                type="text"
-                                                id="ceremonyLocation"
-                                                value={ceremonyLocation}
-                                                onChange={(e) => setCeremonyLocation(e.target.value)}
-                                                placeholder="Ex: Igreja Matriz, Capela São Pedro..."
-                                                className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
-                                            />
-                                        )}
+                                            )}
+                                            {ceremonyLocation && (
+                                                <button 
+                                                    onClick={() => setCeremonyLocation('')}
+                                                    className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-text-muted/30 hover:text-danger bg-white rounded-lg transition-all"
+                                                    type="button"
+                                                >
+                                                    <XIcon className="w-3 h-3" />
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {(ceremonyAddress || eventSettings.ceremonyAddress) && (
@@ -1103,30 +1115,43 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                 <label htmlFor="eventLocation" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">
                                     {hasSeparateCeremony ? 'Local da Recepção (Buffet/Festa)' : 'Endereço Completo da Festa'}
                                 </label>
-                                {isLoaded ? (
-                                    <Autocomplete
-                                        onLoad={(autocomplete) => (receptionAutocompleteRef.current = autocomplete)}
-                                        onPlaceChanged={onReceptionPlaceChanged}
-                                    >
+                                <div className="relative group/auto">
+                                    {isLoaded ? (
+                                        <Autocomplete
+                                            key="reception-auto"
+                                            onLoad={(autocomplete) => (receptionAutocompleteRef.current = autocomplete)}
+                                            onPlaceChanged={onReceptionPlaceChanged}
+                                        >
+                                            <input
+                                                type="text"
+                                                id="eventLocation"
+                                                value={eventLocation}
+                                                onChange={(e) => {
+                                                    setEventLocation(e.target.value);
+                                                    if (!e.target.value) setEventAddress('');
+                                                }}
+                                                placeholder="Ex: Mansão Victoria, Buffet Ravena..."
+                                                className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted pr-12"
+                                            />
+                                        </Autocomplete>
+                                    ) : (
                                         <input
                                             type="text"
-                                            id="eventLocation"
-                                            value={eventLocation}
-                                            onChange={(e) => setEventLocation(e.target.value)}
-                                            placeholder="Ex: Mansão Victoria, Buffet Ravena..."
-                                            className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
+                                            disabled
+                                            placeholder="Carregando busca do Google..."
+                                            className="w-full px-5 py-3.5 bg-bg-light border border-border-soft border-dashed rounded-2xl text-sm font-bold text-text-muted animate-pulse"
                                         />
-                                    </Autocomplete>
-                                ) : (
-                                    <input
-                                        type="text"
-                                        id="eventLocation"
-                                        value={eventLocation}
-                                        onChange={(e) => setEventLocation(e.target.value)}
-                                        placeholder="Ex: Mansão Victoria, Buffet Ravena..."
-                                        className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
-                                    />
-                                )}
+                                    )}
+                                    {eventLocation && (
+                                        <button 
+                                            onClick={() => setEventLocation('')}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-text-muted/30 hover:text-danger bg-white rounded-lg transition-all"
+                                            type="button"
+                                        >
+                                            <XIcon className="w-3 h-3" />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             {(eventAddress || eventSettings.eventAddress) && (
@@ -1220,28 +1245,39 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                                 <label className="block text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 ml-1">
                                                     Endereço/Nome do Estacionamento sugerido
                                                 </label>
-                                                {isLoaded ? (
-                                                    <Autocomplete
-                                                        onLoad={(autocomplete) => (parkingAutocompleteRef.current = autocomplete)}
-                                                        onPlaceChanged={onParkingPlaceChanged}
-                                                    >
+                                                <div className="relative group/auto">
+                                                    {isLoaded ? (
+                                                        <Autocomplete
+                                                            key="parking-auto"
+                                                            onLoad={(autocomplete) => (parkingAutocompleteRef.current = autocomplete)}
+                                                            onPlaceChanged={onParkingPlaceChanged}
+                                                        >
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Ex: Estacionamento 24h, Rua lateral..."
+                                                                value={parkingSettings.address}
+                                                                onChange={(e) => setParkingSettings({ ...parkingSettings, address: e.target.value })}
+                                                                className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none pr-12"
+                                                            />
+                                                        </Autocomplete>
+                                                    ) : (
                                                         <input
                                                             type="text"
-                                                            placeholder="Ex: Estacionamento 24h, Rua lateral..."
-                                                            value={parkingSettings.address}
-                                                            onChange={(e) => setParkingSettings({ ...parkingSettings, address: e.target.value })}
-                                                            className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none"
+                                                            disabled
+                                                            placeholder="Carregando busca do Google..."
+                                                            className="w-full px-4 py-3 bg-white border border-border-soft border-dashed rounded-xl text-xs font-bold text-text-muted animate-pulse"
                                                         />
-                                                    </Autocomplete>
-                                                ) : (
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Ex: Estacionamento 24h, Rua lateral..."
-                                                        value={parkingSettings.address}
-                                                        onChange={(e) => setParkingSettings({ ...parkingSettings, address: e.target.value })}
-                                                        className="w-full px-4 py-3 bg-white border border-border-soft rounded-xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none"
-                                                    />
-                                                )}
+                                                    )}
+                                                    {parkingSettings.address && (
+                                                        <button 
+                                                            onClick={() => setParkingSettings({ ...parkingSettings, address: '' })}
+                                                            className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-text-muted/30 hover:text-danger bg-white/50 rounded-lg transition-all"
+                                                            type="button"
+                                                        >
+                                                            <XIcon className="w-2.5 h-2.5" />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
