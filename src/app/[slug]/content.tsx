@@ -593,14 +593,14 @@ export default function EventContent({ slug }: EventContentProps) {
 
                                         {eventSettings.parkingSettings.address && (
                                             <div className="mb-6">
-                                                <p className="text-text-primary text-sm font-bold leading-relaxed px-4">
-                                                    📍 {eventSettings.parkingSettings.address}
+                                                <p className="text-text-primary text-sm font-bold leading-relaxed px-4 whitespace-pre-line">
+                                                    {eventSettings.parkingSettings.address}
                                                 </p>
                                             </div>
                                         )}
                                         
                                         {(eventSettings.parkingSettings.wazeLocation || eventSettings.parkingSettings.address) && (
-                                            <div>
+                                            <div className="pt-2">
                                                 <a href={eventSettings.parkingSettings.wazeLocation || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(eventSettings.parkingSettings.address || '')}`} 
                                                     target="_blank" rel="noopener noreferrer"
                                                     className="inline-flex items-center gap-2 px-10 py-3.5 bg-brand text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl shadow-brand/20 hover:bg-brand-dark hover:-translate-y-1 active:scale-95 transition-all">
