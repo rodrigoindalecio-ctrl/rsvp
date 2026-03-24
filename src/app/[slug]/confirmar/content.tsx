@@ -174,11 +174,8 @@ export default function RSVPContent({ slug }: Props) {
                     {/* Header */}
                     {step !== 'success' && (
                         <div className="text-center mb-10">
-                            <div className="w-16 h-16 bg-brand-pale rounded-3xl flex items-center justify-center mx-auto mb-5">
-                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-brand"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                            </div>
-                            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">RSVP</span>
-                            <h1 className="text-3xl font-serif text-text-primary mt-2 mb-2">Confirmar Presença</h1>
+                            <span className="text-[9px] font-black uppercase tracking-[0.4em] text-brand opacity-60">RSVP</span>
+                            <h1 className="text-2xl font-serif text-text-primary mt-3 mb-1 italic">Confirmar Presença</h1>
                             {eventSettings.confirmationDeadline && (
                                 <p className="text-xs font-bold text-text-muted uppercase tracking-widest">
                                     Responda até <strong className="text-brand">
@@ -248,14 +245,14 @@ export default function RSVPContent({ slug }: Props) {
                     {(step === 'search' || step === 'results') && (
                         <div className="space-y-5 animate-in slide-in-from-bottom duration-500">
                             <form onSubmit={handleSearch}>
-                                <div className="relative">
+                                <div className="relative group">
                                     <input required autoFocus type="text" value={searchTerm}
                                         onChange={e => setSearchTerm(e.target.value)}
                                         placeholder="Seu nome completo..."
-                                        className="w-full px-6 py-4 bg-surface border border-border-soft rounded-2xl text-sm font-bold focus:ring-4 focus:ring-brand/10 focus:border-brand transition-all outline-none pr-14 shadow-sm placeholder:text-text-muted text-text-primary"
+                                        className="w-full px-7 py-5 bg-white border border-border-soft rounded-full text-sm font-bold focus:ring-8 focus:ring-brand/5 focus:border-brand transition-all outline-none pr-16 shadow-xl shadow-brand/5 placeholder:text-text-muted/50 text-text-primary"
                                     />
-                                    <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-brand text-white rounded-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                                    <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 w-12 h-12 bg-brand text-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg hover:shadow-brand/20">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                                     </button>
                                 </div>
                             </form>
@@ -267,14 +264,15 @@ export default function RSVPContent({ slug }: Props) {
                                     </p>
                                     {searchResults.length > 0 ? searchResults.map(guest => (
                                         <button key={guest.id} onClick={() => handleSelectGuest(guest)}
-                                            className="w-full text-left p-5 bg-surface border border-border-soft rounded-[2rem] hover:border-brand hover:shadow-lg hover:shadow-brand/5 transition-all group">
-                                            <div className="flex items-center justify-between">
+                                            className="w-full text-left p-6 bg-white border border-border-soft rounded-[2.5rem] hover:border-brand hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.1)] transition-all duration-500 group relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-brand/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl group-hover:bg-brand/10 transition-colors" />
+                                            <div className="flex items-center justify-between relative z-10">
                                                 <div>
-                                                    <p className="font-bold text-text-primary group-hover:text-brand transition-colors">{guest.name}</p>
-                                                    {guest.grupo && <p className="text-[9px] font-black uppercase tracking-widest text-text-muted mt-1">{guest.grupo}</p>}
+                                                    <p className="font-bold text-text-primary text-base group-hover:text-brand transition-colors">{guest.name}</p>
+                                                    {guest.grupo && <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-text-muted mt-1.5">{guest.grupo}</p>}
                                                 </div>
-                                                <div className="w-8 h-8 rounded-full bg-bg-light flex items-center justify-center text-text-muted group-hover:bg-brand group-hover:text-white transition-all">
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M9 18l6-6-6-6" /></svg>
+                                                <div className="w-10 h-10 rounded-full bg-bg-light border border-border-soft flex items-center justify-center text-text-muted group-hover:bg-brand group-hover:text-white group-hover:border-brand transition-all">
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="group-hover:translate-x-0.5 transition-transform"><path d="M9 18l6-6-6-6" /></svg>
                                                 </div>
                                             </div>
                                         </button>
