@@ -491,8 +491,8 @@ export default function EventContent({ slug }: EventContentProps) {
                                         </div>
                                         {ceremonyMapsUrl && (
                                             <a href={ceremonyMapsUrl} target="_blank" rel="noopener noreferrer"
-                                                className="px-6 py-3 bg-white border border-border-soft hover:border-brand/40 text-text-muted hover:text-brand rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex-shrink-0">
-                                                Como Chegar
+                                                className="px-6 py-3 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-brand-dark transition-all flex-shrink-0">
+                                                COMO CHEGAR
                                             </a>
                                         )}
                                     </div>
@@ -525,8 +525,7 @@ export default function EventContent({ slug }: EventContentProps) {
                                         {mapsUrl && (
                                             <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
                                                 className="flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-brand-dark hover:-translate-y-0.5 transition-all flex-shrink-0">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
-                                                Abrir no Maps
+                                                COMO CHEGAR
                                             </a>
                                         )}
                                     </div>
@@ -562,8 +561,7 @@ export default function EventContent({ slug }: EventContentProps) {
                                     {mapsUrl && (
                                         <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
                                             className="flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-brand-dark hover:-translate-y-0.5 transition-all flex-shrink-0">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
-                                            Abrir no Maps
+                                            COMO CHEGAR
                                         </a>
                                     )}
                                 </div>
@@ -572,56 +570,43 @@ export default function EventContent({ slug }: EventContentProps) {
 
                         {/* Informações de Estacionamento Display */}
                         {eventSettings.parkingSettings?.hasParking && (
-                            <div className="px-8 pb-10 md:px-10 border-t border-border-soft/50 pt-8 animate-in fade-in slide-in-from-top-4 duration-700">
-                                <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-                                    <div className="w-12 h-12 bg-success/10 rounded-2xl flex items-center justify-center flex-shrink-0 text-success">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-1.1 0-2 .9-2 2v9c0 1.1.9 2 2 2h2" /><circle cx="7" cy="17" r="2" /><path d="M9 17h6" /><circle cx="17" cy="17" r="2" /></svg>
+                            <div className="px-8 pb-12 md:px-10 border-t border-border-soft/50 pt-10 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">Estacionamento</span>
+                                <div className="mt-8 flex flex-col items-center">
+                                    <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center text-success mb-6">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-1.1 0-2 .9-2 2v9c0 1.1.9 2 2 2h2" /><circle cx="7" cy="17" r="2" /><path d="M9 17h6" /><circle cx="17" cy="17" r="2" /></svg>
                                     </div>
-                                    <div className="flex-1 text-center md:text-left">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-2">
-                                            Estacionamento (Local da Recepção)
-                                        </p>
-                                        <div className="text-text-primary font-bold text-sm">
-                                            {/* Título clicável se houver endereço ou link */}
-                                            {(() => {
-                                                const parkingTitle = eventSettings.parkingSettings.type === 'free' ? 'Gratuito no local para convidados 🟢' :
-                                                    eventSettings.parkingSettings.type === 'valet' ? 'Valet / Estacionamento no Local (Pago) 🟡' :
-                                                        'Estacionamentos Próximos (Sugestão) 🅿️';
-                                                
-                                                const parkingLink = eventSettings.parkingSettings.wazeLocation || 
-                                                    (eventSettings.parkingSettings.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(eventSettings.parkingSettings.address)}` : null);
+                                    
+                                    <div className="max-w-md mx-auto">
+                                        {/* Título do Estacionamento (Nome do Local ou Sugestão) */}
+                                        <h4 className="text-text-primary font-serif italic text-xl mb-1">
+                                            {eventSettings.parkingSettings.type === 'free' ? 'Gratuito no local para convidados' :
+                                                eventSettings.parkingSettings.type === 'valet' ? 'Valet / Estacionamento no Local' :
+                                                    'Estacionamentos Próximos (Sugestão)'}
+                                        </h4>
 
-                                                return parkingLink ? (
-                                                    <a href={parkingLink} target="_blank" rel="noopener noreferrer" className="hover:text-brand transition-colors flex items-center gap-2 justify-center md:justify-start">
-                                                        {parkingTitle}
-                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="opacity-50"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" /></svg>
-                                                    </a>
-                                                ) : <p>{parkingTitle}</p>;
-                                            })()}
-
-                                            {eventSettings.parkingSettings.price && (
-                                                <p className="mt-1 font-bold text-brand">
-                                                    Valor: {eventSettings.parkingSettings.price}
-                                                </p>
-                                            )}
-                                        </div>
+                                        {eventSettings.parkingSettings.price && (
+                                            <p className="font-bold text-brand text-[10px] uppercase tracking-widest mb-3">
+                                                Valor: {eventSettings.parkingSettings.price}
+                                            </p>
+                                        )}
 
                                         {eventSettings.parkingSettings.address && (
-                                            <div className="mt-2 group">
-                                                <p className="text-text-muted text-[10px] font-black uppercase tracking-widest opacity-60 mb-0.5">Endereço</p>
-                                                <p className="text-text-primary text-xs font-bold leading-relaxed">
+                                            <div className="mb-6">
+                                                <p className="text-text-primary text-sm font-bold leading-relaxed px-4">
                                                     📍 {eventSettings.parkingSettings.address}
                                                 </p>
                                             </div>
                                         )}
                                         
                                         {(eventSettings.parkingSettings.wazeLocation || eventSettings.parkingSettings.address) && (
-                                            <a href={eventSettings.parkingSettings.wazeLocation || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(eventSettings.parkingSettings.address || '')}`} 
-                                                target="_blank" rel="noopener noreferrer"
-                                                className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-brand text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-md hover:bg-brand-dark hover:-translate-y-0.5 transition-all">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
-                                                Como Chegar ao Estacionamento
-                                            </a>
+                                            <div>
+                                                <a href={eventSettings.parkingSettings.wazeLocation || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(eventSettings.parkingSettings.address || '')}`} 
+                                                    target="_blank" rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-2 px-10 py-3.5 bg-brand text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl shadow-brand/20 hover:bg-brand-dark hover:-translate-y-1 active:scale-95 transition-all">
+                                                    COMO CHEGAR
+                                                </a>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
