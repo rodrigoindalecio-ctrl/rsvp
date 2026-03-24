@@ -588,7 +588,25 @@ export default function EventContent({ slug }: EventContentProps) {
                                         {eventSettings.parkingSettings.address && (
                                             <div className="mb-4">
                                                 <div className="text-text-primary text-sm font-bold leading-relaxed px-4 whitespace-pre-wrap">
-                                                    {eventSettings.parkingSettings.address}
+                                                    {(() => {
+                                                        const addr = eventSettings.parkingSettings.address;
+                                                        // Fallback para quem já usa Enter
+                                                        if (addr.includes('\n')) return addr;
+                                                        
+                                                        // Padrão inteligente: busca ' - ' seguido de prefixos de rua ou número
+                                                        const splitPattern = / - (?=(?:R\.|Rua|Av\.|Avenida|Al\.|Alameda|Pça\.|Praça|Travessa|\d))/i;
+                                                        const parts = addr.split(splitPattern);
+                                                        
+                                                        if (parts.length > 1) {
+                                                            return (
+                                                                <>
+                                                                    <div className="mb-1">{parts[0]}</div>
+                                                                    <div className="text-xs font-medium text-text-muted/80">{parts[1]}</div>
+                                                                </>
+                                                            );
+                                                        }
+                                                        return addr;
+                                                    })()}
                                                 </div>
                                             </div>
                                         )}
