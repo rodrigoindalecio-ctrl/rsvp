@@ -586,25 +586,9 @@ export default function EventContent({ slug }: EventContentProps) {
                                         </h4>
 
                                         {eventSettings.parkingSettings.address && (
-                                            <div className="mb-2">
-                                                <div className="text-text-primary text-sm font-bold leading-relaxed px-4 whitespace-pre-line">
-                                                    {(() => {
-                                                        const addr = eventSettings.parkingSettings.address;
-                                                        // Se já tiver quebra de linha, usa como está
-                                                        if (addr.includes('\n')) return addr;
-                                                        
-                                                        // Se tiver o padrão "Nome - Rua", divide
-                                                        const parts = addr.split(/ - (.*)/);
-                                                        if (parts.length > 1) {
-                                                            return (
-                                                                <>
-                                                                    <div className="mb-1">{parts[0]}</div>
-                                                                    <div className="text-xs font-medium text-text-muted">{parts[1]}</div>
-                                                                </>
-                                                            );
-                                                        }
-                                                        return addr;
-                                                    })()}
+                                            <div className="mb-4">
+                                                <div className="text-text-primary text-sm font-bold leading-relaxed px-4 whitespace-pre-wrap">
+                                                    {eventSettings.parkingSettings.address}
                                                 </div>
                                             </div>
                                         )}
