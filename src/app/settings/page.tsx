@@ -76,6 +76,8 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
 
     const [activeTab, setActiveTab] = useState<'geral' | 'visual' | 'conteudo' | 'seguranca'>('geral')
     const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' })
+    const [accountEmail, setAccountEmail] = useState(user?.email || '')
+    const [emailLoading, setEmailLoading] = useState(false)
     const [passwordLoading, setPasswordLoading] = useState(false)
 
     const [saved, setSaved] = useState(false)
@@ -1815,96 +1817,138 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                             />
                         </div>
 
-                        {/* Segurança - Alterar Senha */}
-                        <div className={activeTab === 'seguranca' ? 'space-y-6 pt-4 animate-in fade-in duration-300' : 'hidden'}>
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="w-10 h-10 bg-bg-light border border-border-soft rounded-xl flex items-center justify-center text-text-muted">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                        {/* Aba de Segurança */}
+                        <div className={activeTab === 'seguranca' ? 'space-y-10 pt-4 animate-in fade-in duration-300' : 'hidden'}>
+                            {/* Dados de Acesso */}
+                            <section>
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="w-10 h-10 bg-bg-light border border-border-soft rounded-xl flex items-center justify-center text-text-muted">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                    </div>
+                                    <h3 className="text-lg font-black text-text-primary tracking-tight">Dados de Acesso</h3>
                                 </div>
-                                <h3 className="text-lg font-black text-text-primary tracking-tight">Alterar Senha de Acesso</h3>
-                            </div>
 
-                            <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest leading-relaxed opacity-80 mb-6">
-                                Mantenha seu painel seguro. Você pode atualizar sua senha de acesso a qualquer momento aqui.
-                            </p>
+                                <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest leading-relaxed opacity-80 mb-6">
+                                    Mantenha seu cadastro atualizado para receber notificações e acessar seu painel.
+                                </p>
 
-                            <div className="space-y-4 max-w-sm">
-                                <div>
-                                    <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Senha Atual</label>
-                                    <input
-                                        type="password"
-                                        value={passwordForm.current}
-                                        onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
-                                        className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary"
-                                    />
+                                <div className="space-y-6 max-w-sm">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">E-mail de Cadastro</label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="email"
+                                                value={accountEmail}
+                                                onChange={(e) => setAccountEmail(e.target.value)}
+                                                className="flex-1 px-4 py-3 bg-bg-light border border-border-soft rounded-2xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary"
+                                            />
+                                            <button
+                                                type="button"
+                                                disabled={emailLoading || accountEmail === user?.email}
+                                                onClick={async () => {
+                                                    if (!accountEmail || !accountEmail.includes('@')) {
+                                                        toast.error('Informe um e-mail válido')
+                                                        return
+                                                    }
+                                                    setEmailLoading(true)
+                                                    try {
+                                                        const res = await fetch('/api/auth/change-email', {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ newEmail: accountEmail })
+                                                        })
+                                                        if (res.ok) {
+                                                            toast.success('E-mail atualizado!')
+                                                            setTimeout(() => window.location.reload(), 1500)
+                                                        } else {
+                                                            const data = await res.json()
+                                                            toast.error('Erro', { description: data.error })
+                                                        }
+                                                    } catch (err) {
+                                                        toast.error('Falha na conexão')
+                                                    } finally {
+                                                        setEmailLoading(false)
+                                                    }
+                                                }}
+                                                className="px-4 bg-brand/10 text-brand text-[8px] font-black uppercase tracking-widest rounded-xl hover:bg-brand hover:text-white transition-all disabled:opacity-30"
+                                            >
+                                                {emailLoading ? '...' : 'Atualizar'}
+                                            </button>
+                                        </div>
+                                        {accountEmail !== user?.email && (
+                                            <p className="mt-2 text-[8px] font-black text-brand uppercase tracking-widest ml-1 animate-pulse">Este e-mail será seu novo login.</p>
+                                        )}
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Nova Senha</label>
-                                    <input
-                                        type="password"
-                                        value={passwordForm.new}
-                                        onChange={(e) => setPasswordForm({ ...passwordForm, new: e.target.value })}
-                                        className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary"
-                                    />
+                            </section>
+
+                            <div className="h-px bg-border-soft w-full max-w-sm" />
+
+                            {/* Alterar Senha */}
+                            <section>
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="w-10 h-10 bg-bg-light border border-border-soft rounded-xl flex items-center justify-center text-text-muted">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                                    </div>
+                                    <h3 className="text-lg font-black text-text-primary tracking-tight">Alterar Senha</h3>
                                 </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Confirmar Nova Senha</label>
-                                    <input
-                                        type="password"
-                                        value={passwordForm.confirm}
-                                        onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
-                                        className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary"
-                                    />
-                                </div>
-                                <button
-                                    type="button"
-                                    disabled={passwordLoading}
-                                    onClick={async () => {
-                                        if (!passwordForm.current || !passwordForm.new) {
-                                            toast.error('Campos incompletos', { description: 'Por favor, preencha todos os campos de senha.' })
-                                            return
-                                        }
-                                        if (passwordForm.new !== passwordForm.confirm) {
-                                            toast.error('Senhas não coincidem', { description: 'A confirmação deve ser igual à nova senha.' })
-                                            return
-                                        }
-                                        if (passwordForm.new.length < 6) {
-                                            toast.error('Senha muito curta', { description: 'A nova senha deve ter pelo menos 6 caracteres.' })
-                                            return
-                                        }
-                                        setPasswordLoading(true)
-                                        try {
-                                            const res = await fetch('/api/auth/change-password', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({
-                                                    currentPassword: passwordForm.current,
-                                                    newPassword: passwordForm.new
-                                                })
-                                            })
-                                            const data = await res.json()
-                                            if (res.ok) {
-                                                toast.success('Senha atualizada!', { description: 'Sua senha de acesso foi alterada com sucesso.' })
-                                                setPasswordForm({ current: '', new: '', confirm: '' })
-                                                // Se veio do onboarding, remover o query param
-                                                // para que o banner "Quase lá!" desapareça
-                                                if (isOnboarding) {
-                                                    router.replace('/settings')
-                                                }
-                                            } else {
-                                                toast.error('Erro na atualização', { description: data.error || 'Não foi possível alterar a senha.' })
+
+                                <div className="space-y-4 max-w-sm">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Senha Atual</label>
+                                        <input
+                                            type="password"
+                                            value={passwordForm.current}
+                                            onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
+                                            className="w-full px-5 py-3 bg-bg-light border border-border-soft rounded-2xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Nova Senha</label>
+                                        <input
+                                            type="password"
+                                            value={passwordForm.new}
+                                            onChange={(e) => setPasswordForm({ ...passwordForm, new: e.target.value })}
+                                            className="w-full px-5 py-3 bg-bg-light border border-border-soft rounded-2xl text-xs font-bold focus:ring-2 focus:ring-brand/20 transition-all outline-none"
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        disabled={passwordLoading}
+                                        onClick={async () => {
+                                            if (!passwordForm.current || !passwordForm.new) {
+                                                toast.error('Preencha os campos de senha')
+                                                return
                                             }
-                                        } catch (err) {
-                                            toast.error('Erro de conexão', { description: 'Verifique sua internet e tente novamente.' })
-                                        } finally {
-                                            setPasswordLoading(false)
-                                        }
-                                    }}
-                                    className="w-full py-4.5 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-brand/30 hover:bg-brand-dark hover:-translate-y-1 transition-all disabled:opacity-50"
-                                >
-                                    {passwordLoading ? 'Processando...' : '🛡️ Atualizar Senha'}
-                                </button>
-                            </div>
+                                            setPasswordLoading(true)
+                                            try {
+                                                const res = await fetch('/api/auth/change-password', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        currentPassword: passwordForm.current,
+                                                        newPassword: passwordForm.new
+                                                    })
+                                                })
+                                                if (res.ok) {
+                                                    toast.success('Senha atualizada!')
+                                                    setPasswordForm({ current: '', new: '', confirm: '' })
+                                                } else {
+                                                    const data = await res.json()
+                                                    toast.error('Erro na atualização', { description: data.error })
+                                                }
+                                            } catch (err) {
+                                                toast.error('Erro de conexão')
+                                            } finally {
+                                                setPasswordLoading(false)
+                                            }
+                                        }}
+                                        className="w-full py-4 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-brand/30 hover:bg-brand-dark transition-all disabled:opacity-50"
+                                    >
+                                        {passwordLoading ? 'Processando...' : '🛡️ Atualizar Senha'}
+                                    </button>
+                                </div>
+                            </section>
                         </div>
 
                         {/* Botão Salvar - Agora como FAB flutuante */}

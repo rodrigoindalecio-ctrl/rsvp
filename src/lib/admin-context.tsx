@@ -133,19 +133,31 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   async function addEvent(event: AdminEvent) {
     try {
-      const { error } = await supabase.from('events').insert({
-        id: event.id,
-        slug: event.slug,
-        event_settings: event.eventSettings,
-        created_at: event.createdAt.toISOString(),
-        created_by: event.createdBy
+      // 🔥 Chamada via API do Servidor (Service Role) para contornar RLS na criação
+      const response = await fetch('/api/admin/events/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          event: {
+            ...event,
+            createdAt: event.createdAt.toISOString()
+          } 
+        }),
       })
 
-      if (error) throw error
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.details || errData.error || 'Erro persistindo evento no servidor')
+      }
+
+      // Se persistiu no servidor, atualiza o estado local
       setEvents(prev => [event, ...prev])
-    } catch (error) {
-      console.error('Erro ao adicionar evento:', error)
-      toast.error('Erro ao salvar evento', { description: 'Não foi possível salvar no banco de dados. Tente novamente.' })
+      console.log(`Evento ${event.slug} persistido com sucesso via Admin API.`)
+    } catch (error: any) {
+      console.error('Erro ao adicionar evento CRÍTICO:', error)
+      throw error // Repassar erro para o chamador (UsersManagement)
     }
   }
 
@@ -219,8 +231,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       if (error) throw error
       setUsers(prev => [user, ...prev])
     } catch (error) {
-      console.error('Erro ao adicionar usuário:', error)
-      toast.error('Erro ao salvar usuário', { description: 'Não foi possível salvar no banco de dados. Tente novamente.' })
+      console.error('Erro ao adicionar usuário CRÍTICO:', error)
+      throw error // Repassar erro para o chamador
     }
   }
 
@@ -230,38 +242,32 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       const userToRemove = users.find(u => u.id === id)
       if (!userToRemove) return
 
-      // 1. Buscar os eventos criados por este usuário (por ID ou Email)
-      const { data: userEvents, error: fetchError } = await supabase
-        .from('events')
-        .select('id')
-        .or(`created_by.eq.${id},created_by.eq.${userToRemove.email}`)
+      // 🔥 Chamada via API do Servidor (Service Role) para contornar RLS
+      const response = await fetch('/api/admin/users/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          userId: id, 
+          userEmail: userToRemove.email 
+        }),
+      })
 
-      if (fetchError) throw fetchError
-
-      // 2. Excluir os eventos deste usuário
-      const { error: eventsDeleteError } = await supabase
-        .from('events')
-        .delete()
-        .or(`created_by.eq.${id},created_by.eq.${userToRemove.email}`)
-
-      if (eventsDeleteError) throw eventsDeleteError
-
-      // 3. Excluir o usuário
-      const { error: userDeleteError } = await supabase
-        .from('admin_users')
-        .delete()
-        .eq('id', id)
-
-      if (userDeleteError) throw userDeleteError
-
-      // 4. Atualizar estados locais
-      setUsers(prev => prev.filter(u => u.id !== id))
-      if (userEvents && userEvents.length > 0) {
-        const eventIdsToRemove = userEvents.map(e => e.id)
-        setEvents(prev => prev.filter(e => !eventIdsToRemove.includes(e.id)))
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || 'Erro ao persistir exclusão no servidor')
       }
-    } catch (error) {
-      console.error('Erro ao remover usuário e seus dados:', error)
+
+      // Após sucesso no banco, limpamos o estado local
+      setUsers(prev => prev.filter(u => u.id !== id))
+      // Remover também eventos vinculados ao email do estado local
+      setEvents(prev => prev.filter(e => e.createdBy?.toLowerCase() !== userToRemove.email.toLowerCase()))
+
+      toast.success('Acesso e dados removidos permanentemente. 🎉')
+    } catch (error: any) {
+      console.error('Erro ao remover usuário e dados vinculados:', error)
+      toast.error('Erro crítico na exclusão', { description: error.message || 'Contate o suporte técnico.' })
       throw error
     }
   }
@@ -347,12 +353,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         .maybeSingle()
 
       if (existing) {
-        if (customSlug) {
-          throw new Error(`O subdomínio "/${customSlug}" já está sendo usado por outro casal. Escolha um diferente.`)
-        } else {
-          // Se for automático e colidir (raro), tentamos um sufixo mais longo
-          finalSlug += Math.random().toString(36).substring(2, 6)
-        }
+        throw new Error(`A URL "/${finalSlug}" já está sendo usada por outro evento no banco de dados. Verifique a tabela de eventos.`)
       }
 
       const newEvent: AdminEvent = {

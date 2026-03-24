@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import { verifyInternalKey } from '@/lib/auth-utils'
+import { verifyInternalKey, verifyAuth } from '@/lib/auth-utils'
 
 // Criar transportador SMTP com os dados da Hostinger
 const createTransporter = () => {
@@ -21,7 +21,7 @@ const createTransporter = () => {
 
 export async function POST(request: NextRequest) {
     try {
-        if (!verifyInternalKey(request)) {
+        if (!(await verifyAuth(request, true))) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
@@ -99,23 +99,38 @@ export async function POST(request: NextRequest) {
 
         const transporter = createTransporter()
         
-        const senderName = process.env.SMTP_FROM_NAME?.replace(/['"]/g, '') || "Vanessa Bidinotti"
+        // 1. Verificar conexão antes de tentar enviar
+        try {
+            await transporter.verify()
+            console.log('SMTP: Conexão verificada com sucesso.')
+        } catch (authError: any) {
+            console.error('SMTP: Falha na Conexão/Autenticação:', authError)
+            return NextResponse.json({ 
+                error: 'Falha na autenticação do servidor de e-mail', 
+                details: `Erro de Conexão: ${authError.message}. Verifique a senha e o host no .env.` 
+            }, { status: 500 })
+        }
+        
+        // 2. Simplificar nome do remetente
+        const fromEmail = process.env.SMTP_FROM_EMAIL as string
 
-        // Enviar o e-mail
-        await transporter.sendMail({
-            from: {
-                name: senderName,
-                address: process.env.SMTP_FROM_EMAIL as string
-            },
+        // 3. Enviar o e-mail
+        const info = await transporter.sendMail({
+            from: `"Vanessa Bidinotti - RSVP Premium" <${fromEmail}>`,
             to: email,
             subject: `🎁 Convite Especial: Seu Painel RSVP está pronto!`,
             html: emailHTML,
         })
 
+        console.log('E-mail enviado com sucesso:', info.messageId)
         return NextResponse.json({ success: true, message: 'Email enviado com sucesso!' })
     } catch (error: any) {
+        console.error('ERRO SMTP AO ENVIAR:', error)
         return NextResponse.json(
-            { error: 'Falha ao enviar e-mail automático', details: error.message },
+            { 
+                error: 'Ocorreu um problema ao disparar o e-mail', 
+                details: error.message || 'Erro desconhecido no servidor SMTP'
+            },
             { status: 500 }
         )
     }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import { verifyInternalKey } from '@/lib/auth-utils'
+import { verifyInternalKey, verifyAuth } from '@/lib/auth-utils'
 
 // Criar transportador SMTP
 const createTransporter = () => {
@@ -81,8 +81,9 @@ export async function sendOwnerEmail(body: any) {
 
         const transporter = createTransporter()
         
-        const senderName = (process.env.SMTP_FROM_NAME || "Vanessa Bidinotti • RSVP Manager").replace(/['"]/g, '')
-        const fromEmail = process.env.SMTP_FROM_EMAIL
+        // Simplificar nome para evitar erros SMTP
+        const senderName = "Vanessa Bidinotti - RSVP Premium"
+        const fromEmail = process.env.SMTP_FROM_EMAIL as string
         
         const info = await transporter.sendMail({
             from: `"${senderName}" <${fromEmail}>`,
@@ -92,16 +93,22 @@ export async function sendOwnerEmail(body: any) {
             replyTo: fromEmail
         })
 
+        console.log('Notificação enviada com sucesso:', info.messageId)
         return { success: true, messageId: info.messageId }
     } catch (error: any) {
-        console.error('Erro ao enviar notificação para o proprietário:', error)
-        return { error: error.message || 'Erro interno', status: 500 }
+        console.error('ERRO AO ENVIAR NOTIFICAÇÃO RSVP:', error)
+        return { 
+            error: error.message || 'Erro interno', 
+            details: error.message,
+            code: error.code,
+            status: 500 
+        }
     }
 }
 
 export async function POST(request: NextRequest) {
     try {
-        if (!verifyInternalKey(request)) {
+        if (!(await verifyAuth(request, true))) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const body = await request.json()
