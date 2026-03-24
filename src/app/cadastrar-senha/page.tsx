@@ -17,9 +17,26 @@ function SetupPasswordContent() {
   useEffect(() => {
     const emailParam = searchParams.get('email')
     const tokenParam = searchParams.get('temp')
+    
     if (emailParam) setEmail(emailParam)
     if (tokenParam) setTempToken(tokenParam)
-  }, [searchParams])
+
+    // Validar token ao carregar
+    if (emailParam && tokenParam) {
+      const validateToken = async () => {
+        try {
+          const res = await fetch(`/api/auth/setup-password?email=${encodeURIComponent(emailParam)}&temp=${tokenParam}`)
+          if (res.status === 403) {
+            toast.error('Este link de convite expirou ou já foi utilizado.')
+            router.push('/login')
+          }
+        } catch (err) {
+          console.error('Erro ao validar link:', err)
+        }
+      }
+      validateToken()
+    }
+  }, [searchParams, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

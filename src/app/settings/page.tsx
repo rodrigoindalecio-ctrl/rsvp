@@ -1702,7 +1702,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                             <button
                                                 type="button"
                                                 onClick={() => handleRemoveTimelineEvent(index)}
-                                                className="absolute top-4 right-4 text-text-muted/20 hover:text-danger hover:scale-110 transition-all"
+                                                className="absolute top-4 right-4 text-text-muted/50 hover:text-danger hover:scale-110 transition-all"
                                             >
                                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
                                             </button>

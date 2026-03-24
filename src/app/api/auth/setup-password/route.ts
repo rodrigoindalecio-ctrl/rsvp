@@ -2,6 +2,43 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import bcrypt from 'bcryptjs'
 
+export async function GET(request: NextRequest) {
+    try {
+        const { searchParams } = new URL(request.url)
+        const email = searchParams.get('email')
+        const tempToken = searchParams.get('temp')
+
+        if (!email || !tempToken) {
+            return NextResponse.json({ error: 'Faltando informações.' }, { status: 400 })
+        }
+
+        // 1. Buscar usuário
+        const { data, error } = await supabaseAdmin
+            .from('admin_users')
+            .select('password_hash')
+            .eq('email', email.toLowerCase())
+            .maybeSingle()
+
+        if (error || !data) {
+            return NextResponse.json({ error: 'Usuário não encontrado.' }, { status: 404 })
+        }
+
+        // 2. Verificar se o token temporário (password_hash atual) coincide
+        // Se já estiver hashed (começa com $2), significa que ele já configurou a senha
+        if (data.password_hash && data.password_hash.startsWith('$2')) {
+            return NextResponse.json({ error: 'Link expirado.' }, { status: 403 })
+        }
+
+        if (data.password_hash !== tempToken) {
+            return NextResponse.json({ error: 'Link inválido.' }, { status: 403 })
+        }
+
+        return NextResponse.json({ ok: true })
+    } catch (err) {
+        return NextResponse.json({ error: 'Erro interno no servidor.' }, { status: 500 })
+    }
+}
+
 export async function POST(request: NextRequest) {
     try {
         const { email, tempToken, password } = await request.json()
