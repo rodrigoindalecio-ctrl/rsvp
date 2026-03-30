@@ -8,18 +8,39 @@ export default function GiftSuccessPage() {
     const params = useParams()
     const slug = params.slug as string
     const [mounted, setMounted] = useState(false)
+    const [syncing, setSyncing] = useState(true)
 
     useEffect(() => {
         setMounted(true)
         
-        // Autossincronização de pagamentos (Especialmente para webhooks perdidos do Stripe)
-        const transactionId = new URLSearchParams(window.location.search).get('t');
+        // A InfinitePay redireciona para cá com os seguintes parâmetros na URL:
+        // ?t={transactionId}&order_nsu={id}&slug={ip_slug}&capture_method=pix&transaction_nsu={UUID}&receipt_url={url}
+        const urlParams = new URLSearchParams(window.location.search);
+        const transactionId   = urlParams.get('t');
+        const transactionNsu  = urlParams.get('transaction_nsu'); // UUID único da InfinitePay
+        const ipSlug          = urlParams.get('slug');            // Código da fatura na InfinitePay
+
         if (transactionId) {
-            fetch(`/api/gift/verify?t=${transactionId}`)
+            setSyncing(true);
+
+            // Montar URL com todos os parâmetros disponíveis para o verify poder chamar payment_check
+            const verifyUrl = new URL('/api/gift/verify', window.location.origin);
+            verifyUrl.searchParams.set('t', transactionId);
+            if (transactionNsu) verifyUrl.searchParams.set('transaction_nsu', transactionNsu);
+            if (ipSlug) verifyUrl.searchParams.set('ip_slug', ipSlug);
+
+            fetch(verifyUrl.toString())
                 .then(res => res.json())
-                .catch(console.error);
+                .then(data => {
+                    console.log('[Sucesso] Verificação concluída:', data.status);
+                })
+                .catch(console.error)
+                .finally(() => setSyncing(false));
+        } else {
+            setSyncing(false);
         }
     }, [])
+
 
     return (
         <main className="min-h-screen bg-bg-light flex items-center justify-center p-6 relative overflow-hidden bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-brand-pale/20 via-transparent to-transparent">
