@@ -13,6 +13,12 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log("[InfinitePay Webhook] Notificação recebida:", JSON.stringify(body));
 
+    // Derivar baseUrl dos headers da requisição (funciona em qualquer ambiente sem configurar env vars)
+    const host = req.headers.get('host');
+    const proto = req.headers.get('x-forwarded-proto') || 'https';
+    const baseUrl = host ? `${proto}://${host}` : (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000').replace(/['"]+/g, '').trim();
+    console.log('[InfinitePay Webhook] baseUrl resolvido:', baseUrl);
+
     // order_nsu = nosso transactionId (UUID que enviamos na criação do link)
     const transactionId = body.order_nsu;
     const captureMethod = body.capture_method; // "credit_card" ou "pix"
@@ -73,7 +79,7 @@ export async function POST(req: Request) {
       console.error('[InfinitePay Webhook] Erro no real-time broadcast:', rtErr);
     }
 
-    // 📧 EMAIL: Notificar os noivos
+    // 📧 EMAILS: Notificar dono e convidado via rota centralizada
     try {
       const { data: tx } = await supabaseAdmin
         .from('gift_transactions')
@@ -86,33 +92,38 @@ export async function POST(req: Request) {
           ? JSON.parse(tx.events.event_settings)
           : tx.events.event_settings;
 
-        const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000').replace(/['\"]+/g, '').trim();
         const notificationPrefs = tx.events.notification_settings || {};
-        const hasMessage = tx.message && tx.message.trim().length > 0;
         const shouldNotifyGift = notificationPrefs.gifts !== false;
-        const shouldNotifyMural = notificationPrefs.mural !== false && hasMessage;
 
-        if (shouldNotifyGift || shouldNotifyMural) {
-          await fetch(`${baseUrl}/api/send-gift-notification`, {
+        if (shouldNotifyGift) {
+          const emailRes = await fetch(`${baseUrl}/api/send-gift-approved-emails`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${process.env.INTERNAL_API_KEY}`
             },
             body: JSON.stringify({
-              ownerEmail: tx.events.created_by,
+              transactionId: tx.id,
               guestName: tx.guest_name,
+              guestEmail: tx.guest_email,
               giftName: tx.gifts?.name || 'Presente em Dinheiro',
               amount: tx.amount_net,
               message: tx.message,
-              coupleNames: settings?.coupleNames
+              captureMethod: captureMethod,
+              ownerEmail: tx.events.created_by,
+              coupleNames: settings?.coupleNames,
+              eventSlug: settings?.slug || tx.events.slug,
+              baseUrl: baseUrl,
             })
           });
-          console.log('[InfinitePay Webhook] Email de notificação enviado.');
+          const emailData = await emailRes.json();
+          console.log('[InfinitePay Webhook] Emails enviados:', emailData.results);
+        } else {
+          console.log('[InfinitePay Webhook] Notificação de presente desativada pelo usuário.');
         }
       }
     } catch (emailErr) {
-      console.error('[InfinitePay Webhook] Erro ao enviar email:', emailErr);
+      console.error('[InfinitePay Webhook] Erro ao enviar emails:', emailErr);
     }
 
     return NextResponse.json({ received: true });

@@ -96,40 +96,49 @@ export async function GET(req: Request) {
                     console.error('[Verify InfinityPay] Erro no real-time:', rtErr);
                 }
 
-                // 📧 EMAIL
+                // 📧 EMAILS: O fallback também notifica ambos
                 try {
                     if (tx.events) {
                         const settings = typeof tx.events.event_settings === 'string'
                             ? JSON.parse(tx.events.event_settings)
                             : tx.events.event_settings;
 
-                        const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000').replace(/['"]+/g, '').trim();
-                        const notificationPrefs = tx.events.notification_settings || {};
-                        const hasMessage = tx.message && tx.message.trim().length > 0;
-                        const shouldNotifyGift = notificationPrefs.gifts !== false;
-                        const shouldNotifyMural = notificationPrefs.mural !== false && hasMessage;
+                        const host = req.headers.get('host');
+                        const proto = req.headers.get('x-forwarded-proto') || 'https';
+                        const baseUrl = host ? `${proto}://${host}` : (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000').replace(/['"]+/g, '').trim();
 
-                        if (shouldNotifyGift || shouldNotifyMural) {
-                            await fetch(`${baseUrl}/api/send-gift-notification`, {
+                        const notificationPrefs = tx.events.notification_settings || {};
+                        const shouldNotifyGift = notificationPrefs.gifts !== false;
+
+                        if (shouldNotifyGift) {
+                            const emailRes = await fetch(`${baseUrl}/api/send-gift-approved-emails`, {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
                                     'Authorization': `Bearer ${process.env.INTERNAL_API_KEY}`
                                 },
                                 body: JSON.stringify({
-                                    ownerEmail: tx.events.created_by,
+                                    transactionId: tx.id,
                                     guestName: tx.guest_name,
+                                    guestEmail: tx.guest_email,
                                     giftName: tx.gifts?.name || 'Presente em Dinheiro',
                                     amount: tx.amount_net,
                                     message: tx.message,
-                                    coupleNames: settings?.coupleNames
+                                    captureMethod: captureMethod,
+                                    ownerEmail: tx.events.created_by,
+                                    coupleNames: settings?.coupleNames,
+                                    eventSlug: settings?.slug || tx.events.slug,
+                                    baseUrl: baseUrl,
                                 })
                             });
-                            console.log('[Verify InfinityPay] Email enviado.');
+                            const emailData = await emailRes.json();
+                            console.log('[Verify InfinityPay] Emails enviados:', emailData.results);
+                        } else {
+                            console.log('[Verify InfinityPay] Notificações desativadas nas configurações.');
                         }
                     }
                 } catch (emailErr) {
-                    console.error('[Verify InfinityPay] Erro ao enviar email:', emailErr);
+                    console.error('[Verify InfinityPay] Erro ao enviar emails:', emailErr);
                 }
 
                 return NextResponse.json({ status: 'APPROVED' });
