@@ -3,6 +3,9 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { supabase } from '@/lib/supabase';
 import Stripe from 'stripe';
 
+// Impede o Next.js de tentar pré-renderizar esta rota GET como página estática no build
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
     // Instanciar dentro da função garante que a env var só é lida em runtime (não no build)
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
