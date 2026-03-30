@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { mpPreference } from '@/lib/mercadopago';
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+    apiVersion: '2023-10-16' as any,
+});
 
 export async function POST(
     req: Request,
@@ -8,7 +12,9 @@ export async function POST(
 ) {
     try {
         const giftId = params.id;
-        const { name, email, message, eventId } = await req.json();
+        const body = await req.json();
+        const { guestName, name, email, message, eventId } = body;
+        const finalName = guestName || name;
 
         // 1. Fetch gift data
         const { data: gift, error: giftError } = await supabaseAdmin
@@ -22,7 +28,6 @@ export async function POST(
             return NextResponse.json({ error: 'Presente não encontrado no sistema' }, { status: 404 });
         }
 
-        // 2. Fetch event data separately to be safe
         const eventToLookup = gift.event_id || eventId;
         const { data: event, error: eventError } = await supabaseAdmin
             .from('events')
@@ -31,150 +36,143 @@ export async function POST(
             .single();
 
         if (eventError || !event) {
-            console.error('Checkout Error: Event not found', {
-                giftEventId: gift.event_id,
-                bodyEventId: eventId,
-                error: eventError
-            });
             return NextResponse.json({
                 error: `Evento associado não encontrado`,
                 details: eventError?.message
             }, { status: 404 });
         }
 
-        // Extrair o nome do evento/casal dos settings
-        // Usando o nome correto da coluna do banco: event_settings
         const settings = typeof event.event_settings === 'string'
             ? JSON.parse(event.event_settings)
             : event.event_settings;
 
         const eventDisplayName = settings?.coupleNames || "Nosso Evento";
 
-        // Add event to gift object for the rest of the logic
         gift.events = {
             ...event,
-            name: eventDisplayName
+            name: eventDisplayName,
+            event_settings: settings
         };
 
         const price = Number(gift.price);
-        const feePercent = 0.0499;
+        // Ler taxa do eventSettings (ex: 5.49) e converter para decimal (0.0549)
+        const customFee = gift.events.event_settings?.serviceTax;
+        const feePercent = customFee ? Number(customFee) / 100 : 0.0549;
         let amountBruto = price;
         let amountFee = price * feePercent;
         let amountNet = price - amountFee;
 
         // Se o convidado paga a taxa (GUEST)
         if (gift.events.tax_payer === 'GUEST') {
-            amountBruto = price / (1 - feePercent);
+            amountBruto = price * (1 + feePercent); // ex: 100 * 1.0549 = 105.49
             amountFee = amountBruto - price;
             amountNet = price;
         }
 
         // 2. Create pending transaction
-        // Tentamos inserir com os nomes exatos das colunas do banco: amount_gross, amount_fee, amount_net
-        const txData: any = {
-            event_id: gift.events.id,
-            gift_id: gift.id,
-            guest_name: name,
-            guest_email: email || null,
-            message: message || null,
-            amount_gross: amountBruto, // No banco se chama amount_gross
-            amount_fee: amountFee,
-            amount_net: amountNet,
-            tax_payer: gift.events.tax_payer,
-            status: 'PENDING'
-        };
-
         const { data: transaction, error: txError } = await supabaseAdmin
             .from('gift_transactions')
-            .insert(txData)
+            .insert({
+                gift_id: giftId,
+                event_id: gift.event_id,
+                guest_name: finalName,
+                guest_email: email || null,
+                message: message || null,
+                amount_gross: amountBruto,  // Usando ambos os nomes para evitar erros de schema legados
+                amount_bruto: amountBruto,
+                amount_fee: amountFee,
+                amount_net: amountNet,
+                tax_payer: gift.events?.tax_payer || 'COUPLE',
+                status: 'PENDING'
+            })
             .select()
             .single();
 
         if (txError || !transaction) {
-            console.error('Insert TX error (Attempt 1):', txError);
-
-            // Fallback: Tentativa com nomes alternativos caso o banco mude
-            if (txError?.code === '23502' || txError?.code === 'PGRST204') {
-                const retryData = { ...txData, amount_bruto: amountBruto };
-                delete retryData.amount_gross;
-
-                const { data: retryTx, error: retryError } = await supabaseAdmin
-                    .from('gift_transactions')
-                    .insert(retryData)
-                    .select()
-                    .single();
-
-                if (retryError) return NextResponse.json({ error: 'Erro de compatibilidade com o banco de dados' }, { status: 500 });
-                return processCheckout(retryTx);
-            }
-
-            return NextResponse.json({ error: 'Erro ao criar transação' }, { status: 500 });
+            console.error('Insert TX error:', txError);
+            return NextResponse.json({ error: 'Erro ao criar transação no banco de dados' }, { status: 500 });
         }
 
         return processCheckout(transaction);
 
-        // Função auxiliar para continuar o fluxo após criar a transação no banco
+        // Função auxiliar para Stripe
         async function processCheckout(tx: any) {
             try {
-                // Limpar baseUrl de aspas extras que podem vir do .env
-                let baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000').replace(/['"]+/g, '').trim();
+                // Determine the base URL dynamically based on the request origin or referer.
+                // This ensures we always return the user to the exact domain they are currently browsing,
+                // avoiding "no tunnel here" errors if the env var tunnel is outdated.
+                let origin = req.headers.get('origin');
+                if (!origin) {
+                    const referer = req.headers.get('referer');
+                    if (referer) {
+                        origin = new URL(referer).origin;
+                    } else {
+                        origin = 'http://localhost:3000';
+                    }
+                }
+                const baseUrl = origin.replace(/\/$/, '');
 
-                // Garantir que termina sem barra
-                if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
-                // Garantir que temos o ID do evento para o metadata
                 const safeEventId = event?.id || eventId || gift.event_id;
                 const eventSlug = event?.slug || settings?.slug || 'evento';
 
                 const successUrl = `${baseUrl}/${eventSlug}/presentes/sucesso?t=${tx.id}`;
-                const failureUrl = `${baseUrl}/${eventSlug}/presentes?error=payment`;
-                const pendingUrl = `${baseUrl}/${eventSlug}/presentes?status=pending`;
+                const cancelUrl = `${baseUrl}/${eventSlug}/presentes?error=payment_cancelled`;
 
-                const preferenceBody: any = {
-                    items: [{
-                        id: gift.id,
-                        title: `Presente: ${gift.name} - ${eventDisplayName}`,
-                        quantity: 1,
-                        unit_price: Number(amountBruto.toFixed(2)),
-                        currency_id: 'BRL',
-                    }],
-                    payer: {
-                        name: name,
-                        email: email || 'convidado@vbeventos.com.br',
-                    },
-                    back_urls: {
-                        success: successUrl,
-                        failure: failureUrl,
-                        pending: pendingUrl,
-                    },
-                    external_reference: tx.id,
+                // Custo no Stripe é sempre em centavos (inteiro)
+                const unitAmount = Math.round(amountBruto * 100);
+
+                const isValidEmail = (str: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
+                const safeEmail = email && isValidEmail(email) ? email : undefined;
+
+                // Stripe aceita cartão (inclui Apple Pay e Google Pay automaticamente) e boleto
+                // PIX é feito separadamente pelo Mercado Pago
+                const paymentMethods: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] = ['card', 'boleto'];
+
+                const session = await stripe.checkout.sessions.create({
+                    payment_method_types: paymentMethods,
+                    line_items: [
+                        {
+                            price_data: {
+                                currency: 'brl',
+                                product_data: {
+                                    name: `Presente: ${gift.name}`,
+                                    description: `Para ${eventDisplayName}`,
+                                    images: gift.image_url && gift.image_url.startsWith('http') && !gift.image_url.includes('localhost') 
+                                                ? [gift.image_url] 
+                                                : [],
+                                },
+                                unit_amount: unitAmount,
+                            },
+                            quantity: 1,
+                        },
+                    ],
+                    mode: 'payment',
+                    success_url: successUrl,
+                    cancel_url: cancelUrl,
+                    client_reference_id: tx.id,
+                    customer_email: safeEmail,
                     metadata: {
                         transaction_id: tx.id,
-                        event_id: safeEventId
-                    },
-                    statement_descriptor: "VB PRESENTES",
-                    payment_methods: {
-                        excluded_payment_types: [{ id: "ticket" }],
-                        installments: 1
+                        event_id: safeEventId,
                     }
-                };
+                });
 
-                const isLocal = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
-
-                if (!isLocal) {
-                    preferenceBody.auto_return = 'approved';
-                    preferenceBody.notification_url = `${baseUrl}/api/webhook/mercadopago`;
-                }
-
-                const preference = await mpPreference.create({ body: preferenceBody });
-
-                await supabaseAdmin.from('gift_transactions').update({ mp_preference_id: preference.id }).eq('id', tx.id);
-                return NextResponse.json({ init_point: preference.init_point, transactionId: tx.id });
-            } catch (mpError) {
-                console.error('Mercado Pago Error Details:', JSON.stringify(mpError, null, 2));
+                // Vamos salvar o session_id no mesmo campo que antes era o mp_preference_id para evitar migração
+                await supabaseAdmin.from('gift_transactions').update({ mp_preference_id: session.id }).eq('id', tx.id);
+                
+                return NextResponse.json({ init_point: session.url, transactionId: tx.id });
+            } catch (stripeError: any) {
+                console.error('Stripe Error Details:', JSON.stringify({
+                    type: stripeError?.type,
+                    code: stripeError?.code,
+                    message: stripeError?.message,
+                    param: stripeError?.param,
+                    raw: stripeError?.raw,
+                }, null, 2));
                 return NextResponse.json({
-                    error: 'Erro no MercadoPago',
-                    details: (mpError as any)?.message
+                    error: 'Erro no provedor de pagamentos',
+                    details: stripeError?.message,
+                    stripeCode: stripeError?.code,
                 }, { status: 500 });
             }
         }

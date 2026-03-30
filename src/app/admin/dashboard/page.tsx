@@ -12,7 +12,7 @@ import { ConfirmDialog } from '@/app/components/confirm-dialog'
 
 function AdminDashboardContent() {
   const { user } = useAuth()
-  const { events, getTotalMetrics, removeEvent, loading: adminLoading } = useAdmin()
+  const { events, getTotalMetrics, removeEvent, metrics, fetchMetrics, loading: adminLoading } = useAdmin()
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   const [guestCounts, setGuestCounts] = useState<Record<string, any>>({})
@@ -135,9 +135,138 @@ function AdminDashboardContent() {
         </>
       }
     >
+      {/* ── SEÇÃO DE EXCEÇÕES (BADGES CRÍTICOS) ────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Saques Pendentes */}
+        <div 
+          onClick={() => router.push('/admin/withdrawals')}
+          className={`p-6 rounded-[2rem] border transition-all cursor-pointer flex items-center justify-between group ${(metrics?.pendingWithdrawals ?? 0) > 0 ? 'bg-danger/5 border-danger/20 hover:bg-danger/10' : 'bg-surface border-border-soft opacity-60'}`}
+        >
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">Saques Pendentes</p>
+            <h4 className={`text-2xl font-black ${(metrics?.pendingWithdrawals ?? 0) > 0 ? 'text-danger' : 'text-text-primary'}`}>
+              {metrics?.pendingWithdrawals || 0}
+            </h4>
+          </div>
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all group-hover:scale-110 ${(metrics?.pendingWithdrawals ?? 0) > 0 ? 'bg-danger text-white shadow-lg shadow-danger/20' : 'bg-bg-light text-text-muted'}`}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+          </div>
+        </div>
+
+        {/* Novos Usuários (24h) */}
+        <div 
+          onClick={() => router.push('/admin/users')}
+          className={`p-6 rounded-[2rem] border transition-all cursor-pointer flex items-center justify-between group ${(metrics?.newUsers ?? 0) > 0 ? 'bg-brand/5 border-brand/20 hover:bg-brand/10' : 'bg-surface border-border-soft opacity-60'}`}
+        >
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">Novos Usuários (24h)</p>
+            <h4 className={`text-2xl font-black ${(metrics?.newUsers ?? 0) > 0 ? 'text-brand' : 'text-text-primary'}`}>
+              +{metrics?.newUsers || 0}
+            </h4>
+          </div>
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all group-hover:scale-110 ${(metrics?.newUsers ?? 0) > 0 ? 'bg-brand text-white shadow-lg shadow-brand/20' : 'bg-bg-light text-text-muted'}`}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+          </div>
+        </div>
+
+        {/* Eventos Próximos */}
+        <div className="p-6 bg-surface border border-border-soft rounded-[2rem] flex items-center justify-between group opacity-90 hover:opacity-100 transition-all">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">Eventos (Hoje/Amanhã)</p>
+            <h4 className="text-2xl font-black text-text-primary">{metrics?.upcomingEvents || 0}</h4>
+          </div>
+          <div className="w-12 h-12 bg-bg-light text-text-muted rounded-2xl flex items-center justify-center transition-all group-hover:scale-110">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><rect width="18" height="18" x="3" y="4" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+          </div>
+        </div>
+
+        {/* Alertas de Anomalia */}
+        <div className={`p-6 rounded-[2rem] border transition-all flex items-center justify-between group ${(metrics?.anomalies?.length ?? 0) > 0 ? 'bg-warning border-warning/30 animate-pulse' : 'bg-surface border-border-soft opacity-60'}`}>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-1">Detecção de Riscos</p>
+            <h4 className={`text-2xl font-black ${(metrics?.anomalies?.length ?? 0) > 0 ? 'text-text-primary' : 'text-text-primary'}`}>
+              {(metrics?.anomalies?.length ?? 0) > 0 ? 'ALERTA' : 'OK'}
+            </h4>
+          </div>
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all group-hover:scale-110 ${(metrics?.anomalies?.length ?? 0) > 0 ? 'bg-white text-warning shadow-lg' : 'bg-bg-light text-text-muted'}`}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+          </div>
+        </div>
+      </div>
+
+      {/* ── TORRE DE CONTROLE: VOLUME GLOBAL ────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+        <div className="lg:col-span-2 bg-gradient-to-br from-brand-dark to-[#5C1D0B] rounded-[3rem] p-8 md:p-10 shadow-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -mr-48 -mt-48 blur-3xl pointer-events-none" />
+          
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h3 className="text-xl font-black text-white tracking-tight">Torre de Controle</h3>
+                <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">Volume Transacional (7 dias)</p>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-full border border-white/10">
+                <span className="w-1.5 h-1.5 bg-success rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                <span className="text-[8px] font-black text-white uppercase tracking-widest">Live Monitor</span>
+              </div>
+            </div>
+
+            {/* Simple SVG Chart */}
+            <div className="h-48 flex items-end gap-2 md:gap-4 mb-4">
+              {metrics?.transactionHistory?.map((day: any, i: number) => {
+                const max = Math.max(...metrics.transactionHistory.map((d: any) => d.total), 1);
+                const height = (day.total / max) * 100;
+                return (
+                  <div key={day.date} className="flex-1 flex flex-col items-center gap-3 group/bar">
+                    <div className="relative w-full h-full flex items-end">
+                      <div 
+                        className="w-full bg-brand-light/40 group-hover/bar:bg-white transition-all duration-500 rounded-t-xl relative border-t border-white/20"
+                        style={{ height: `${Math.max(height, 5)}%` }}
+                      >
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white text-brand-dark text-[9px] font-black px-2 py-1 rounded-md opacity-0 group-hover/bar:opacity-100 transition-opacity shadow-2xl pointer-events-none whitespace-nowrap z-20">
+                          R$ {day.total.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[8px] font-black text-white/30 uppercase tracking-tighter">
+                      {new Date(day.date).toLocaleDateString('pt-BR', { weekday: 'short' })}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-surface border border-border-soft rounded-[3rem] p-10 flex flex-col justify-between shadow-sm relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-brand/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-brand/10 transition-all" />
+          
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-1.5 h-1.5 bg-brand rounded-full" />
+              <p className="text-[11px] font-black text-text-muted uppercase tracking-[0.2em]">Master Revenue</p>
+            </div>
+            <h3 className="text-4xl font-black text-text-primary tracking-tighter mb-2">
+              R$ {metrics?.totalRevenue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </h3>
+            <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest opacity-60">Ganhos da Plataforma</p>
+          </div>
+
+          <div className="mt-8 pt-8 border-t border-border-soft/50 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-black text-text-muted uppercase tracking-widest">Meta de Arrecadação</span>
+              <span className="text-xs font-black text-brand">85%</span>
+            </div>
+            <div className="w-full h-2 bg-bg-light rounded-full overflow-hidden p-0.5 border border-border-soft/10">
+              <div className="h-full bg-brand w-[85%] rounded-full shadow-sm" />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-surface rounded-[3rem] border border-border-soft p-10 mb-12 shadow-sm relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-64 h-64 bg-brand-pale/20 rounded-full -mr-32 -mt-32 blur-3xl transition-all group-hover:bg-brand-pale/30" />
-
+        
         <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-4 divide-y md:divide-y-0 md:divide-x divide-border-soft/50">
           <div className="text-center md:px-4 pt-4 md:pt-0">
             <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-3">Total de Eventos</p>

@@ -87,8 +87,14 @@ export async function POST(req: NextRequest) {
         }
 
         // Noivos
-        if (eventSettings.notifyOwnerOnRSVP !== false && ownerEmail) {
-            logEntry(`... Tentando notificação para os noivos (${ownerEmail})`);
+        const notificationPrefs = eventSettings.notificationSettings || {};
+        const hasMessage = updates.message && updates.message.trim().length > 0;
+        
+        const shouldNotifyRSVP = notificationPrefs.rsvp !== false && eventSettings.notifyOwnerOnRSVP !== false;
+        const shouldNotifyMural = (notificationPrefs.mural !== false) && hasMessage;
+
+        if ((shouldNotifyRSVP || shouldNotifyMural) && ownerEmail) {
+            logEntry(`... Tentando notificação para os noivos (${ownerEmail}) - RSVP:${shouldNotifyRSVP}, Mural:${shouldNotifyMural}`);
             emailPromises.push(
                 sendOwnerEmail({ 
                     ownerEmail, 

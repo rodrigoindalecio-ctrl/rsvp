@@ -29,8 +29,8 @@ export default function MuralMessagesTab({ eventId }: Props) {
         try {
             const res = await fetch(`/api/events/${eventId}/gifts`, { cache: 'no-store' })
             const data = await res.json()
-            if (data && data.transactions) {
-                const sorted = data.transactions.sort((a: any, b: any) =>
+            if (data && data.messages) {
+                const sorted = data.messages.sort((a: any, b: any) =>
                     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
                 )
                 setMessages(sorted)
@@ -119,9 +119,9 @@ export default function MuralMessagesTab({ eventId }: Props) {
     }
 
     return (
-        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700">
+        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700 overflow-visible">
             {/* Header Emocional */}
-            <div className="text-center max-w-2xl mx-auto space-y-4">
+            <div className="text-center max-w-2xl mx-auto space-y-4 overflow-visible">
                 <div className="w-16 h-16 bg-brand-pale rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner text-brand transform -rotate-3">
                     <Heart size={30} fill="currentColor" />
                 </div>
@@ -152,7 +152,7 @@ export default function MuralMessagesTab({ eventId }: Props) {
                                     setIsSelectionMode(false)
                                     setSelectedItems([])
                                 }}
-                                className="px-5 py-3.5 bg-bg-light text-text-muted rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-border-soft transition-all flex items-center gap-2"
+                                className="px-5 py-3.5 bg-bg-light text-text-muted rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 hover:bg-border-soft hover:text-text-primary dark:hover:bg-white/10 dark:hover:text-white"
                             >
                                 <X size={14} /> Cancelar
                             </button>
@@ -167,7 +167,7 @@ export default function MuralMessagesTab({ eventId }: Props) {
                     ) : (
                         <button
                             onClick={() => setIsSelectionMode(true)}
-                            className="px-5 py-3.5 bg-brand/5 text-brand border border-brand/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand/10 transition-all flex items-center gap-2"
+                            className="px-5 py-3.5 bg-brand/5 text-brand border border-brand/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 hover:bg-brand/10 hover:border-brand/30 dark:hover:bg-brand/20 dark:hover:border-brand/40"
                         >
                             <CheckSquare size={14} /> Gerenciar Mural
                         </button>
@@ -182,14 +182,14 @@ export default function MuralMessagesTab({ eventId }: Props) {
                     <p className="text-text-muted font-serif italic">Ainda não recebemos recadinhos por aqui...</p>
                 </div>
             ) : (
-                <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
                     <AnimatePresence>
                         {filteredMessages.map((msg, idx) => {
                             const isSelected = selectedItems.some(i => i.id === msg.id)
                             return (
-                                <div key={msg.id} className="relative group/card break-inside-avoid">
-                                    {/* Botão de Excluir por Swipe (Fundo) - Visível quando arrasta */}
-                                    <div className="absolute inset-0 bg-danger rounded-[2rem] flex items-center justify-end px-8 text-white">
+                                <div key={msg.id} className="relative group/card">
+                                    {/* Botão de Excluir por Swipe (Fundo) - Melhor alinhado para evitar riscos */}
+                                    <div className="absolute inset-0 bg-danger/10 rounded-[1.95rem] flex items-center justify-end px-8 text-danger/40 transition-opacity">
                                         <Trash2 size={24} />
                                     </div>
 
@@ -201,19 +201,19 @@ export default function MuralMessagesTab({ eventId }: Props) {
                                         onDragEnd={(_, info) => {
                                             if (info.offset.x < -60) handleDeleteSingle(msg)
                                         }}
-                                        className={`bg-white rounded-[2rem] p-8 border border-border-soft shadow-sm hover:shadow-xl transition-all duration-300 relative z-10 
-                                            ${isSelected ? 'border-brand ring-2 ring-brand/10 scale-[0.98]' : 'hover:-translate-y-1'}
+                                        className={`bg-white rounded-[2rem] p-8 border border-border-soft shadow-sm hover:shadow-xl hover:shadow-brand/[0.05] transition-all duration-300 relative z-10 
+                                            ${isSelected ? 'border-brand ring-4 ring-brand/10 scale-[0.98]' : 'hover:-translate-y-1'}
                                             ${isSelectionMode ? 'cursor-pointer' : ''}
                                         `}
                                         onClick={() => isSelectionMode && toggleSelection(msg)}
                                     >
-                                        {/* Aspas decorativas */}
-                                        <Quote className="absolute -top-2 -right-2 text-brand/5 group-hover/card:text-brand/10 transition-colors" size={120} />
+                                        {/* Aspas decorativas - Reduzida opacidade para ficar mais elegante */}
+                                        <Quote className="absolute -top-4 -right-2 text-brand/5 group-hover/card:text-brand/[0.08] transition-colors pointer-events-none" size={140} />
 
                                         {/* Checkbox de Seleção */}
                                         {isSelectionMode && (
                                             <div className="absolute top-6 right-6">
-                                                <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-brand border-brand text-white' : 'border-border-soft bg-white'}`}>
+                                                <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-brand border-brand text-white' : 'border-border-soft bg-white shadow-inner'}`}>
                                                     {isSelected && <CheckSquare size={14} />}
                                                 </div>
                                             </div>
@@ -222,10 +222,10 @@ export default function MuralMessagesTab({ eventId }: Props) {
                                         <div className="relative z-10 space-y-6">
                                             {/* Status Badge */}
                                             <div className="flex items-center gap-2">
-                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs ${msg.type === 'gift' ? 'bg-success-light text-success-dark' : 'bg-brand-pale text-brand'}`}>
+                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs ${msg.type === 'gift' ? 'bg-success/10 text-success' : 'bg-brand/10 text-brand'}`}>
                                                     {msg.type === 'gift' ? <Star size={14} fill="currentColor" /> : <MessageSquare size={14} />}
                                                 </div>
-                                                <span className={`text-[9px] font-black uppercase tracking-widest ${msg.type === 'gift' ? 'text-success-dark/60' : 'text-brand/60'}`}>
+                                                <span className={`text-[9px] font-black uppercase tracking-widest ${msg.type === 'gift' ? 'text-success/50' : 'text-brand/50'}`}>
                                                     {msg.type === 'gift' ? 'Presente Recebido' : 'Recado no RSVP'}
                                                 </span>
                                             </div>
@@ -238,7 +238,7 @@ export default function MuralMessagesTab({ eventId }: Props) {
                                             {/* Assinatura */}
                                             <div className="pt-6 border-t border-border-soft flex items-center justify-between">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-brand/5 border border-brand/10 flex items-center justify-center text-brand font-black text-xs">
+                                                    <div className="w-10 h-10 rounded-full bg-surface border border-border-soft flex items-center justify-center text-brand font-black text-xs shadow-inner">
                                                         {msg.guestName?.charAt(0) || 'C'}
                                                     </div>
                                                     <div>
@@ -247,15 +247,12 @@ export default function MuralMessagesTab({ eventId }: Props) {
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
-                                                    <p className="text-[9px] font-black text-text-muted uppercase tracking-widest">
+                                                    <p className="text-[9px] font-black text-text-muted/60 uppercase tracking-widest">
                                                         {new Date(msg.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                                                     </p>
                                                 </div>
                                             </div>
                                         </div>
-
-                                        {/* Detalhe de cor aleatório */}
-                                        <div className={`absolute bottom-0 left-0 right-0 h-1.5 ${idx % 3 === 0 ? 'bg-brand' : idx % 3 === 1 ? 'bg-success' : 'bg-warning'} opacity-20`} />
                                     </motion.div>
                                 </div>
                             )

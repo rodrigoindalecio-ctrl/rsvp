@@ -27,7 +27,9 @@ function AdminEventoConfigContent() {
         imagePosition: 50,
         imageScale: 1.1,
         customMessage: '',
-        isGiftListEnabled: true
+        isGiftListEnabled: true,
+        giftListInternalEnabled: true,
+        serviceTax: 5.49
     })
 
     useEffect(() => {
@@ -45,7 +47,9 @@ function AdminEventoConfigContent() {
                 imagePosition: found.eventSettings.coverImagePosition || 50,
                 imageScale: found.eventSettings.coverImageScale || 1.1,
                 customMessage: found.eventSettings.customMessage || '',
-                isGiftListEnabled: found.eventSettings.isGiftListEnabled ?? true
+                isGiftListEnabled: found.eventSettings.isGiftListEnabled ?? true,
+                giftListInternalEnabled: found.eventSettings.giftListInternalEnabled ?? true,
+                serviceTax: found.eventSettings.serviceTax ?? 5.49
             })
         }
     }, [eventId, events])
@@ -67,7 +71,9 @@ function AdminEventoConfigContent() {
                 coverImagePosition: form.imagePosition,
                 coverImageScale: form.imageScale,
                 customMessage: form.customMessage,
-                isGiftListEnabled: form.isGiftListEnabled
+                isGiftListEnabled: form.isGiftListEnabled,
+                giftListInternalEnabled: form.giftListInternalEnabled,
+                serviceTax: Number(form.serviceTax)
             }
 
             await updateEvent(eventId, {
@@ -246,6 +252,35 @@ function AdminEventoConfigContent() {
                                     className="w-full px-5 py-4 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold shadow-inner min-h-[100px] outline-none text-text-primary focus:ring-2 focus:ring-brand/10 transition-all"
                                     placeholder="Ex: É com muita alegria que convidamos você para o dia mais importante de nossas vidas..."
                                 />
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* FINANCEIRO */}
+                    <section className="pt-12 border-t border-border-soft">
+                        <div className="flex items-center gap-3 mb-8">
+                            <h3 className="text-xl font-black text-text-primary tracking-tight">Financeiro</h3>
+                            <span className="px-3 py-1 bg-brand/10 text-[8px] font-black uppercase tracking-widest text-brand rounded-lg border border-brand/20">Configuração Mestre</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                            <div className="bg-bg-light p-6 rounded-[2rem] border border-border-soft">
+                                <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 flex items-center gap-2">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 2v20M17 5H9.5a4.5 4.5 0 0 0 0 9h5a4.5 4.5 0 0 1 0 9H6" /></svg>
+                                    Taxa de Serviço (%)
+                                </label>
+                                <div className="flex items-center gap-4">
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        value={form.serviceTax}
+                                        onChange={e => setForm({ ...form, serviceTax: parseFloat(e.target.value) })}
+                                        className="w-full px-5 py-4 bg-white border border-border-soft rounded-2xl text-sm font-bold shadow-sm text-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all"
+                                    />
+                                    <span className="text-xl font-black text-brand/30">%</span>
+                                </div>
+                                <p className="mt-3 text-[9px] font-bold text-text-muted leading-relaxed italic uppercase tracking-widest">
+                                    Esta taxa será usada para calcular o valor líquido recebido pelo casal e o repasse ao convidado (se habilitado).
+                                </p>
                             </div>
                         </div>
                     </section>

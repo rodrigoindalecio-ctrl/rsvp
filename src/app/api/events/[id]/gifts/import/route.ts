@@ -8,23 +8,32 @@ export async function POST(
 ) {
     try {
         const eventId = params.id;
-        const { category } = await req.json();
+        const { category, subcategory, items } = await req.json();
 
-        // Filtrar templates da categoria escolhida
-        const templates = GIFT_TEMPLATES.filter(t => t.category === category);
+        // Se vieram itens específicos do preview, usá-los diretamente
+        const templates = items && Array.isArray(items) && items.length > 0
+            ? items
+            : GIFT_TEMPLATES.filter(t => {
+                const matchCategory = t.category === category;
+                const matchSubcategory = subcategory ? t.subcategory === subcategory : true;
+                return matchCategory && matchSubcategory;
+            });
 
         if (templates.length === 0) {
-            return NextResponse.json({ error: 'Categoria não encontrada' }, { status: 400 });
+            return NextResponse.json({ error: 'Nenhum presente encontrado para esta seleção' }, { status: 400 });
         }
 
         // Criar presentes em lote para o evento
-        const inserts = templates.map((t, index) => ({
+        const inserts = templates.map((t: any, index: number) => ({
             event_id: eventId,
             name: t.name,
             description: t.description,
             price: t.price,
             category: t.category,
+            subcategory: t.subcategory,
             image_url: t.imageUrl,
+            is_quota: t.isQuota || false,
+            quantity: t.quantity || 1,
             active: true,
             is_custom: false,
             order: index

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { verifyEventOwnership } from '@/lib/verify-ownership';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
     req: NextRequest,
     { params }: { params: { id: string } }
@@ -39,7 +41,10 @@ export async function GET(
                 .order('created_at', { ascending: false }),
             supabaseAdmin
                 .from('withdrawals')
-                .select('*')
+                .select(`
+                    *,
+                    gift_transactions (*)
+                `)
                 .eq('event_id', eventId),
             supabaseAdmin
                 .from('guests')
@@ -65,7 +70,7 @@ export async function GET(
         }, { totalNet: 0, pendingNet: 0, availableNet: 0 });
 
         const totalWithdrawn = (withdrawals || [])
-            .filter((w: any) => w.status === 'COMPLETED' || w.status === 'PENDING')
+            .filter((w: any) => (w.status || 'pending').toUpperCase() === 'COMPLETED' || (w.status || 'pending').toUpperCase() === 'PENDING')
             .reduce((acc: any, w: any) => acc + Number(w.amount), 0);
         stats.availableNet -= totalWithdrawn;
 
@@ -93,6 +98,16 @@ export async function GET(
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
 
+        const formattedTransactions = (transactions || []).map((t: any) => ({
+             id: t.id,
+             guestName: t.guest_name,
+             guestEmail: t.guest_email,
+             amount: Number(t.amount_bruto || t.amount || t.amount_net || 0),
+             amountNet: Number(t.amount_net || 0),
+             message: t.message,
+             createdAt: t.created_at
+        }));
+
         return NextResponse.json({
             gifts: gifts || [],
             stats,
@@ -103,19 +118,76 @@ export async function GET(
                 bankPixKey: event.bank_pix_key || '',
                 bankType: event.bank_type || 'CPF',
                 bankBeneficiary: event.bank_beneficiary || '',
-                coupleNames: typeof event.event_settings === 'string' ? JSON.parse(event.event_settings).coupleNames : event.event_settings?.coupleNames || 'Nós'
+                coupleNames: typeof event.event_settings === 'string' ? JSON.parse(event.event_settings).coupleNames : event.event_settings?.coupleNames || 'Nós',
+                serviceTax: event.event_settings?.serviceTax || 5.49
             },
-            transactions: allMessages.slice(0, 100),
+            transactions: formattedTransactions, // Para a aba da Tesouraria
+            messages: allMessages.slice(0, 100), // Para o Mural
             withdrawals: (withdrawals || []).map(w => ({
                 id: w.id,
                 amount: Number(w.amount),
-                status: w.status,
-                createdAt: w.created_at,
-                pixKey: w.pix_key
+                status: (w.status || 'PENDING').toUpperCase(),
+                createdAt: w.requested_at,
+                pixKey: w.pix_key,
+                receiptUrl: w.receipt_url,
+                rejectionReason: w.rejection_reason,
+                gifts: (w.gift_transactions || []).map((t: any) => ({
+                    id: t.id,
+                    guestName: t.guest_name,
+                    amount: Number(t.amount_bruto || t.amount || t.amount_net || 0),
+                    amountNet: Number(t.amount_net || 0)
+                }))
             }))
         });
 
     } catch (e) {
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
+    }
+}
+
+export async function POST(
+    req: NextRequest,
+    { params }: { params: { id: string } }
+) {
+    try {
+        const eventId = params.id;
+        const ownership = await verifyEventOwnership(req, eventId);
+        if (!ownership.authorized) return ownership.response;
+
+        const body = await req.json();
+        
+        const { data: existingGifts } = await supabaseAdmin
+            .from('gifts')
+            .select('order')
+            .eq('event_id', eventId)
+            .order('order', { ascending: false })
+            .limit(1);
+            
+        const nextOrder = existingGifts?.length ? (existingGifts[0].order || 0) + 1 : 1;
+
+        const { data, error } = await supabaseAdmin
+            .from('gifts')
+            .insert({
+                event_id: eventId,
+                name: body.name,
+                description: body.description || '',
+                price: body.price,
+                image_url: body.imageUrl,
+                category: body.category,
+                subcategory: 'custom',
+                is_quota: body.isQuota || false,
+                quantity: body.quantity || 1,
+                active: body.active !== undefined ? body.active : true,
+                order: nextOrder,
+                is_custom: true
+            })
+            .select('*')
+            .single();
+
+        if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+        return NextResponse.json(data);
+    } catch (e: any) {
+        return NextResponse.json({ error: 'Erro interno ao salvar o presente. A imagem pode ser muito grande.' }, { status: 500 });
     }
 }

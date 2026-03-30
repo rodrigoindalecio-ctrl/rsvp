@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import { verifyInternalKey } from '@/lib/auth-utils'
+import { verifyAuth } from '@/lib/auth-utils'
 
 // Criar transportador SMTP
 const createTransporter = () => {
@@ -21,7 +21,8 @@ const createTransporter = () => {
 
 export async function POST(request: NextRequest) {
     try {
-        if (!verifyInternalKey(request)) {
+        const isAuthorized = await verifyAuth(request)
+        if (!isAuthorized) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 

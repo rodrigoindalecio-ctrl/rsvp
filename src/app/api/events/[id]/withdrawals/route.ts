@@ -27,15 +27,24 @@ export async function POST(
                 pix_key: pixKey,
                 pix_type: pixType,
                 beneficiary: beneficiary,
-                status: 'PENDING'
+                status: 'pending'
             })
             .select()
             .single();
 
-        if (error) {
+        if (error || !withdrawal) {
             console.error('[WITHDRAWAL ERROR]', error);
             return NextResponse.json({ error: 'Erro ao registrar solicitação de saque.' }, { status: 500 });
         }
+
+        // 2. Vincular todas as transações disponíveis a este saque
+        await supabaseAdmin
+            .from('gift_transactions')
+            .update({ withdrawal_id: withdrawal.id })
+            .eq('event_id', eventId)
+            .eq('status', 'APPROVED')
+            .is('withdrawal_id', null)
+            .lte('release_date', new Date().toISOString());
 
         // 📧 Notificar Admin (Vanessa/Rodrigo) sobre novo saque
         try {

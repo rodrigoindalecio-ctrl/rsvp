@@ -42,7 +42,6 @@ export async function POST(
                     .from('gift_transactions')
                     .update({ 
                         message: '', // Usar string vazia para garantir que saia do filtro
-                        updated_at: new Date().toISOString()
                     })
                     .in('id', giftIds)
                     .eq('event_id', eventId)

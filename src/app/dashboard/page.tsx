@@ -131,6 +131,71 @@ export default function DashboardPage() {
     console.log('🎁 Gift List Status:', eventSettings?.isGiftListEnabled);
   }, [eventSettings?.isGiftListEnabled]);
 
+  // ===== NOTIFICATION BADGE LOGIC =====
+  const [counts, setCounts] = useState({ gifts: 0, messages: 0, guests: 0 })
+  const [badges, setBadges] = useState({ guests: 0, gifts: 0, messages: 0 })
+
+  useEffect(() => {
+    if (!eventId) return;
+
+    // Fetch transactions & messages to show badges early
+    const fetchCounts = async () => {
+      try {
+        const res = await fetch(`/api/events/${eventId}/gifts`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const txs = data.transactions?.length || 0;
+        const msgs = data.messages?.length || 0;
+        const gts = guests.length || 0;
+
+        setCounts({ gifts: txs, messages: msgs, guests: gts });
+
+        let unreadGuests = 0;
+        let unreadGifts = 0;
+        let unreadMessages = 0;
+
+        const savedGuestCount = parseInt(localStorage.getItem(`last_seen_guests_${eventId}`) || '0');
+        const savedGiftCount = parseInt(localStorage.getItem(`last_seen_gifts_${eventId}`) || '0');
+        const savedMessageCount = parseInt(localStorage.getItem(`last_seen_mural_${eventId}`) || '0');
+
+        if (activeTab === 'guests') { localStorage.setItem(`last_seen_guests_${eventId}`, gts.toString()); }
+        else if (gts > savedGuestCount) { unreadGuests = gts - savedGuestCount; }
+
+        if (activeTab === 'gifts') { localStorage.setItem(`last_seen_gifts_${eventId}`, txs.toString()); }
+        else if (txs > savedGiftCount) { unreadGifts = txs - savedGiftCount; }
+
+        if (activeTab === 'messages') { localStorage.setItem(`last_seen_mural_${eventId}`, msgs.toString()); }
+        else if (msgs > savedMessageCount) { unreadMessages = msgs - savedMessageCount; }
+
+        setBadges({ guests: unreadGuests, gifts: unreadGifts, messages: unreadMessages });
+      } catch (e) {}
+    };
+
+    fetchCounts();
+  }, [eventId, guests.length, activeTab]);
+
+  // When tab changes, clear the specific badge locally
+  useEffect(() => {
+    if (!eventId) return;
+    setBadges(prev => {
+      const next = { ...prev };
+      if (activeTab === 'guests') {
+        localStorage.setItem(`last_seen_guests_${eventId}`, counts.guests.toString());
+        next.guests = 0;
+      }
+      if (activeTab === 'gifts') {
+        localStorage.setItem(`last_seen_gifts_${eventId}`, counts.gifts.toString());
+        next.gifts = 0;
+      }
+      if (activeTab === 'messages') {
+        localStorage.setItem(`last_seen_mural_${eventId}`, counts.messages.toString());
+        next.messages = 0;
+      }
+      return next;
+    });
+  }, [activeTab, eventId, counts]);
+  // ===== END NOTIFICATION BADGE LOGIC =====
+
   const handleEditClick = (guest: Guest) => {
     setEditingGuest(guest)
     setIsEditModalOpen(true)
@@ -422,9 +487,9 @@ export default function DashboardPage() {
       />
       {/* HERO SECTION - Cover Image (Card Style as Guest View) */}
       {eventSettings.coverImage && (
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 mb-10 overflow-hidden">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 mb-10">
           <div className="relative aspect-[16/10] sm:aspect-[21/9] rounded-[2.5rem] p-1.5 sm:p-2 bg-white/40 backdrop-blur-sm border border-white/50 shadow-xl group transition-all duration-700">
-            <div className="relative w-full h-full rounded-[2rem] overflow-hidden border border-black/5">
+            <div className="relative w-full h-full rounded-[2.2rem] overflow-hidden border border-black/5">
               <Image
             src={eventSettings.coverImage}
             alt="Event Cover"
@@ -454,9 +519,12 @@ export default function DashboardPage() {
       )}
 
       {/* SHARE CARD */}
-      <div id="tour-invite" className="bg-surface border border-border-soft rounded-[2rem] p-6 mb-10 shadow-sm relative overflow-hidden group">
-        <div className="absolute -right-10 -top-10 w-40 h-40 bg-brand-pale rounded-full blur-3xl opacity-50 group-hover:bg-brand-pale/80 transition-all" />
-        <div className="flex flex-col md:flex-row items-center gap-6">
+      <div id="tour-invite" className="bg-surface border border-border-soft rounded-[2rem] p-6 mb-10 shadow-md relative group">
+        {/* Container para o Blur Decortivo (para não vazar e não cortar a sombra do card pai) */}
+        <div className="absolute inset-0 rounded-[2rem] overflow-hidden pointer-events-none">
+            <div className="absolute -right-10 -top-10 w-40 h-40 bg-brand-pale rounded-full blur-3xl opacity-50 group-hover:bg-brand-pale/80 transition-all" />
+        </div>
+        <div className="flex flex-col md:flex-row items-center gap-6 relative z-10">
           <div className="w-16 h-16 bg-brand-pale rounded-2xl flex items-center justify-center text-brand flex-shrink-0 animate-pulse">
             <ShareIcon />
           </div>
@@ -476,7 +544,7 @@ export default function DashboardPage() {
             <div className="flex gap-2 w-full md:w-auto">
               <button
                 onClick={handleCopyLink}
-                className={`flex-1 md:flex-none px-6 py-3.5 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all flex items-center justify-center gap-2 border-2 ${copied ? 'bg-success text-white border-success' : 'bg-brand-pale/30 text-brand border-brand/5 hover:bg-brand-pale/50 active:scale-95'}`}
+                className={`flex-1 md:flex-none px-6 py-3.5 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all flex items-center justify-center gap-2 border-2 ${copied ? 'bg-success text-white border-success' : 'bg-surface text-brand border-brand/30 hover:bg-brand-pale hover:border-brand/50 active:scale-95 dark:bg-brand/10 dark:border-brand/40 dark:hover:bg-brand/20'}`}
               >
                 {copied ? <><CheckIcon /> Copiado!</> : <><CopyIcon /> Copiar Link</>}
               </button>
@@ -500,37 +568,52 @@ export default function DashboardPage() {
           <div className="flex flex-wrap justify-center sm:justify-start gap-2 sm:gap-4 w-full sm:w-auto">
             <button
               onClick={() => setActiveTab('guests')}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'guests' ? 'bg-brand text-white shadow-xl' : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'}`}
+              className={`relative flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'guests' ? 'bg-brand text-white shadow-xl' : 'bg-surface border border-border-soft text-text-muted hover:border-brand/40 hover:text-brand hover:bg-brand-pale/50 dark:hover:bg-brand/20 dark:hover:text-white'}`}
             >
               <UsersIconMini /> <span className="whitespace-nowrap">Lista de Convidados</span>
+              {badges.guests > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-danger text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-md animate-pulse">
+                  {badges.guests}
+                </span>
+              )}
             </button>
             {eventSettings.isGiftListEnabled === true && (
               <button
                 id="tour-gifts"
                 onClick={() => setActiveTab('gifts')}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'gifts'
+                className={`relative flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'gifts'
                     ? 'bg-brand text-white shadow-xl'
-                    : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'
+                    : 'bg-surface border border-border-soft text-text-muted hover:border-brand/40 hover:text-brand hover:bg-brand-pale/50 dark:hover:bg-brand/20 dark:hover:text-white'
                   }`}
               >
                 <HeartIcon /> <span className="whitespace-nowrap">Presentes</span>
+                {badges.gifts > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-brand text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-md animate-pulse">
+                    {badges.gifts}
+                  </span>
+                )}
               </button>
             )}
             <button
               onClick={() => setActiveTab('messages')}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'messages'
+              className={`relative flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'messages'
                   ? 'bg-brand text-white shadow-xl'
-                  : 'bg-surface border border-border-soft text-text-muted hover:border-brand/30 hover:text-brand'
+                  : 'bg-surface border border-border-soft text-text-muted hover:border-brand/40 hover:text-brand hover:bg-brand-pale/50 dark:hover:bg-brand/20 dark:hover:text-white'
                 }`}
             >
               <MessageSquareIcon /> <span className="whitespace-nowrap">Mural</span>
+              {badges.messages > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-danger text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-md animate-pulse">
+                  {badges.messages}
+                </span>
+              )}
             </button>
           </div>
         )}
 
         <button
           onClick={() => setIsTourOpen(true)}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all bg-bg-light border border-border-soft text-text-muted hover:bg-brand-pale hover:text-brand hover:border-brand/20 shadow-sm"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-2xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all bg-bg-light border border-border-soft text-text-muted hover:bg-brand-pale/60 hover:text-brand hover:border-brand/40 dark:hover:bg-brand/20 dark:hover:text-white shadow-sm"
         >
           <HelpCircleIcon className="w-4 h-4" /> Ver Tutorial
         </button>
@@ -545,7 +628,7 @@ export default function DashboardPage() {
                 onClick={() => setShowCategoryMenu(!showCategoryMenu)}
                 className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 border ${activeCategory !== 'all'
                   ? 'bg-brand text-white border-brand'
-                  : 'bg-surface text-text-muted border-border-soft hover:border-brand-light/30 hover:text-brand'
+                  : 'bg-surface text-text-muted border-border-soft hover:bg-brand-pale/50 hover:border-brand/40 hover:text-brand dark:hover:bg-brand/20 dark:hover:text-white'
                   }`}
               >
                 {activeCategory === 'all' ? 'Categoria' :
@@ -605,7 +688,7 @@ export default function DashboardPage() {
               <button
                 onClick={handleDeleteAllGuests}
                 disabled={metrics.total === 0}
-                className="px-4 py-2 bg-danger/5 text-danger border border-danger/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 hover:bg-danger/10 disabled:opacity-30 whitespace-nowrap"
+                className="px-4 py-2 bg-danger/10 text-danger border border-danger/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-2 hover:bg-danger/20 hover:border-danger/50 disabled:opacity-30 whitespace-nowrap"
               >
                 <TrashIcon />
                 Limpar Lista

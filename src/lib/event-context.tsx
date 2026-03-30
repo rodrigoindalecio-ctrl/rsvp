@@ -73,6 +73,13 @@ export type EventSettings = {
     hasCompletedOnboarding?: boolean
     emailConfirmationTitle?: string
     emailConfirmationGreeting?: string
+    serviceTax?: number
+    notificationSettings?: {
+        rsvp: boolean
+        gifts: boolean
+        mural: boolean
+        withdrawals: boolean
+    }
 }
 
 type EventContextType = {
@@ -144,7 +151,14 @@ const DEFAULT_EVENT_SETTINGS: EventSettings = {
     brandFont: 'lora',
     isGiftListEnabled: false,
     giftListInternalEnabled: false,
-    hasCompletedOnboarding: false
+    hasCompletedOnboarding: false,
+    serviceTax: 5.49,
+    notificationSettings: {
+        rsvp: true,
+        gifts: true,
+        mural: true,
+        withdrawals: true
+    }
 }
 
 export const EventContext = createContext<EventContextType | undefined>(undefined)
@@ -206,8 +220,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
             // 2. Se não estiver no contexto or o contexto falhou (timeout), buscar direto no Supabase
             if (slug || eventId || user?.email) {
                 setLoading(true)
+                setLoading(true)
                 try {
-                    let query = supabase.from('events').select('id, event_settings, gift_list_enabled, created_by')
+                    let query = supabase.from('events').select('id, event_settings, notification_settings, gift_list_enabled, created_by')
                     
                     if (eventId) {
                         query = query.eq('id', eventId)
@@ -229,7 +244,13 @@ export function EventProvider({ children }: { children: ReactNode }) {
                         setEventSettings({
                             ...settings,
                             isGiftListEnabled: settings.isGiftListEnabled ?? true,
-                            giftListInternalEnabled: data.gift_list_enabled ?? false
+                            giftListInternalEnabled: data.gift_list_enabled ?? false,
+                            notificationSettings: data.notification_settings || settings.notificationSettings || {
+                                rsvp: true,
+                                gifts: true,
+                                mural: true,
+                                withdrawals: true
+                            }
                         })
                     }
                 } catch (err) {

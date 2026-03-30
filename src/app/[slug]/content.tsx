@@ -194,7 +194,7 @@ export default function EventContent({ slug }: EventContentProps) {
                             </button>
                         ))}
                         <Link href={`/${slug}/confirmar`}
-                            className="ml-3 px-5 py-2.5 bg-brand text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-brand-dark hover:-translate-y-0.5 transition-all">
+                            className="ml-3 px-5 py-2.5 bg-brand text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-brand-dark hover:-translate-y-0.5 transition-all flex items-center justify-center">
                             Confirmar Presença
                         </Link>
                     </div>
@@ -358,7 +358,7 @@ export default function EventContent({ slug }: EventContentProps) {
 
                         <div className="flex flex-col sm:flex-row justify-center gap-4">
                             <Link href={`/${slug}/confirmar`}
-                                className="px-7 py-3 bg-brand text-white rounded-full font-black uppercase tracking-widest text-[10px] shadow-xl shadow-brand/20 hover:-translate-y-1 active:scale-95 transition-all text-center">
+                                className="px-7 py-3 bg-brand text-white rounded-full font-black uppercase tracking-widest text-[10px] shadow-xl shadow-brand/20 hover:-translate-y-1 active:scale-95 transition-all text-center flex items-center justify-center">
                                 Confirmar Presença
                             </Link>
                             {eventSettings.isGiftListEnabled && (
@@ -380,7 +380,7 @@ export default function EventContent({ slug }: EventContentProps) {
                     <span className="text-[10px] font-black uppercase tracking-[0.4em] text-brand">Nossa História</span>
                     <h2 className="text-4xl font-serif text-text-primary mt-3 mb-6">{eventSettings.coupleStoryTitle || 'Como Tudo Começou'}</h2>
                     <div className="w-16 h-px bg-brand/20 mx-auto mb-10" />
-                    <p className={`text-text-secondary max-w-md mx-auto font-serif italic text-sm tracking-wide leading-relaxed`}>
+                    <p className={`text-text-secondary max-w-2xl mx-auto font-serif italic text-sm tracking-wide leading-relaxed`}>
                         {eventSettings.coupleStory ||
                             'O destino nos colocou no mesmo caminho e, desde então, cada dia ao lado um do outro é uma nova página da história mais bonita que já vivemos. Com alegria e gratidão, convidamos você para celebrar conosco este momento tão especial — a união de duas almas que escolheram caminhar juntas para sempre.'}
                     </p>

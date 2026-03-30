@@ -434,6 +434,9 @@
   --color-border-card:         #2a2a2a;
   
   --color-brand-pale:          #2d1a1e;
+  --color-warning-light:       #2a2214;
+  --color-success-light:       #16251b;
+  --color-danger-light:        #2a1616;
   
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3);

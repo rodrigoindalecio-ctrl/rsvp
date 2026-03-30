@@ -73,6 +73,12 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
     const [ceremonyTime, setCeremonyTime] = useState(eventSettings.ceremonyTime || '19:00')
     const [isGiftListEnabled, setIsGiftListEnabled] = useState(eventSettings.isGiftListEnabled ?? true)
     const [eventAddress, setEventAddress] = useState(eventSettings.eventAddress || '')
+    const [notificationSettings, setNotificationSettings] = useState(eventSettings.notificationSettings || {
+        rsvp: true,
+        gifts: true,
+        mural: true,
+        withdrawals: true
+    })
 
     const [activeTab, setActiveTab] = useState<'geral' | 'visual' | 'conteudo' | 'seguranca'>('geral')
     const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' })
@@ -99,6 +105,8 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
     const [cropQueue, setCropQueue] = useState<{ src: string, type: any, index?: number }[]>([])
     const [touchDistance, setTouchDistance] = useState(0)
     const [touchStartRotation, setTouchStartRotation] = useState(0)
+    const [showNotifModal, setShowNotifModal] = useState(false)
+    const [isSavingNotif, setIsSavingNotif] = useState(false)
     const cropPreviewRef = useRef<HTMLDivElement>(null)
     
     // Autocomplete Refs
@@ -264,6 +272,12 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
             setIsGiftListEnabled(eventSettings.isGiftListEnabled ?? true)
             setEventAddress(eventSettings.eventAddress || '')
             setImagePreview(eventSettings.coverImage)
+            setNotificationSettings(eventSettings.notificationSettings || {
+                rsvp: true,
+                gifts: true,
+                mural: true,
+                withdrawals: true
+            })
         }
     }, [eventSettings]);
 
@@ -584,7 +598,8 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
             timelineEvents, dressCode, parkingSettings,
             brandColor, brandFont, isGiftListEnabled,
             ceremonyAddress, eventAddress, hasSeparateCeremony,
-            ceremonyWazeLocation, ceremonyTime, ceremonyLocation
+            ceremonyWazeLocation, ceremonyTime, ceremonyLocation,
+            notificationSettings
         };
 
         // Comparamos campo a campo apenas os campos que o formulário controla
@@ -627,6 +642,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
         brandColor, brandFont, isGiftListEnabled,
         ceremonyAddress, eventAddress, hasSeparateCeremony,
         ceremonyWazeLocation, ceremonyTime, ceremonyLocation,
+        notificationSettings,
         eventSettings
     ]);
 
@@ -702,7 +718,8 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                 eventAddress,
                 brandColor,
                 brandFont,
-                isGiftListEnabled
+                isGiftListEnabled,
+                notificationSettings
             })
             setSaved(true)
             setTimeout(() => setSaved(false), 3000)
@@ -788,9 +805,9 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                         ))}
                     </div>
 
-                    <form onSubmit={handleSave} className="relative">
+                    <form onSubmit={handleSave} className="relative space-y-10">
                         {/* Tipo de Evento */}
-                        <div className={activeTab === 'geral' ? 'grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300' : 'hidden'}>
+                        <div className={activeTab === 'geral' ? 'grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-300' : 'hidden'}>
                             <div>
                                 <label htmlFor="eventType" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Tipo de Evento</label>
                                 <select
@@ -818,36 +835,34 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                             </div>
                         </div>
 
-                        {/* Notificações */}
-                        <div className={activeTab === 'geral' ? 'p-6 bg-bg-light rounded-[2rem] border border-border-soft flex items-center justify-between group hover:border-brand/20 transition-all animate-in fade-in duration-300' : 'hidden'}>
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-text-muted transition-transform group-hover:scale-110 shadow-sm border border-border-soft">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+                        {/* Resumo de Notificações - Versão Compacta */}
+                        <div className={activeTab === 'geral' ? 'group p-6 bg-white rounded-[2rem] border border-border-soft hover:border-brand/20 transition-all animate-in fade-in duration-300 shadow-sm relative overflow-hidden' : 'hidden'}>
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-brand/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl group-hover:bg-brand/10 transition-colors pointer-events-none" />
+                            
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-14 h-14 bg-bg-light border border-border-soft rounded-2xl flex items-center justify-center text-brand shadow-sm">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-text-primary tracking-tight">Notificações por E-mail</h3>
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                            {notificationSettings.rsvp && <span className="text-[8px] font-black uppercase tracking-widest px-2 py-1 bg-brand/5 text-brand rounded-lg border border-brand/10">RSVP</span>}
+                                            {notificationSettings.gifts && <span className="text-[8px] font-black uppercase tracking-widest px-2 py-1 bg-brand/5 text-brand rounded-lg border border-brand/10">Presentes</span>}
+                                            {notificationSettings.mural && <span className="text-[8px] font-black uppercase tracking-widest px-2 py-1 bg-brand/5 text-brand rounded-lg border border-brand/10">Mural</span>}
+                                            {notificationSettings.withdrawals && <span className="text-[8px] font-black uppercase tracking-widest px-2 py-1 bg-brand/5 text-brand rounded-lg border border-brand/10">Financeiro</span>}
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="text-left">
-                                    <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none mb-1.5">Avisos por E-mail</p>
-                                    <p className="text-xs font-bold text-text-primary">Receber confirmações no seu e-mail</p>
-                                </div>
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowNotifModal(true)}
+                                    className="w-full sm:w-auto px-6 py-3 bg-white border border-border-soft rounded-xl text-[10px] font-black uppercase tracking-[0.15em] text-text-muted hover:text-brand hover:border-brand hover:shadow-lg hover:shadow-brand/5 transition-all text-center flex items-center justify-center gap-2 group/btn"
+                                >
+                                    Personalizar
+                                    <svg className="group-hover/btn:translate-x-1 transition-transform" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M9 18l6-6-6-6" /></svg>
+                                </button>
                             </div>
-                            <button
-                                type="button"
-                                onClick={async () => {
-                                    const newValue = !notifyOwnerOnRSVP;
-                                    setNotifyOwnerOnRSVP(newValue);
-                                    
-                                    // Auto-save instantâneo
-                                    try {
-                                        await updateEventSettings({ notifyOwnerOnRSVP: newValue });
-                                        toast.success('Aviso por e-mail ' + (newValue ? 'ativado' : 'desativado') + '!');
-                                    } catch (err) {
-                                        toast.error('Erro ao salvar alteração');
-                                        setNotifyOwnerOnRSVP(!newValue); // rollback
-                                    }
-                                }}
-                                className={`w-14 h-8 rounded-full relative transition-all duration-300 ${notifyOwnerOnRSVP ? 'bg-brand' : 'bg-border-soft'}`}
-                            >
-                                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${notifyOwnerOnRSVP ? 'left-7' : 'left-1'}`} />
-                            </button>
                         </div>
 
                         {/* Cor do Tema */}
@@ -923,13 +938,13 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                 </div>
                             </label>
                             <div className="relative group">
-                                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-text-muted font-bold text-sm">/</span>
+                                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-text-muted font-bold text-sm">/</span>
                                 <input
                                     type="text"
                                     id="slug"
                                     value={slug}
                                     onChange={(e) => handleSlugChange(e.target.value)}
-                                    className="w-full pl-9 pr-14 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-mono font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-brand"
+                                    className="w-full pl-10 pr-14 py-4 bg-bg-light border border-border-soft rounded-2xl text-sm font-mono font-bold focus:ring-4 focus:ring-brand/5 focus:border-brand transition-all shadow-inner outline-none text-brand"
                                 />
                                 {slugEdited && (
                                     <button
@@ -938,7 +953,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                             setSlugEdited(false)
                                             setSlug(generateSlug(coupleNames))
                                         }}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1 bg-surface border border-border-soft rounded-lg text-[9px] font-black uppercase tracking-widest text-text-muted hover:text-brand shadow-sm transition-all"
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-white border border-border-soft rounded-xl text-[9px] font-black uppercase tracking-widest text-text-muted hover:text-brand shadow-sm transition-all"
                                     >
                                         Auto
                                     </button>
@@ -947,7 +962,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                         </div>
 
                         {/* Data + Horário + Prazo */}
-                        <div className={activeTab === 'geral' ? 'grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-300' : 'hidden'}>
+                        <div className={activeTab === 'geral' ? 'grid grid-cols-1 md:grid-cols-3 gap-8 animate-in fade-in duration-300' : 'hidden'}>
                             <div>
                                 <label htmlFor="eventDate" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Data do Evento</label>
                                 <input
@@ -2067,6 +2082,119 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                     </div>
                 )
             }
+            {/* MODAL DE NOTIFICAÇÕES */}
+            <AnimatePresence>
+                {showNotifModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                        <motion.div 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowNotifModal(false)}
+                            className="absolute inset-0 bg-brand-dark/40 backdrop-blur-md"
+                        />
+                        
+                        <motion.div 
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="bg-surface w-full max-w-xl rounded-[3rem] border border-brand/10 shadow-2xl relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-brand/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none" />
+                            
+                            <div className="p-8 md:p-12 relative z-10">
+                                <div className="flex items-center justify-between mb-10">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-14 h-14 bg-brand-pale/50 rounded-2xl flex items-center justify-center text-brand">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-2xl font-black text-text-primary tracking-tight">O que notificar?</h3>
+                                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-none mt-1">Sua caixa de entrada, suas regras</p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setShowNotifModal(false)}
+                                        className="w-10 h-10 flex items-center justify-center text-text-muted/40 hover:text-brand transition-all hover:bg-bg-light rounded-xl"
+                                    >
+                                        <XIcon className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+                                    {[
+                                        { id: 'rsvp', label: 'RSVP / Confirmações', desc: 'Novos convidados confirmados', icon: '📝' },
+                                        { id: 'gifts', label: 'Loja de Presentes', desc: 'Novos mimos recebidos', icon: '🎁' },
+                                        { id: 'mural', label: 'Mural de Recados', desc: 'Novas mensagens aprovadas', icon: '💬' },
+                                        { id: 'withdrawals', label: 'Saques & Extrato', desc: 'Status financeiro crítico', icon: '💰', mandatory: true },
+                                    ].map((pref: any) => (
+                                        <div 
+                                            key={pref.id}
+                                            onClick={async () => {
+                                                if (pref.mandatory || isSavingNotif) return;
+                                                
+                                                setIsSavingNotif(true);
+                                                const currentVal = notificationSettings[pref.id as keyof typeof notificationSettings];
+                                                const newSettings = { ...notificationSettings, [pref.id]: !currentVal };
+                                                
+                                                // Optimistic update
+                                                setNotificationSettings(newSettings);
+                                                
+                                                toast.promise(updateEventSettings({ notificationSettings: newSettings }), {
+                                                    loading: 'Salvando preferência...',
+                                                    success: () => {
+                                                        setIsSavingNotif(false);
+                                                        return 'Alterado com sucesso! ✨';
+                                                    },
+                                                    error: (err) => {
+                                                        setIsSavingNotif(false);
+                                                        setNotificationSettings(notificationSettings); // Revert
+                                                        return 'Erro ao salvar: ' + (err.message || 'Tente novamente');
+                                                    }
+                                                });
+                                            }}
+                                            className={`group relative p-6 rounded-[2rem] border transition-all cursor-pointer active:scale-95 ${
+                                                isSavingNotif ? 'opacity-50 cursor-wait' : ''
+                                            } ${
+                                                notificationSettings[pref.id as keyof typeof notificationSettings] 
+                                                    ? 'bg-brand/5 border-brand/20 shadow-inner' 
+                                                    : 'bg-white border-border-soft opacity-60 grayscale-[0.5]'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between mb-4">
+                                                <span className="text-2xl">{pref.icon}</span>
+                                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                                                    notificationSettings[pref.id as keyof typeof notificationSettings]
+                                                        ? 'bg-brand border-brand'
+                                                        : 'bg-white border-border-soft'
+                                                }`}>
+                                                    {notificationSettings[pref.id as keyof typeof notificationSettings] && (
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4"><path d="M20 6 9 17l-5-5" /></svg>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <h4 className="text-xs font-black text-text-primary uppercase tracking-widest mb-1.5">{pref.label}</h4>
+                                            <p className="text-[9px] font-bold text-text-muted uppercase tracking-wider">{pref.desc}</p>
+                                            {pref.mandatory && (
+                                                <span className="absolute top-4 right-12 text-[7px] font-black text-brand uppercase tracking-widest bg-brand/10 px-2 py-0.5 rounded-md">Obrigatório</span>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowNotifModal(false)}
+                                    className="w-full py-5 bg-brand text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[11px] shadow-xl shadow-brand/20 hover:bg-brand-dark active:scale-95 transition-all"
+                                >
+                                    Pronto, pode fechar
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </SharedLayout >
     )
 }

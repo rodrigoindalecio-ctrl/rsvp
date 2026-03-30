@@ -46,6 +46,15 @@ type AdminContextType = {
     totalPending: number
     confirmationRate: number
   }
+  metrics: {
+    pendingWithdrawals: number
+    newUsers: number
+    upcomingEvents: number
+    totalRevenue: number
+    transactionHistory: any[]
+    anomalies: any[]
+  } | null
+  fetchMetrics: () => Promise<void>
   createDefaultEventForUser: (userEmail: string, userName: string, coupleNames?: string, customSlug?: string) => Promise<void>
 }
 
@@ -54,6 +63,7 @@ const AdminContext = createContext<AdminContextType | undefined>(undefined)
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [events, setEvents] = useState<AdminEvent[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
+  const [metrics, setMetrics] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   const { user } = useAuth()
@@ -65,7 +75,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       // Mas usuários e métricas globais dependem de quem está logado.
       setLoading(true)
       try {
-        let eventsQuery = supabase.from('events').select('id, slug, event_settings, created_at, created_by, gift_list_enabled')
+        let eventsQuery = supabase.from('events').select('id, slug, event_settings, notification_settings, created_at, created_by, gift_list_enabled')
         let usersQuery = supabase.from('admin_users').select('id, name, email, type, created_at')
 
         // Se for NOIVOS, filtragem de isolamento:
@@ -93,7 +103,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
             eventSettings: {
               ...settings,
               isGiftListEnabled: settings.isGiftListEnabled ?? true, // Master Switch
-              giftListInternalEnabled: e.gift_list_enabled ?? false // Column Switch
+              giftListInternalEnabled: e.gift_list_enabled ?? false, // Column Switch
+              notificationSettings: e.notification_settings || settings.notificationSettings || {
+                rsvp: true,
+                gifts: true,
+                mural: true,
+                withdrawals: true
+              }
             },
             guests: [],
             createdAt: new Date(e.created_at),
@@ -180,6 +196,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         // Sync root column if present in settings object
         if (eventData.eventSettings.giftListInternalEnabled !== undefined) {
           updates.gift_list_enabled = eventData.eventSettings.giftListInternalEnabled
+        }
+        if (eventData.eventSettings.notificationSettings !== undefined) {
+          updates.notification_settings = eventData.eventSettings.notificationSettings
         }
       }
 
@@ -287,6 +306,24 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       console.error('Erro ao atualizar usuário:', error)
     }
   }
+
+  async function fetchMetrics() {
+    try {
+      const response = await fetch('/api/admin/metrics')
+      if (response.ok) {
+        const data = await response.json()
+        setMetrics(data)
+      }
+    } catch (error) {
+      console.error('Error fetching admin metrics:', error)
+    }
+  }
+
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      fetchMetrics()
+    }
+  }, [user])
 
   function getEventById(id: string) {
     return events.find(e => e.id === id)
@@ -400,8 +437,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     updateUser,
     getEventById,
     getTotalMetrics,
-    createDefaultEventForUser
-  }), [events, users, loading])
+    createDefaultEventForUser,
+    metrics,
+    fetchMetrics
+  }), [events, users, loading, metrics])
 
   return (
     <AdminContext.Provider value={value}>

@@ -11,6 +11,14 @@ export default function GiftSuccessPage() {
 
     useEffect(() => {
         setMounted(true)
+        
+        // Autossincronização de pagamentos (Especialmente para webhooks perdidos do Stripe)
+        const transactionId = new URLSearchParams(window.location.search).get('t');
+        if (transactionId) {
+            fetch(`/api/gift/verify?t=${transactionId}`)
+                .then(res => res.json())
+                .catch(console.error);
+        }
     }, [])
 
     return (
@@ -70,6 +78,30 @@ export default function GiftSuccessPage() {
                             className="block w-full py-5 bg-brand text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] hover:-translate-y-1 shadow-xl shadow-brand/20 active:scale-95 transition-all outline-none focus:ring-4 focus:ring-brand/20">
                             Voltar para o Convite
                         </Link>
+
+                        {/* CTA RSVP */}
+                        <div className="mt-2 bg-brand border border-brand/20 rounded-2xl p-5 text-left relative overflow-hidden shadow-lg shadow-brand/20">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -translate-y-8 translate-x-8" />
+                            <div className="flex items-start gap-4">
+                                <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center shrink-0 mt-0.5 border border-white/20">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                                    </svg>
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-white/70 mb-1">Não se esqueça!</p>
+                                    <p className="text-sm text-white font-semibold leading-snug">
+                                        Você já confirmou sua presença? Garanta seu lugar na celebração! 🥂
+                                    </p>
+                                    <Link
+                                        href={`/${slug}/confirmar`}
+                                        className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 bg-white text-brand rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/90 hover:-translate-y-0.5 active:scale-95 transition-all shadow-md"
+                                    >
+                                        Confirmar Presença →
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
 
                         <div className="flex items-center justify-center gap-2 py-2">
                             <div className="w-1 h-1 rounded-full bg-brand/30" />
