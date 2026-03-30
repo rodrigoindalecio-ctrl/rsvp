@@ -2,10 +2,6 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-    apiVersion: '2023-10-16' as any,
-});
-
 export async function POST(
     req: Request,
     { params }: { params: { id: string } }
@@ -98,6 +94,10 @@ export async function POST(
         // Função auxiliar para Stripe
         async function processCheckout(tx: any) {
             try {
+                // Instanciar Stripe dentro da função garante que a env var só é lida em runtime (não no build)
+                const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+                    apiVersion: '2023-10-16' as any,
+                });
                 // Determine the base URL dynamically based on the request origin or referer.
                 // This ensures we always return the user to the exact domain they are currently browsing,
                 // avoiding "no tunnel here" errors if the env var tunnel is outdated.
