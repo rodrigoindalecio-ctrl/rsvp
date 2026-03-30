@@ -3,12 +3,12 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { supabase } from '@/lib/supabase';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-    apiVersion: '2023-10-16' as any,
-});
-
 export async function POST(req: Request) {
     console.log('--- STRIPE WEBHOOK RECEIVED AT 🚀 ---');
+    // Instanciar dentro da função garante que a env var só é lida em runtime (não no build)
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+        apiVersion: '2023-10-16' as any,
+    });
     try {
         const body = await req.text();
         const signature = req.headers.get('stripe-signature') as string;

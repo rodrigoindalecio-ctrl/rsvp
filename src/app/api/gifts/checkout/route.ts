@@ -2,11 +2,11 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-    apiVersion: '2023-10-16' as any,
-});
-
 export async function POST(req: Request) {
+    // Instanciar dentro da função garante que a env var só é lida em runtime (não no build)
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+        apiVersion: '2023-10-16' as any,
+    });
     try {
         const body = await req.json();
         const { cart, guestName, name, email, message, eventId } = body;
