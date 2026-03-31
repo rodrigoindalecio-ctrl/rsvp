@@ -708,7 +708,7 @@ export default function GiftManagementTab({ eventId }: Props) {
                     <div className="relative z-10">
                         <p className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-6 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-warning" /> Saldo Pendente (A Liberar)</p>
                         <h3 className="text-4xl font-light text-text-primary">R$ {Number(stats.pendingNet || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-                        <p className="text-[10px] text-warning font-bold mt-2 uppercase tracking-widest">D+2 para Pix | D+14 para Cartão</p>
+                        <p className="text-[10px] text-warning font-bold mt-2 uppercase tracking-widest">Disponível em 1 dia útil</p>
                     </div>
                 </div>
 

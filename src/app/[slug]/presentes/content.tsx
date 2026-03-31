@@ -476,8 +476,8 @@ export default function PresentsContent({ slug }: Props) {
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-text-muted px-2">Sua Mensagem</label>
-                                        <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Deixe um recado carinhoso para os noivos..." className="w-full p-4 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold text-text-primary outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all resize-none h-24 shadow-inner" />
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-text-muted px-2">Deixe aqui um recadinho que será entregue ao casal</label>
+                                        <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Deixe um recado carinhoso para o casal..." className="w-full p-4 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold text-text-primary outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all resize-none h-24 shadow-inner" />
                                     </div>
 
                                     {/* MENSAGEM DE SEGURANÇA (Apenas Badge) */}

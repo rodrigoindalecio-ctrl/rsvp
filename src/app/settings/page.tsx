@@ -2090,7 +2090,15 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            onClick={() => setShowNotifModal(false)}
+                            onClick={() => {
+                                const originalSettings = eventSettings?.notificationSettings || { rsvp: true, gifts: true, mural: true, withdrawals: true };
+                                const hasUnsavedChanges = JSON.stringify(notificationSettings) !== JSON.stringify(originalSettings);
+                                if (hasUnsavedChanges) {
+                                    toast.error('Alterações descartadas', { description: 'Você fechou a janela sem salvar suas preferências.' });
+                                    setNotificationSettings(originalSettings);
+                                }
+                                setShowNotifModal(false);
+                            }}
                             className="absolute inset-0 bg-brand-dark/40 backdrop-blur-md"
                         />
                         
@@ -2115,7 +2123,15 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                     </div>
                                     <button 
                                         type="button"
-                                        onClick={() => setShowNotifModal(false)}
+                                        onClick={() => {
+                                            const originalSettings = eventSettings?.notificationSettings || { rsvp: true, gifts: true, mural: true, withdrawals: true };
+                                            const hasUnsavedChanges = JSON.stringify(notificationSettings) !== JSON.stringify(originalSettings);
+                                            if (hasUnsavedChanges) {
+                                                toast.error('Alterações descartadas', { description: 'Você fechou a janela sem salvar suas preferências.' });
+                                                setNotificationSettings(originalSettings);
+                                            }
+                                            setShowNotifModal(false);
+                                        }}
                                         className="w-10 h-10 flex items-center justify-center text-text-muted/40 hover:text-brand transition-all hover:bg-bg-light rounded-xl"
                                     >
                                         <XIcon className="w-5 h-5" />
@@ -2131,28 +2147,14 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                     ].map((pref: any) => (
                                         <div 
                                             key={pref.id}
-                                            onClick={async () => {
+                                            onClick={() => {
                                                 if (pref.mandatory || isSavingNotif) return;
                                                 
-                                                setIsSavingNotif(true);
                                                 const currentVal = notificationSettings[pref.id as keyof typeof notificationSettings];
                                                 const newSettings = { ...notificationSettings, [pref.id]: !currentVal };
                                                 
-                                                // Optimistic update
+                                                // Only optimistic update locally
                                                 setNotificationSettings(newSettings);
-                                                
-                                                toast.promise(updateEventSettings({ notificationSettings: newSettings }), {
-                                                    loading: 'Salvando preferência...',
-                                                    success: () => {
-                                                        setIsSavingNotif(false);
-                                                        return 'Alterado com sucesso! ✨';
-                                                    },
-                                                    error: (err) => {
-                                                        setIsSavingNotif(false);
-                                                        setNotificationSettings(notificationSettings); // Revert
-                                                        return 'Erro ao salvar: ' + (err.message || 'Tente novamente');
-                                                    }
-                                                });
                                             }}
                                             className={`group relative p-6 rounded-[2rem] border transition-all cursor-pointer active:scale-95 ${
                                                 isSavingNotif ? 'opacity-50 cursor-wait' : ''
@@ -2185,10 +2187,34 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
 
                                 <button 
                                     type="button"
-                                    onClick={() => setShowNotifModal(false)}
-                                    className="w-full py-5 bg-brand text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[11px] shadow-xl shadow-brand/20 hover:bg-brand-dark active:scale-95 transition-all"
+                                    onClick={async () => {
+                                        if (isSavingNotif) return;
+                                        setIsSavingNotif(true);
+                                        toast.promise(updateEventSettings({ notificationSettings }), {
+                                            loading: 'Salvando notificações...',
+                                            success: () => {
+                                                setIsSavingNotif(false);
+                                                setShowNotifModal(false);
+                                                return 'Tudo configurado! ✨';
+                                            },
+                                            error: (err) => {
+                                                setIsSavingNotif(false);
+                                                return 'Erro ao salvar: ' + (err.message || 'Tente novamente');
+                                            }
+                                        });
+                                    }}
+                                    disabled={isSavingNotif}
+                                    className="flex items-center justify-center gap-2 w-full py-5 bg-brand text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[11px] shadow-xl shadow-brand/20 hover:bg-brand-dark active:scale-95 transition-all disabled:opacity-50"
                                 >
-                                    Pronto, pode fechar
+                                    {isSavingNotif ? (
+                                        <>
+                                            <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Salvando...
+                                        </>
+                                    ) : 'Salvar Alterações'}
                                 </button>
                             </div>
                         </motion.div>
