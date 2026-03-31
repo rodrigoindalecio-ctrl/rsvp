@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
             coupleNames,
             eventSlug,
             baseUrl,
+            shouldNotifyOwner, // Add this flag
         } = body;
 
         const results: string[] = [];
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
         // ─────────────────────────────────────────────────────────────
         // EMAIL 1: DONO DO EVENTO — "Você recebeu um presente!"
         // ─────────────────────────────────────────────────────────────
-        if (ownerEmail) {
+        if (ownerEmail && shouldNotifyOwner !== false) {
             const ownerHTML = `
 <!DOCTYPE html>
 <html lang="pt-BR">

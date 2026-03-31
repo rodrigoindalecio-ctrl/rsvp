@@ -95,31 +95,33 @@ export async function POST(req: Request) {
         const notificationPrefs = tx.events.notification_settings || {};
         const shouldNotifyGift = notificationPrefs.gifts !== false;
 
-        if (shouldNotifyGift) {
-          const emailRes = await fetch(`${baseUrl}/api/send-gift-approved-emails`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${process.env.INTERNAL_API_KEY}`
-            },
-            body: JSON.stringify({
-              transactionId: tx.id,
-              guestName: tx.guest_name,
-              guestEmail: tx.guest_email,
-              giftName: tx.gifts?.name || 'Presente em Dinheiro',
-              amount: tx.amount_net,
-              message: tx.message,
-              captureMethod: captureMethod,
-              ownerEmail: tx.events.created_by,
-              coupleNames: settings?.coupleNames,
-              eventSlug: settings?.slug || tx.events.slug,
-              baseUrl: baseUrl,
-            })
-          });
-          const emailData = await emailRes.json();
-          console.log('[InfinitePay Webhook] Emails enviados:', emailData.results);
-        } else {
-          console.log('[InfinitePay Webhook] Notificação de presente desativada pelo usuário.');
+        const emailRes = await fetch(`${baseUrl}/api/send-gift-approved-emails`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.INTERNAL_API_KEY}`
+          },
+          body: JSON.stringify({
+            transactionId: tx.id,
+            guestName: tx.guest_name,
+            guestEmail: tx.guest_email,
+            giftName: tx.gifts?.name || 'Presente em Dinheiro',
+            amount: tx.amount_net,
+            message: tx.message,
+            captureMethod: captureMethod,
+            ownerEmail: tx.events.created_by,
+            coupleNames: settings?.coupleNames,
+            eventSlug: settings?.slug || tx.events.slug,
+            baseUrl: baseUrl,
+            shouldNotifyOwner: shouldNotifyGift,
+          })
+        });
+        
+        const emailData = await emailRes.json();
+        console.log('[InfinitePay Webhook] Emails enviados:', emailData.results);
+        
+        if (!shouldNotifyGift) {
+          console.log('[InfinitePay Webhook] Notificação p/ o dono do evento estava desativada pelo usuário.');
         }
       }
     } catch (emailErr) {
