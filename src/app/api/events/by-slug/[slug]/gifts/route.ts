@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
-export const dynamic = 'force-dynamic';
+// export const dynamic = 'force-dynamic';
 
 export async function GET(
     req: Request,
@@ -65,6 +65,10 @@ export async function GET(
             eventId: event.id,
             settings: {
                 taxPayer: event.tax_payer || 'COUPLE'
+            }
+        }, {
+            headers: {
+                'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' // Cache de 5min, serve cache por 10min enquanto valida
             }
         });
 

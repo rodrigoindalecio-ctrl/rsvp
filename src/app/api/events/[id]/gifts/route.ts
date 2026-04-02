@@ -30,20 +30,20 @@ export async function GET(
                 .single(),
             supabaseAdmin
                 .from('gifts')
-                .select('*')
+                .select('id, name, description, price, image_url, category, subcategory, active, order, is_quota, quantity')
                 .eq('event_id', eventId)
                 .order('order', { ascending: true }),
             supabaseAdmin
                 .from('gift_transactions')
-                .select('*')
+                .select('id, guest_name, guest_email, amount_bruto, amount_net, amount_fee, message, created_at, status, release_date')
                 .eq('event_id', eventId)
                 .eq('status', 'APPROVED')
                 .order('created_at', { ascending: false }),
             supabaseAdmin
                 .from('withdrawals')
                 .select(`
-                    *,
-                    gift_transactions (*)
+                    id, amount, status, requested_at, pix_key, receipt_url, rejection_reason,
+                    gift_transactions (id, guest_name, amount_bruto, amount_net, amount)
                 `)
                 .eq('event_id', eventId),
             supabaseAdmin
@@ -138,6 +138,10 @@ export async function GET(
                     amountNet: Number(t.amount_net || 0)
                 }))
             }))
+        }, {
+            headers: {
+                'Cache-Control': 'private, max-age=60' // Cache de 1 minuto para o admin
+            }
         });
 
     } catch (e) {

@@ -10,6 +10,7 @@ import { SharedLayout } from '@/app/components/shared-layout'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { useJsApiLoader, Autocomplete } from '@react-google-maps/api'
+import { uploadImageToStorage, uploadMultipleImages, isBase64Image } from '@/lib/storage-upload'
 
 const libraries: ("places")[] = ["places"]
 
@@ -465,25 +466,38 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
             ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH)
             ctx.restore()
 
+            // 🔥 Upload direto para o Supabase Storage em vez de Base64
             const croppedBase64 = canvas.toDataURL('image/jpeg', 0.85)
+            const folderMap: Record<string, string> = {
+                cover: 'covers',
+                timeline: 'timeline',
+                gallery: 'gallery',
+                carousel: 'carousel',
+                logo: 'logos'
+            }
+            const folder = folderMap[cropTarget?.type || 'cover'] || 'misc'
+            
+            toast.loading('Enviando imagem...', { id: 'img-upload' })
+            const publicUrl = await uploadImageToStorage(croppedBase64, folder)
+            toast.success('Imagem enviada!', { id: 'img-upload' })
 
-            // Apply to target
+            // Apply URL (não mais Base64) ao target
             if (cropTarget?.type === 'cover') {
-                setCoverImage(croppedBase64)
-                setImagePreview(croppedBase64)
+                setCoverImage(publicUrl)
+                setImagePreview(publicUrl)
             } else if (cropTarget?.type === 'timeline' && cropTarget.index !== undefined) {
-                handleUpdateTimelineEvent(cropTarget.index, 'image', croppedBase64)
+                handleUpdateTimelineEvent(cropTarget.index, 'image', publicUrl)
             } else if (cropTarget?.type === 'gallery') {
                 if (cropTarget.index !== undefined && cropTarget.index < galleryImages.length) {
-                    handleUpdateGalleryImage(cropTarget.index, croppedBase64)
+                    handleUpdateGalleryImage(cropTarget.index, publicUrl)
                 } else {
-                    handleAddGalleryImage(croppedBase64)
+                    handleAddGalleryImage(publicUrl)
                 }
             } else if (cropTarget?.type === 'carousel') {
                 if (cropTarget.index !== undefined && cropTarget.index < carouselImages.length) {
-                    handleUpdateCarouselImage(cropTarget.index, croppedBase64)
+                    handleUpdateCarouselImage(cropTarget.index, publicUrl)
                 } else {
-                    handleAddCarouselImage(croppedBase64)
+                    handleAddCarouselImage(publicUrl)
                 }
             }
 
@@ -509,7 +523,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
             }
         } catch (error) {
             console.error('Erro no crop:', error)
-            toast.error('Erro ao processar imagem')
+            toast.error('Erro ao processar imagem', { id: 'img-upload' })
         }
     }
 
@@ -686,6 +700,49 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
     const handleSave = async (e?: React.FormEvent) => {
         if (e) e.preventDefault()
         try {
+            // 🔥 Migrar quaisquer imagens Base64 remanescentes para o Storage antes de salvar
+            toast.loading('Processando imagens...', { id: 'save-upload' })
+
+            // Cover image
+            let finalCoverImage = coverImage
+            if (isBase64Image(coverImage)) {
+                finalCoverImage = await uploadImageToStorage(coverImage, 'covers')
+                setCoverImage(finalCoverImage)
+                setImagePreview(finalCoverImage)
+            }
+
+            // Carousel images
+            let finalCarousel = carouselImages
+            if (carouselImages.some(isBase64Image)) {
+                finalCarousel = await uploadMultipleImages(carouselImages, 'carousel')
+                setCarouselImages(finalCarousel)
+            }
+
+            // Gallery images
+            let finalGallery = galleryImages
+            if (galleryImages.some(isBase64Image)) {
+                finalGallery = await uploadMultipleImages(galleryImages, 'gallery')
+                setGalleryImages(finalGallery)
+            }
+
+            // Timeline event images
+            let finalTimeline = timelineEvents
+            const hasTimelineBase64 = timelineEvents.some((te: any) => te.image && isBase64Image(te.image))
+            if (hasTimelineBase64) {
+                finalTimeline = await Promise.all(
+                    timelineEvents.map(async (te: any) => {
+                        if (te.image && isBase64Image(te.image)) {
+                            const url = await uploadImageToStorage(te.image, 'timeline')
+                            return { ...te, image: url }
+                        }
+                        return te
+                    })
+                )
+                setTimelineEvents(finalTimeline)
+            }
+
+            toast.dismiss('save-upload')
+
             await updateEventSettings({
                 eventType,
                 coupleNames,
@@ -700,18 +757,18 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                 ceremonyWazeLocation,
                 ceremonyTime,
                 giftListLinks,
-                coverImage,
+                coverImage: finalCoverImage,
                 coverImagePosition,
                 coverImageScale,
                 customMessage,
                 notifyOwnerOnRSVP,
-                carouselImages,
-                galleryImages,
+                carouselImages: finalCarousel,
+                galleryImages: finalGallery,
                 coupleStory,
                 coupleStoryTitle,
                 emailConfirmationTitle,
                 emailConfirmationGreeting,
-                timelineEvents,
+                timelineEvents: finalTimeline,
                 dressCode,
                 parkingSettings,
                 ceremonyAddress,
@@ -727,6 +784,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
             return true
         } catch (error: any) {
             console.error('Erro ao salvar:', error)
+            toast.dismiss('save-upload')
             toast.error('Erro ao salvar alterações', {
                 description: error.message?.includes('events_slug_key') || error.message?.includes('duplicate key')
                     ? 'Este subdomínio (URL) já está em uso por outro evento. Escolha um diferente.'
@@ -1520,7 +1578,13 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {galleryImages.map((src, index) => (
                                     <div key={index} className="aspect-[3/4] relative rounded-2xl overflow-hidden border border-border-soft animate-in zoom-in-95 duration-200 bg-bg-light shadow-sm">
-                                        <img src={src || '/placeholder-broken.png'} alt="" className="w-full h-full object-cover" />
+                                        <Image 
+                                            src={src || '/placeholder-broken.png'} 
+                                            alt="" 
+                                            fill 
+                                            className="object-cover" 
+                                            sizes="120px"
+                                        />
                                         <button
                                             type="button"
                                             onClick={(e) => {
@@ -1600,7 +1664,13 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {carouselImages.map((img, index) => (
                                     <div key={index} className="aspect-square relative rounded-2xl overflow-hidden border border-border-soft animate-in zoom-in-95 duration-200 bg-bg-light shadow-sm">
-                                        <img src={img || '/placeholder-broken.png'} alt="" className="w-full h-full object-cover" />
+                                        <Image 
+                                            src={img || '/placeholder-broken.png'} 
+                                            alt="" 
+                                            fill 
+                                            className="object-cover" 
+                                            sizes="120px"
+                                        />
                                         <button
                                             type="button"
                                             onClick={(e) => {
@@ -1759,7 +1829,13 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                                     ) : (
                                                         <div className="space-y-3">
                                                             <div className="relative group/img aspect-square w-full bg-white border border-border-soft rounded-2xl flex items-center justify-center overflow-hidden shadow-inner">
-                                                                <img src={event.image} alt="" className="w-full h-full object-cover" />
+                                                                <Image 
+                                                                    src={event.image} 
+                                                                    alt="" 
+                                                                    fill 
+                                                                    className="object-cover" 
+                                                                    sizes="160px"
+                                                                />
                                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-all cursor-pointer"
                                                                     onClick={() => document.getElementById(`timeline-img-file-${index}`)?.click()}>
                                                                     <span className="text-[8px] font-black text-white uppercase tracking-widest text-center px-2">Trocar Foto</span>

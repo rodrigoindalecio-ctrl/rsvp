@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useCallback } from 'react'
+import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useParams, usePathname } from 'next/navigation'
 import { useAdmin } from './admin-context'
 import { useAuth } from './auth-context'
@@ -270,7 +270,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         try {
             const { data, error } = await supabase
                 .from('guests')
-                .select('*')
+                .select('id, name, email, telefone, grupo, status, category, companions_list, updated_at, confirmed_at, message')
                 .eq('event_id', eventId)
                 .order('updated_at', { ascending: false })
 
@@ -304,6 +304,15 @@ export function EventProvider({ children }: { children: ReactNode }) {
         await loadGuests()
     }, [eventId]) // loadGuests uses eventId
 
+    // 🔔 Debounce ref para evitar loops de re-fetch
+    const realtimeDebounceRef = useRef<NodeJS.Timeout | null>(null)
+    const debouncedLoadGuests = useCallback(() => {
+        if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current)
+        realtimeDebounceRef.current = setTimeout(() => {
+            loadGuests()
+        }, 2000)
+    }, [eventId])
+
     // REAL-TIME UPDATES
     useEffect(() => {
         if (!eventId || !user) return
@@ -319,8 +328,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
                     filter: `event_id=eq.${eventId}`
                 },
                 (payload) => {
-                    // Independente da transação, atualizamos a lista para refletir
-                    loadGuests()
+                    // Usar debounce para evitar múltiplos fetches simultâneos
+                    debouncedLoadGuests()
 
                     if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
                         const newGuest = payload.new as any
@@ -353,6 +362,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
             .subscribe()
 
         return () => {
+            if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current)
             supabase.removeChannel(channel)
         }
     }, [eventId, user])

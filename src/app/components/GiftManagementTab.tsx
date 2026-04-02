@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Gift, Heart, Plus, Trash2, Edit2, Wallet, ArrowUpRight, CheckCircle2, AlertCircle, Sparkles, MessageSquare, ShieldCheck, X, Check, Info, Mail, Send, Upload, Camera, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { uploadImageToStorage } from '@/lib/storage-upload';
+import Image from 'next/image';
 
 
 /* ─── Mini componente de modal de confirmação ─────────── */
@@ -106,6 +108,15 @@ export default function GiftManagementTab({ eventId }: Props) {
         setConfirmModal({ title, message, onConfirm, danger });
     }, []);
 
+    // 🔔 Debounce ref para evitar loops de fetch no Realtime
+    const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+    const debouncedFetchData = useCallback(() => {
+        if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
+        fetchDebounceRef.current = setTimeout(() => {
+            fetchData();
+        }, 2000);
+    }, [eventId]);
+
     useEffect(() => {
         if (!eventId) return;
         fetchData();
@@ -118,7 +129,7 @@ export default function GiftManagementTab({ eventId }: Props) {
                 { event: '*', schema: 'public', table: 'gift_transactions', filter: `event_id=eq.${eventId}` },
                 (payload: any) => {
                     console.log('🎁 Gift Change:', payload.eventType);
-                    fetchData();
+                    debouncedFetchData();
                     if (payload.eventType === 'UPDATE' && payload.new.status === 'APPROVED' && payload.old.status !== 'APPROVED') {
                         showToast(`Eba! Recebemos um novo presente de ${payload.new.guest_name}! 🎁`, 'success');
                     }
@@ -129,7 +140,7 @@ export default function GiftManagementTab({ eventId }: Props) {
             )
             .subscribe();
 
-        // 💸 REAL-TIME: Ouvir saques e atualizar saldo/alerta (Nota: requer Realtime ativo no Supabase GUI para a tabela withdrawals)
+        // 💸 REAL-TIME: Ouvir saques e atualizar saldo/alerta
         const withdrawalChannel = supabase
             .channel(`withdrawals-updates-${eventId}`)
             .on(
@@ -137,7 +148,7 @@ export default function GiftManagementTab({ eventId }: Props) {
                 { event: '*', schema: 'public', table: 'withdrawals', filter: `event_id=eq.${eventId}` },
                 (payload: any) => {
                     console.log('💸 Withdrawal Change:', payload.eventType);
-                    fetchData();
+                    debouncedFetchData();
                     if (payload.eventType === 'UPDATE' && String(payload.new.status || '').toUpperCase() === 'REJECTED' && String(payload.old.status || '').toUpperCase() !== 'REJECTED') {
                         showToast(`Opa! Temos um aviso importante sobre seu saque. ⚠️`, 'info');
                     }
@@ -149,6 +160,7 @@ export default function GiftManagementTab({ eventId }: Props) {
             .subscribe();
 
         return () => {
+            if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
             supabase.removeChannel(giftChannel);
             supabase.removeChannel(withdrawalChannel);
         };
@@ -349,28 +361,22 @@ export default function GiftManagementTab({ eventId }: Props) {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Validar tamanho (2MB para evitar estouro de string de base64 no banco de uma vez só, embora TEXT suporte mais)
-        if (file.size > 2 * 1024 * 1024) {
-            showToast('A imagem deve ter no máximo 2MB para garantir o melhor desempenho.', 'error');
+        // Validar tamanho (5MB para uploads ao Storage)
+        if (file.size > 5 * 1024 * 1024) {
+            showToast('A imagem deve ter no máximo 5MB.', 'error');
             return;
         }
 
         setUploadingImage(true);
         try {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64String = reader.result as string;
-                setEditingGift({ ...editingGift, imageUrl: base64String });
-                showToast('Imagem carregada com sucesso!', 'success');
-                setUploadingImage(false);
-            };
-            reader.onerror = () => {
-                showToast('Erro ao ler o arquivo.', 'error');
-                setUploadingImage(false);
-            };
-            reader.readAsDataURL(file);
-        } catch (error) {
-            showToast('Erro ao processar imagem.', 'error');
+            // 🔥 Upload direto para o Supabase Storage
+            const publicUrl = await uploadImageToStorage(file, 'gifts');
+            setEditingGift({ ...editingGift, imageUrl: publicUrl });
+            showToast('Imagem enviada com sucesso!', 'success');
+        } catch (error: any) {
+            console.error('[Gift Image Upload]', error);
+            showToast(error.message || 'Erro ao enviar imagem.', 'error');
+        } finally {
             setUploadingImage(false);
         }
     };
@@ -538,8 +544,13 @@ export default function GiftManagementTab({ eventId }: Props) {
                                             {/* Preview Pequeno */}
                                             {editingGift.imageUrl && (
                                                 <div className="p-2 bg-white border border-border-soft rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-left-2">
-                                                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-bg-light flex-shrink-0">
-                                                        <img src={editingGift.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                                                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-bg-light flex-shrink-0 relative">
+                                                        <Image 
+                                                            src={editingGift.imageUrl} 
+                                                            alt="Preview" 
+                                                            fill 
+                                                            className="object-cover" 
+                                                        />
                                                     </div>
                                                     <div className="overflow-hidden">
                                                         <p className="text-[9px] font-black uppercase text-text-muted truncate">Pré-visualização</p>
@@ -761,8 +772,17 @@ export default function GiftManagementTab({ eventId }: Props) {
                             <div className="space-y-4">
                                 {gifts.map(gift => (
                                     <div key={gift.id} className="group flex items-center p-4 rounded-[1.5rem] border border-border-soft bg-surface hover:bg-bg-light hover:border-brand/30 hover:shadow-md transition-all gap-4">
-                                        <div className="w-16 h-16 rounded-xl bg-bg-light flex items-center justify-center overflow-hidden flex-shrink-0 border border-border-soft shadow-inner">
-                                            {gift.image_url ? <img src={gift.image_url} alt="" className="w-full h-full object-cover" /> : <Gift className="text-text-muted" />}
+                                        <div className="w-16 h-16 rounded-xl bg-bg-light flex items-center justify-center overflow-hidden flex-shrink-0 border border-border-soft shadow-inner relative">
+                                            {gift.image_url ? (
+                                                <Image 
+                                                    src={gift.image_url} 
+                                                    alt={gift.name} 
+                                                    fill 
+                                                    className="object-cover" 
+                                                />
+                                            ) : (
+                                                <Gift className="text-text-muted" />
+                                            )}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <h4 className="font-black text-sm text-text-primary tracking-tight truncate">{gift.name}</h4>

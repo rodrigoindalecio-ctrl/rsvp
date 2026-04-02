@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SUBCATEGORY_NAMES } from '@/lib/gift-templates'
+import Image from 'next/image'
 
 interface Props { slug: string }
 
@@ -189,7 +190,7 @@ export default function PresentsContent({ slug }: Props) {
         <div className="min-h-screen bg-[#FAFAF8] flex flex-col items-center justify-center p-6 text-center">
             <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.8 }}>
                 <div className="relative w-24 h-24 bg-white rounded-[2rem] shadow-xl border border-brand/5 flex items-center justify-center overflow-hidden mb-8 mx-auto">
-                    <img src="/logo_marsala.png" alt="Loading" className="w-20 h-20 object-contain drop-shadow-md" />
+                    <Image src="/logo_marsala.png" alt="Loading" width={80} height={80} className="object-contain drop-shadow-md" priority />
                     <motion.div className="absolute inset-0 border-2 border-brand/20 rounded-[2rem]"
                         animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.2, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} />
                 </div>
@@ -316,7 +317,13 @@ export default function PresentsContent({ slug }: Props) {
                                                 {/* Image */}
                                                 <div className="aspect-[4/3] relative overflow-hidden bg-bg-light flex-shrink-0">
                                                     {gift.image_url ? (
-                                                        <img src={gift.image_url} alt={gift.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
+                                                        <Image 
+                                                            src={gift.image_url} 
+                                                            alt={gift.name} 
+                                                            fill 
+                                                            className="object-cover group-hover:scale-110 transition-transform duration-1000"
+                                                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                                                        />
                                                     ) : (
                                                         <div className="absolute inset-0 flex items-center justify-center text-brand/10">
                                                             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16" /></svg>
