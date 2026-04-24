@@ -427,15 +427,20 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
             const isSquare = cropTarget?.type === 'timeline' || cropTarget?.type === 'gallery'
             const isCarousel = cropTarget?.type === 'carousel'
             
-            canvas.width = isSquare ? 1000 : 1200
-            canvas.height = isSquare ? 1000 : 675 
+            canvas.width = isSquare ? 1000 : 1000
+            canvas.height = isSquare ? 1000 : 600 
              // Se for carrossel, forçamos o aspect ratio horizontal no modal (ajustando a visualização)
             const targetAspect = isSquare ? 1 : 1200/675            
-            const ctx = canvas.getContext('2d')
+            const ctx = canvas.getContext('2d', { alpha: false })
             if (!ctx) return
 
-            // Transparent background
-            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            // Configurações de alta qualidade
+            ctx.imageSmoothingEnabled = true
+            ctx.imageSmoothingQuality = 'high'
+            
+            // Fundo branco (evita transparência preta em JPEGs)
+            ctx.fillStyle = '#FFFFFF'
+            ctx.fillRect(0, 0, canvas.width, canvas.height)
             
             // Calculate total transformations
             const scaleFactor = canvas.width / rect.width
@@ -466,8 +471,8 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
             ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH)
             ctx.restore()
 
-            // 🔥 Upload direto para o Supabase Storage em vez de Base64
-            const croppedBase64 = canvas.toDataURL('image/jpeg', 0.85)
+            // 🔥 Upload com qualidade equilibrada (0.82) para economizar banda do Supabase
+            const croppedBase64 = canvas.toDataURL('image/jpeg', 0.82)
             const folderMap: Record<string, string> = {
                 cover: 'covers',
                 timeline: 'timeline',
