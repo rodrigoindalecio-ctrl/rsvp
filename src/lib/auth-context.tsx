@@ -11,10 +11,18 @@ type User = {
   role?: 'user' | 'admin'
 }
 
+type LoginResult = {
+  ok: boolean
+  blocked?: boolean
+  remainingMs?: number
+  attemptsLeft?: number
+  error?: string
+}
+
 type AuthContextType = {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string, turnstileToken?: string | null) => Promise<LoginResult>
   register: (name: string, email: string, password: string) => Promise<void>
   logout: () => void
   isAdmin?: boolean
@@ -45,27 +53,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const router = useRouter()
 
-  async function login(email: string, password: string) {
+  async function login(email: string, password: string, turnstileToken?: string | null): Promise<LoginResult> {
     const setSession = (userData: any) => {
       setUser(userData)
-      const serialized = JSON.stringify(userData)
-      localStorage.setItem('rsvp_auth_user', serialized)
-      // O cookie 'rsvp_session' agora é HttpOnly e definido pelo servidor na rota /api/auth/login
+      localStorage.setItem('rsvp_auth_user', JSON.stringify(userData))
     }
 
     try {
-      // Toda a verificação acontece no servidor — credenciais nunca ficam no código
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, turnstileToken: turnstileToken ?? null })
       })
 
       const data = await res.json()
 
       if (!res.ok) {
-        toast.error(data.error || 'Acesso negado.', { description: 'Verifique o e-mail e a senha e tente novamente.' })
-        return
+        // Bloqueio por brute force — não mostar toast genérico, a page cuida disso
+        if (res.status === 429) {
+          return { ok: false, blocked: data.blocked, remainingMs: data.remainingMs, error: data.error }
+        }
+        // Tentativas com aviso
+        if (data.attemptsLeft !== undefined) {
+          toast.error(data.error || 'Acesso negado.')
+          return { ok: false, attemptsLeft: data.attemptsLeft, error: data.error }
+        }
+        toast.error(data.error || 'Acesso negado.', {
+          description: 'Verifique o e-mail e a senha e tente novamente.'
+        })
+        return { ok: false, error: data.error }
       }
 
       setSession(data.user)
@@ -75,9 +91,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         router.push('/dashboard')
       }
+
+      return { ok: true }
     } catch (err) {
       console.error('Erro no login:', err)
       toast.error('Erro de conexão', { description: 'Verifique sua internet e tente novamente.' })
+      return { ok: false, error: 'Erro de conexão' }
     }
   }
 
