@@ -33,6 +33,7 @@ export default function DashboardPage() {
   const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{ isOpen: boolean; person?: any }>({ isOpen: false })
   const [deleteAllConfirmDialog, setDeleteAllConfirmDialog] = useState({ isOpen: false, step: 1 })
   const [whatsappConfirmDialog, setWhatsappConfirmDialog] = useState<{ isOpen: boolean; guest?: Guest }>({ isOpen: false })
+  const [showQrModal, setShowQrModal] = useState(false)
 
   // Onboarding Tour state
   const [isTourOpen, setIsTourOpen] = useState(false)
@@ -541,7 +542,16 @@ export default function DashboardPage() {
               }
             </div>
             
-            <div className="flex gap-2 w-full md:w-auto">
+            <div className="flex flex-wrap gap-2 w-full md:w-auto">
+              <button
+                onClick={() => setShowQrModal(true)}
+                className="flex-1 md:flex-none px-5 py-3.5 bg-brand-pale text-brand border border-brand/20 hover:bg-brand hover:text-white rounded-xl font-black uppercase tracking-widest text-[9px] transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95"
+                title="Visualizar e baixar QR Code do evento"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
+                QR Code
+              </button>
+
               <button
                 onClick={handleCopyLink}
                 className={`flex-1 md:flex-none px-6 py-3.5 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all flex items-center justify-center gap-2 border-2 ${copied ? 'bg-success text-white border-success' : 'bg-surface text-brand border-brand/30 hover:bg-brand-pale hover:border-brand/50 active:scale-95 dark:bg-brand/10 dark:border-brand/40 dark:hover:bg-brand/20'}`}
@@ -937,6 +947,68 @@ export default function DashboardPage() {
         confirmText="Adicionar Telefone"
         cancelText="Depois"
       />
+
+      {/* MODAL QR CODE DO EVENTO */}
+      {showQrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface rounded-3xl border border-border-soft p-8 max-w-sm w-full shadow-2xl relative flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setShowQrModal(false)}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-bg-light border border-border-soft text-text-muted hover:text-text-primary flex items-center justify-center transition-all text-xs font-bold"
+            >
+              ✕
+            </button>
+
+            <div className="w-12 h-12 bg-brand-pale text-brand rounded-2xl flex items-center justify-center mb-4">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
+            </div>
+
+            <h3 className="text-xl font-serif font-black text-brand mb-1 tracking-tight">QR Code do Evento</h3>
+            <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-6">
+              {eventSettings?.coupleNames || 'Nosso Casamento'}
+            </p>
+
+            {/* Imagem do QR Code */}
+            <div className="p-4 bg-white rounded-2xl border border-border-soft shadow-inner mb-4 flex items-center justify-center">
+              {typeof window !== 'undefined' && (
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`${window.location.origin}/${eventSettings?.slug || user?.name?.toLowerCase().replace(/\s+/g, '-') || ''}`)}`}
+                  alt="QR Code do Evento"
+                  className="w-48 h-48 object-contain"
+                />
+              )}
+            </div>
+
+            <p className="text-xs font-bold text-text-secondary truncate w-full mb-6 px-2 bg-bg-light py-2 rounded-xl border border-border-soft">
+              {typeof window !== 'undefined' ? `${window.location.origin}/${eventSettings?.slug || user?.name?.toLowerCase().replace(/\s+/g, '-') || ''}` : ''}
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <button
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    const fullUrl = `${window.location.origin}/${eventSettings?.slug || user?.name?.toLowerCase().replace(/\s+/g, '-') || ''}`;
+                    navigator.clipboard.writeText(fullUrl);
+                    toast.success('Link copiado com sucesso!', { description: fullUrl });
+                  }
+                }}
+                className="py-3 px-4 bg-surface border border-border-soft rounded-xl text-[10px] font-black uppercase tracking-wider text-text-primary hover:border-brand/40 transition-all shadow-sm"
+              >
+                Copiar Link 📋
+              </button>
+              <a
+                href={typeof window !== 'undefined' ? `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(`${window.location.origin}/${eventSettings?.slug || user?.name?.toLowerCase().replace(/\s+/g, '-') || ''}`)}` : '#'}
+                download={`qrcode_${eventSettings?.slug || 'evento'}.png`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-3 px-4 bg-brand text-white rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-brand-dark transition-all shadow-sm flex items-center justify-center gap-1.5"
+              >
+                Baixar Imagem ⬇
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </SharedLayout>
   )
 }
