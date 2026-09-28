@@ -5,11 +5,12 @@ import { useAuth } from '@/lib/auth-context'
 import { useAdmin } from '@/lib/admin-context'
 import { useEvent } from '@/lib/event-context'
 import { useRouter, useParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { ConfirmDialog } from '@/app/components/confirm-dialog'
 import { SharedLayout } from '@/app/components/shared-layout'
 import ExcelJS from 'exceljs'
 import { formatDate } from '@/lib/date-utils'
+import { toast } from 'sonner'
 
 function FilterPill({ label, count, active, onClick, color = 'brand' }: { label: string, count?: number, active: boolean, onClick: () => void, color?: string }) {
   return (
@@ -42,6 +43,19 @@ function AdminEventoPageContent() {
   const [showCategoryMenu, setShowCategoryMenu] = useState(false)
   const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{ isOpen: boolean; guestId?: string }>({ isOpen: false })
   const [deleteAllConfirmDialog, setDeleteAllConfirmDialog] = useState({ isOpen: false, step: 1 })
+  const [showQrModal, setShowQrModal] = useState(false)
+
+  // Dados financeiros e da lista de presentes
+  const [giftStats, setGiftStats] = useState<{
+    totalNet: number;
+    availableNet: number;
+    pendingNet: number;
+    totalBruto: number;
+    count: number;
+  }>({ totalNet: 0, availableNet: 0, pendingNet: 0, totalBruto: 0, count: 0 })
+  const [recentTransactions, setRecentTransactions] = useState<any[]>([])
+  const [giftsListCount, setGiftsListCount] = useState(0)
+  const [loadingGifts, setLoadingGifts] = useState(true)
 
   useEffect(() => {
     const foundEvent = events.find(e => e.id === eventId)
@@ -49,6 +63,68 @@ function AdminEventoPageContent() {
       setEvent(foundEvent)
     }
   }, [events, eventId])
+
+  useEffect(() => {
+    if (!eventId) return
+    setLoadingGifts(true)
+    fetch(`/api/events/${eventId}/gifts`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.stats) {
+          const totalBruto = (data.transactions || []).reduce((acc: number, t: any) => acc + (t.amount || 0), 0)
+          setGiftStats({
+            totalNet: data.stats.totalNet || 0,
+            availableNet: data.stats.availableNet || 0,
+            pendingNet: data.stats.pendingNet || 0,
+            totalBruto: totalBruto,
+            count: (data.transactions || []).length
+          })
+        }
+        if (data.transactions) {
+          setRecentTransactions(data.transactions.slice(0, 5))
+        }
+        if (data.gifts) {
+          setGiftsListCount(data.gifts.length)
+        }
+      })
+      .catch(err => console.error('Erro ao carregar métricas de presentes:', err))
+      .finally(() => setLoadingGifts(false))
+  }, [eventId])
+
+  const countdownText = useMemo(() => {
+    if (!event?.eventSettings?.eventDate) return null
+    try {
+      const eventDate = new Date(event.eventSettings.eventDate)
+      const today = new Date()
+      eventDate.setHours(0, 0, 0, 0)
+      today.setHours(0, 0, 0, 0)
+      const diffTime = eventDate.getTime() - today.getTime()
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      
+      if (diffDays > 1) return `Faltam ${diffDays} dias`
+      if (diffDays === 1) return 'É amanhã!'
+      if (diffDays === 0) return 'É Hoje! 🎉'
+      return `Realizado há ${Math.abs(diffDays)} dias`
+    } catch (_) {
+      return null
+    }
+  }, [event?.eventSettings?.eventDate])
+
+  const slug = event?.slug || event?.eventSettings?.slug || ''
+  
+  const copyToClipboard = (urlPath: string, label: string) => {
+    if (typeof window === 'undefined') return
+    const fullUrl = `${window.location.origin}${urlPath}`
+    navigator.clipboard.writeText(fullUrl)
+    toast.success(`Link ${label} copiado!`, { description: fullUrl })
+  }
+
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(val || 0)
+  }
 
   function handleDeleteGuest(guestId: string) {
     setDeleteConfirmDialog({ isOpen: true, guestId })
@@ -187,23 +263,33 @@ function AdminEventoPageContent() {
         </div>
       }
     >
-      {/* EVENT BANNER (Legacy UI Style) */}
+      {/* EVENT BANNER WITH COUNTDOWN & PUBLIC LINKS */}
       <div className="bg-surface rounded-[2rem] border border-border-soft p-8 md:p-12 mb-8 shadow-sm relative overflow-hidden">
         <div className="relative z-10">
-          <h2 className="text-4xl font-serif italic font-black text-brand mb-2 tracking-tight">{event.eventSettings.coupleNames}</h2>
-          <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mb-10 opacity-70">Gestão de Convidados e RSVP</p>
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-4xl font-serif italic font-black text-brand tracking-tight">{event.eventSettings.coupleNames}</h2>
+              {countdownText && (
+                <span className="px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-brand-pale text-brand border border-brand/10 shadow-sm flex items-center gap-1.5">
+                  <span>⏳</span> {countdownText}
+                </span>
+              )}
+            </div>
+          </div>
+          <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.3em] mb-8 opacity-70">Painel de Gestão e Visão Geral do Evento</p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 text-text-primary">
+          {/* Grid de Informações Básicas */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 text-text-primary">
             <div>
-              <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-3">DATA E HORA</p>
+              <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2">DATA E HORA</p>
               <p className="text-sm font-bold text-text-secondary leading-relaxed">
                 {formatDate(event.eventSettings.eventDate, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                {event.eventSettings.eventTime && <span className="block text-brand-dark/40 italic font-serif mt-1">às {event.eventSettings.eventTime}</span>}
+                {event.eventSettings.eventTime && <span className="block text-brand-dark/40 italic font-serif mt-0.5">às {event.eventSettings.eventTime}</span>}
               </p>
             </div>
             <div>
-              <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-3">STATUS DO EVENTO</p>
-              <div className="flex items-center gap-3">
+              <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2">STATUS DO EVENTO</p>
+              <div className="flex items-center gap-2.5">
                 <div className="relative flex items-center justify-center">
                   <span className="w-3 h-3 rounded-full bg-success/20 animate-ping absolute" />
                   <span className="w-2.5 h-2.5 rounded-full bg-success relative" />
@@ -212,20 +298,20 @@ function AdminEventoPageContent() {
               </div>
             </div>
             <div>
-              <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-3">TIPO DE EVENTO</p>
+              <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2">TIPO DE EVENTO</p>
               <p className="text-sm font-bold text-text-secondary leading-relaxed uppercase tracking-wider">
                 {event.eventSettings.eventType === 'casamento' ? '💍 Casamento' : '🎉 Debutante'}
               </p>
             </div>
             <div>
-              <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-3">TOTAL DA LISTA</p>
+              <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2">TOTAL DA LISTA</p>
               <div className="flex items-center gap-2">
                 <p className="text-sm font-black text-brand">{metrics.total}</p>
                 <span className="text-[10px] font-bold text-text-muted uppercase">Pessoas</span>
               </div>
             </div>
             <div>
-              <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-3">MÓDULOS ATIVOS</p>
+              <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-2">MÓDULO PRESENTES</p>
               <div className="flex items-center gap-3">
                 <button
                   onClick={async () => {
@@ -242,90 +328,382 @@ function AdminEventoPageContent() {
                 >
                   <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300 ${(event.eventSettings.isGiftListEnabled ?? true) ? 'left-5.5' : 'left-0.5'}`} />
                 </button>
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-text-primary leading-none mb-1">Lista App (Pix)</span>
-                  <span className={`text-[8px] font-bold uppercase ${(event.eventSettings.isGiftListEnabled ?? true) ? 'text-success' : 'text-text-muted'}`}>
-                    {(event.eventSettings.isGiftListEnabled ?? true) ? 'Habilitada' : 'Desativada'}
-                  </span>
+                <span className={`text-[9px] font-black uppercase ${(event.eventSettings.isGiftListEnabled ?? true) ? 'text-success' : 'text-text-muted'}`}>
+                  {(event.eventSettings.isGiftListEnabled ?? true) ? 'Habilitada' : 'Desativada'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* BARRA DE LINKS PÚBLICOS E COMPARTILHAMENTO */}
+          <div className="mt-8 pt-8 border-t border-border-soft">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[10px] font-black text-text-muted uppercase tracking-[0.25em]">Links Públicos do Casal</span>
+              <span className="text-[10px] font-bold text-brand uppercase tracking-wider bg-brand/5 px-2.5 py-0.5 rounded-lg border border-brand/10">/{slug}</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Site dos Noivos */}
+              <div className="bg-bg-light/80 border border-border-soft rounded-2xl p-3.5 flex items-center justify-between gap-2 group hover:border-brand/30 transition-all">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black text-text-muted uppercase tracking-wider">Site dos Noivos</p>
+                  <p className="text-xs font-bold text-text-primary truncate">/{slug}</p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => copyToClipboard(`/${slug}`, 'do Site')}
+                    className="p-2 bg-white hover:bg-brand hover:text-white text-text-muted rounded-xl border border-border-soft transition-all shadow-sm"
+                    title="Copiar Link"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                  </button>
+                  <a
+                    href={`/${slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 bg-white hover:bg-brand hover:text-white text-text-muted rounded-xl border border-border-soft transition-all shadow-sm"
+                    title="Abrir Site"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  </a>
                 </div>
               </div>
+
+              {/* Lista de Presentes */}
+              <div className="bg-bg-light/80 border border-border-soft rounded-2xl p-3.5 flex items-center justify-between gap-2 group hover:border-brand/30 transition-all">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black text-text-muted uppercase tracking-wider">Lista de Presentes</p>
+                  <p className="text-xs font-bold text-text-primary truncate">/{slug}/presentes</p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => copyToClipboard(`/${slug}/presentes`, 'da Lista de Presentes')}
+                    className="p-2 bg-white hover:bg-brand hover:text-white text-text-muted rounded-xl border border-border-soft transition-all shadow-sm"
+                    title="Copiar Link"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                  </button>
+                  <a
+                    href={`/${slug}/presentes`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 bg-white hover:bg-brand hover:text-white text-text-muted rounded-xl border border-border-soft transition-all shadow-sm"
+                    title="Abrir Lista"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  </a>
+                </div>
+              </div>
+
+              {/* Confirmação RSVP */}
+              <div className="bg-bg-light/80 border border-border-soft rounded-2xl p-3.5 flex items-center justify-between gap-2 group hover:border-brand/30 transition-all">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black text-text-muted uppercase tracking-wider">RSVP Direto</p>
+                  <p className="text-xs font-bold text-text-primary truncate">/{slug}/confirmar</p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => copyToClipboard(`/${slug}/confirmar`, 'do RSVP')}
+                    className="p-2 bg-white hover:bg-brand hover:text-white text-text-muted rounded-xl border border-border-soft transition-all shadow-sm"
+                    title="Copiar Link"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                  </button>
+                  <a
+                    href={`/${slug}/confirmar`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 bg-white hover:bg-brand hover:text-white text-text-muted rounded-xl border border-border-soft transition-all shadow-sm"
+                    title="Abrir RSVP"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  </a>
+                </div>
+              </div>
+
+              {/* QR Code */}
+              <div className="bg-bg-light/80 border border-border-soft rounded-2xl p-3.5 flex items-center justify-between gap-2 group hover:border-brand/30 transition-all">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black text-text-muted uppercase tracking-wider">QR Code do Evento</p>
+                  <p className="text-xs font-bold text-text-primary truncate">Para convites físicos</p>
+                </div>
+                <button
+                  onClick={() => setShowQrModal(true)}
+                  className="px-3 py-2 bg-brand text-white rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-brand-dark transition-all shadow-sm flex items-center gap-1.5 shrink-0"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
+                  Ver QR
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* BARRA DE AÇÕES RÁPIDAS (ATALHOS) */}
+          <div className="mt-6 pt-6 border-t border-border-soft flex flex-wrap items-center justify-between gap-3">
+            <span className="text-[10px] font-black text-text-muted uppercase tracking-[0.25em]">Ações Rápidas</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => router.push(`/admin/evento/${eventId}/novo-convidado`)}
+                className="px-4 py-2 bg-brand text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-dark transition-all shadow-sm flex items-center gap-1.5"
+              >
+                <span>+</span> Convidado
+              </button>
+              <button
+                onClick={() => router.push(`/import?eventId=${eventId}`)}
+                className="px-4 py-2 bg-surface border border-border-soft hover:border-brand/30 text-text-primary rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-1.5"
+              >
+                📥 Importar Lista
+              </button>
+              <button
+                onClick={() => router.push(`/dashboard/presentes/biblioteca?eventId=${eventId}`)}
+                className="px-4 py-2 bg-surface border border-border-soft hover:border-brand/30 text-text-primary rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-1.5"
+              >
+                🎁 Catálogo de Presentes
+              </button>
+              <button
+                onClick={handleExportExcel}
+                className="px-4 py-2 bg-success/10 text-success-dark border border-success/20 hover:bg-success/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-1.5"
+              >
+                📊 Exportar Excel
+              </button>
+              <button
+                onClick={() => router.push(`/admin/evento/${eventId}/configuracoes`)}
+                className="px-4 py-2 bg-surface border border-border-soft hover:border-brand/30 text-text-muted rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-1.5"
+              >
+                ⚙️ Configurações
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* TOGGLE GUEST LIST BUTTON */}
-      {!showGuests ? (
-        <div className="bg-surface rounded-[2.5rem] border border-border-soft shadow-sm overflow-hidden group hover:border-brand/20 transition-all cursor-pointer" onClick={() => setShowGuests(true)}>
-          <div className="p-8 md:p-12 flex flex-col items-center">
-            {/* Header do Mini Dashboard */}
-            <div className="flex flex-col items-center mb-10 text-center">
-              <div className="w-14 h-14 bg-brand-pale rounded-2xl flex items-center justify-center text-brand mb-4 group-hover:scale-110 transition-transform">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+      {/* 2-COLUMN COCKPIT (RSVP & BUFFET + FINANCEIRO & PRESENTES) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        
+        {/* CARD 1: RESUMO RSVP & BUFFET */}
+        <div className="bg-surface rounded-[2.5rem] border border-border-soft p-8 shadow-sm flex flex-col justify-between">
+          <div>
+            {/* Header */}
+            <div className="flex items-center justify-between pb-6 mb-6 border-b border-border-soft">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-brand-pale rounded-2xl flex items-center justify-center text-brand">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-text-primary tracking-tight">Presença & RSVP</h3>
+                  <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Status em tempo real</p>
+                </div>
               </div>
-              <p className="text-sm font-black text-text-primary uppercase tracking-widest mb-1">Resumo da Lista de Convidados</p>
-              <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest italic opacity-60">Status de confirmação em tempo real</p>
+              <div className="text-right">
+                <span className="text-3xl font-black text-brand tracking-tight leading-none block">
+                  {metrics.total > 0 ? Math.round((metrics.confirmed / metrics.total) * 100) : 0}%
+                </span>
+                <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest">Confirmados</span>
+              </div>
             </div>
 
-            {/* Grid de Métricas Rápidas */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 w-full max-w-4xl mb-12">
-              {/* Confirmados Total % */}
-              <div className="bg-bg-light rounded-[2rem] p-6 flex flex-col items-center justify-center text-center border border-border-soft group-hover:bg-white transition-colors">
-                <p className="text-[9px] font-black text-brand uppercase tracking-[0.2em] mb-2">Total Confirmado</p>
-                <div className="flex flex-col items-center">
-                  <span className="text-4xl font-black text-brand tracking-tighter leading-none mb-1">{Math.round((metrics.confirmed / (metrics.total || 1)) * 100)}%</span>
-                  <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest leading-none">
-                    {metrics.confirmed} <span className="opacity-40">/</span> {metrics.total}
+            {/* Barra Visual Segmentada */}
+            {(() => {
+              const totalVal = metrics.total || 1;
+              const confPct = Math.round((metrics.confirmed / totalVal) * 100);
+              const pendPct = Math.round((metrics.pending / totalVal) * 100);
+              const declPct = Math.round((metrics.declined / totalVal) * 100);
+              return (
+                <div className="mb-6">
+                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider mb-2">
+                    <span className="text-success-dark">Confirmados: {metrics.confirmed}</span>
+                    <span className="text-warning">Pendentes: {metrics.pending}</span>
+                    <span className="text-danger">Recusados: {metrics.declined}</span>
+                  </div>
+                  <div className="h-3 w-full bg-border-soft/60 rounded-full overflow-hidden flex shadow-inner">
+                    <div style={{ width: `${confPct}%` }} className="bg-success transition-all duration-500" title={`Confirmados: ${metrics.confirmed}`} />
+                    <div style={{ width: `${pendPct}%` }} className="bg-warning transition-all duration-500" title={`Pendentes: ${metrics.pending}`} />
+                    <div style={{ width: `${declPct}%` }} className="bg-danger transition-all duration-500" title={`Recusados: ${metrics.declined}`} />
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Grid de Categorias */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="bg-bg-light rounded-2xl p-3.5 border border-border-soft">
+                <p className="text-[9px] font-black text-text-muted uppercase tracking-wider mb-1">Adultos</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-black text-text-primary">{metrics.confirmedAdults}</span>
+                  <span className="text-[10px] font-bold text-text-muted">/ {metrics.adults}</span>
+                </div>
+              </div>
+              <div className="bg-bg-light rounded-2xl p-3.5 border border-border-soft">
+                <p className="text-[9px] font-black text-text-muted uppercase tracking-wider mb-1">Crianças Pag.</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-black text-text-primary">{metrics.confirmedChildrenPaying}</span>
+                  <span className="text-[10px] font-bold text-text-muted">/ {metrics.childrenPaying}</span>
+                </div>
+              </div>
+              <div className="bg-bg-light rounded-2xl p-3.5 border border-border-soft">
+                <p className="text-[9px] font-black text-text-muted uppercase tracking-wider mb-1">Crianças Isen.</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-black text-text-primary">{metrics.confirmedChildrenFree}</span>
+                  <span className="text-[10px] font-bold text-text-muted">/ {metrics.childrenFree}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Destaque para o Buffet */}
+            <div className="bg-brand/5 border border-brand/15 rounded-2xl p-4 mb-6 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-lg shadow-sm border border-brand/10 shrink-0">
+                  🍽️
+                </div>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-brand leading-none mb-1">Métricas do Buffet</p>
+                  <p className="text-sm font-black text-text-primary leading-tight">
+                    {(metrics.confirmedAdults || 0) + (metrics.confirmedChildrenPaying || 0)} <span className="text-[11px] font-normal text-text-muted">pratos pagantes</span>
                   </p>
                 </div>
               </div>
+              <div className="text-right border-l border-brand/10 pl-4">
+                <p className="text-[8px] font-bold uppercase tracking-wider text-text-muted">Crianças Isentas</p>
+                <p className="text-sm font-black text-text-secondary">{metrics.confirmedChildrenFree || 0}</p>
+              </div>
+            </div>
+          </div>
 
-              {/* Adultos */}
-              <div className="bg-bg-light rounded-[2rem] p-6 border border-border-soft group-hover:bg-white transition-colors">
-                <p className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em] mb-4">Adultos</p>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedAdults}</span>
-                  <span className="text-xs font-bold text-text-muted">/ {metrics.adults}</span>
+          {/* Botão de Controle da Tabela */}
+          <button
+            onClick={() => setShowGuests(!showGuests)}
+            className="w-full py-4 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-brand/15 hover:bg-brand-dark transition-all flex items-center justify-center gap-2"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+            {showGuests ? 'Ocultar Lista de Convidados' : `Gerenciar Lista de Convidados (${metrics.total})`}
+          </button>
+        </div>
+
+        {/* CARD 2: LISTA DE PRESENTES & FINANCEIRO */}
+        <div className="bg-surface rounded-[2.5rem] border border-border-soft p-8 shadow-sm flex flex-col justify-between">
+          <div>
+            {/* Header */}
+            <div className="flex items-center justify-between pb-6 mb-6 border-b border-border-soft">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-brand-pale rounded-2xl flex items-center justify-center text-brand">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
                 </div>
-                <div className="w-full h-1.5 bg-border-soft rounded-full mt-3 overflow-hidden">
-                  <div className="h-full bg-brand rounded-full" style={{ width: `${(metrics.confirmedAdults / (metrics.adults || 1)) * 100}%` }} />
+                <div>
+                  <h3 className="text-base font-black text-text-primary tracking-tight">Finanças & Presentes</h3>
+                  <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Arrecadação e Resgates</p>
                 </div>
               </div>
+              <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${(event.eventSettings.isGiftListEnabled ?? true) ? 'bg-success/10 text-success-dark border-success/20' : 'bg-bg-light text-text-muted border-border-soft'}`}>
+                {(event.eventSettings.isGiftListEnabled ?? true) ? 'Lista Ativa' : 'Lista Desativada'}
+              </span>
+            </div>
 
-              {/* Crianças Pagantes */}
-              <div className="bg-bg-light rounded-[2rem] p-6 border border-border-soft group-hover:bg-white transition-colors">
-                <p className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em] mb-4">Crianças (Pag)</p>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedChildrenPaying}</span>
-                  <span className="text-xs font-bold text-text-muted">/ {metrics.childrenPaying}</span>
-                </div>
-                <div className="w-full h-1.5 bg-border-soft rounded-full mt-3 overflow-hidden">
-                  <div className="h-full bg-warning rounded-full" style={{ width: `${(metrics.confirmedChildrenPaying / (metrics.childrenPaying || 1)) * 100}%` }} />
-                </div>
+            {/* Grid Financeiro 2x2 */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="bg-bg-light rounded-2xl p-4 border border-border-soft">
+                <p className="text-[9px] font-black text-text-muted uppercase tracking-wider mb-1">Total Arrecadado (Líq)</p>
+                <p className="text-lg font-black text-brand leading-none mb-1">
+                  {formatCurrency(giftStats.totalNet)}
+                </p>
+                <p className="text-[9px] font-bold text-text-muted">
+                  Bruto: {formatCurrency(giftStats.totalBruto)}
+                </p>
               </div>
 
-              {/* Crianças Isentas */}
-              <div className="bg-bg-light rounded-[2rem] p-6 border border-border-soft group-hover:bg-white transition-colors">
-                <p className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em] mb-4">Crianças (Isen)</p>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-2xl font-black text-text-primary tracking-tighter">{metrics.confirmedChildrenFree}</span>
-                  <span className="text-xs font-bold text-text-muted">/ {metrics.childrenFree}</span>
-                </div>
-                <div className="w-full h-1.5 bg-border-soft rounded-full mt-3 overflow-hidden">
-                  <div className="h-full bg-success rounded-full" style={{ width: `${(metrics.confirmedChildrenFree / (metrics.childrenFree || 1)) * 100}%` }} />
-                </div>
+              <div className="bg-bg-light rounded-2xl p-4 border border-border-soft">
+                <p className="text-[9px] font-black text-text-muted uppercase tracking-wider mb-1">Disponível p/ Resgate</p>
+                <p className="text-lg font-black text-success-dark leading-none mb-1">
+                  {formatCurrency(giftStats.availableNet)}
+                </p>
+                <p className="text-[9px] font-bold text-text-muted">
+                  {giftStats.pendingNet > 0 ? `+ ${formatCurrency(giftStats.pendingNet)} a liberar` : 'Saldo liberado'}
+                </p>
+              </div>
+
+              <div className="bg-bg-light rounded-2xl p-4 border border-border-soft">
+                <p className="text-[9px] font-black text-text-muted uppercase tracking-wider mb-1">Presentes Recebidos</p>
+                <p className="text-lg font-black text-text-primary leading-none mb-1">
+                  {giftStats.count}
+                </p>
+                <p className="text-[9px] font-bold text-text-muted">transações pagas</p>
+              </div>
+
+              <div className="bg-bg-light rounded-2xl p-4 border border-border-soft">
+                <p className="text-[9px] font-black text-text-muted uppercase tracking-wider mb-1">Catálogo de Presentes</p>
+                <p className="text-lg font-black text-text-primary leading-none mb-1">
+                  {giftsListCount}
+                </p>
+                <p className="text-[9px] font-bold text-text-muted">itens cadastrados</p>
               </div>
             </div>
 
+            {/* Feed dos Últimos Presentes Recebidos */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Últimas Contribuições</p>
+                <a href={`/${slug}/presentes`} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-brand uppercase tracking-wider hover:underline">
+                  Ver no Site ↗
+                </a>
+              </div>
+
+              {recentTransactions.length > 0 ? (
+                <div className="space-y-2">
+                  {recentTransactions.map((tx: any) => (
+                    <div key={tx.id} className="bg-bg-light border border-border-soft rounded-xl p-3 flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="w-7 h-7 bg-brand-pale text-brand rounded-lg flex items-center justify-center shrink-0 font-black text-[10px]">
+                          🎁
+                        </span>
+                        <div className="truncate">
+                          <p className="font-bold text-text-primary truncate">{tx.guestName || 'Convidado Anônimo'}</p>
+                          <p className="text-[9px] text-text-muted">
+                            {tx.createdAt ? formatDate(tx.createdAt, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="font-black text-brand shrink-0">
+                        {formatCurrency(tx.amount || tx.amountNet)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-bg-light/60 border border-border-soft rounded-2xl p-4 text-center">
+                  <p className="text-xs font-bold text-text-muted mb-1">Nenhum presente recebido ainda.</p>
+                  <p className="text-[10px] text-text-muted/70 mb-3">Compartilhe o link da lista com seus convidados para começar a receber!</p>
+                  <button
+                    onClick={() => copyToClipboard(`/${slug}/presentes`, 'da Lista de Presentes')}
+                    className="px-4 py-1.5 bg-white border border-border-soft rounded-xl text-[9px] font-black text-brand uppercase tracking-wider hover:bg-brand hover:text-white transition-all shadow-sm"
+                  >
+                    Copiar Link da Lista
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Botões de Ação da Lista */}
+          <div className="grid grid-cols-2 gap-3">
             <button
-              onClick={(e) => { e.stopPropagation(); setShowGuests(true); }}
-              className="px-12 py-4.5 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl shadow-brand/20 hover:scale-105 active:scale-95 transition-all"
+              onClick={() => router.push('/admin/withdrawals')}
+              className="py-3.5 bg-white border border-border-soft text-text-primary rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] hover:border-brand/40 transition-all shadow-sm flex items-center justify-center gap-1.5"
             >
-              Gerenciar Lista de Convidados
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+              Resgates / Carteira
+            </button>
+            <button
+              onClick={() => router.push(`/dashboard/presentes/biblioteca?eventId=${eventId}`)}
+              className="py-3.5 bg-brand-pale text-brand border border-brand/20 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] hover:bg-brand hover:text-white transition-all shadow-sm flex items-center justify-center gap-1.5"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
+              Gerenciar Presentes
             </button>
           </div>
         </div>
-      ) : (
+
+      </div>
+
+      {/* GUEST LIST MANAGEMENT (EXPANDABLE) */}
+      {showGuests && (
         <div className="animate-in fade-in slide-in-from-top-4 duration-500">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-2">
@@ -557,6 +935,62 @@ function AdminEventoPageContent() {
         }}
         onCancel={() => setDeleteConfirmDialog({ isOpen: false })}
       />
+
+      {/* MODAL QR CODE DO EVENTO */}
+      {showQrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface rounded-3xl border border-border-soft p-8 max-w-sm w-full shadow-2xl relative flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setShowQrModal(false)}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-bg-light border border-border-soft text-text-muted hover:text-text-primary flex items-center justify-center transition-all text-xs font-bold"
+            >
+              ✕
+            </button>
+
+            <div className="w-12 h-12 bg-brand-pale text-brand rounded-2xl flex items-center justify-center mb-4">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
+            </div>
+
+            <h3 className="text-xl font-serif font-black text-brand mb-1 tracking-tight">QR Code do Evento</h3>
+            <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-6">
+              {event.eventSettings.coupleNames}
+            </p>
+
+            {/* Imagem do QR Code */}
+            <div className="p-4 bg-white rounded-2xl border border-border-soft shadow-inner mb-4 flex items-center justify-center">
+              {typeof window !== 'undefined' && (
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`${window.location.origin}/${slug}`)}`}
+                  alt="QR Code do Evento"
+                  className="w-48 h-48 object-contain"
+                />
+              )}
+            </div>
+
+            <p className="text-xs font-bold text-text-secondary truncate w-full mb-6 px-2 bg-bg-light py-2 rounded-xl border border-border-soft">
+              {typeof window !== 'undefined' ? `${window.location.origin}/${slug}` : `/${slug}`}
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <button
+                onClick={() => copyToClipboard(`/${slug}`, 'do Site')}
+                className="py-3 px-4 bg-surface border border-border-soft rounded-xl text-[10px] font-black uppercase tracking-wider text-text-primary hover:border-brand/40 transition-all shadow-sm"
+              >
+                Copiar Link 📋
+              </button>
+              <a
+                href={typeof window !== 'undefined' ? `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(`${window.location.origin}/${slug}`)}` : '#'}
+                download={`qrcode_${slug}.png`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-3 px-4 bg-brand text-white rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-brand-dark transition-all shadow-sm flex items-center justify-center gap-1.5"
+              >
+                Baixar Imagem ⬇
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </SharedLayout>
   )
 }
