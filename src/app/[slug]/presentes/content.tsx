@@ -44,7 +44,7 @@ export default function PresentsContent({ slug }: Props) {
             })
             .finally(() => setLoading(false))
 
-        // Carregar carrinho do localStorage ao iniciar
+        // Carregar carrinho e dados salvos do convidado ao iniciar
         const savedCart = localStorage.getItem(`cart_${slug}`);
         if (savedCart) {
             try {
@@ -53,6 +53,13 @@ export default function PresentsContent({ slug }: Props) {
                 console.error("Erro ao carregar carrinho:", e);
             }
         }
+
+        try {
+            const savedName = localStorage.getItem('rsvp_guest_name');
+            const savedEmail = localStorage.getItem('rsvp_guest_email');
+            if (savedName) setName(savedName);
+            if (savedEmail) setEmail(savedEmail);
+        } catch (_) {}
     }, [slug, isCorrectEvent])
 
     // Salvar carrinho sempre que ele mudar
@@ -143,11 +150,37 @@ export default function PresentsContent({ slug }: Props) {
 
     const handleCheckout = async (e: React.FormEvent) => {
         e.preventDefault()
+
+        const trimmedName = name.trim();
+        const trimmedEmail = email.trim();
+
+        if (!trimmedName) {
+            toast.error('Informe seu nome', { description: 'O nome é obrigatório para identificação do presente.' });
+            return;
+        }
+
+        if (!trimmedEmail) {
+            toast.error('Informe seu e-mail', { description: 'O e-mail é obrigatório para confirmação do pagamento.' });
+            return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmedEmail)) {
+            toast.error('E-mail inválido', { description: 'Por favor, digite um e-mail válido (ex: joao@email.com).' });
+            return;
+        }
+
         const checkoutItems = selected ? [{ id: selected.id, quantity: 1 }] : cart.map(item => ({ id: item.id, quantity: item.quantity }));
         
         if (checkoutItems.length === 0) return
         setSubmitting(true)
         try {
+            // Salva dados no localStorage para agilizar futuras compras do convidado
+            try {
+                localStorage.setItem('rsvp_guest_name', trimmedName);
+                localStorage.setItem('rsvp_guest_email', trimmedEmail);
+            } catch (_) {}
+
             const endpoint = `/api/gifts/checkout-infinitepay`;
             
             const res = await fetch(endpoint, {
@@ -157,9 +190,9 @@ export default function PresentsContent({ slug }: Props) {
                     slug,
                     items: selected ? [{ ...selected, quantity: 1, price: getDisplayPrice(selected.price) }] : cart.map(item => ({ ...item, price: getDisplayPrice(item.price) })),
                     total: selected ? getDisplayPrice(selected.price) : cartTotal,
-                    guestName: name, 
-                    email, 
-                    message,
+                    guestName: trimmedName, 
+                    email: trimmedEmail, 
+                    message: message.trim(),
                     eventId 
                 })
             })
@@ -485,8 +518,8 @@ export default function PresentsContent({ slug }: Props) {
                                             <input required type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: João Silva" className="w-full p-4 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold text-text-primary outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all shadow-inner" />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-text-muted px-2">E-mail</label>
-                                            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" className="w-full p-4 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold text-text-primary outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all shadow-inner" />
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-text-muted px-2">Seu E-mail *</label>
+                                            <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" className="w-full p-4 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold text-text-primary outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all shadow-inner" />
                                         </div>
                                     </div>
                                     <div className="space-y-2">
@@ -521,7 +554,7 @@ export default function PresentsContent({ slug }: Props) {
                                 <div className="grid grid-cols-2 gap-4">
                                     <button onClick={() => { setSelected(null); setIsCartOpen(false); setPendingTx(null); setQrCodeData(null); if(pollingRef.current) clearInterval(pollingRef.current); }} className="py-5 border border-border-soft bg-white rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] text-text-muted hover:bg-bg-light transition-all shadow-sm">Voltar</button>
                                     {!qrCodeData ? (
-                                        <button type="submit" form="gift-form" disabled={submitting || (cart.length === 0 && !selected)} className="py-5 bg-brand text-white rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-brand/20 hover:bg-brand-dark hover:-translate-y-1 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                                        <button type="submit" form="gift-form" disabled={submitting || (cart.length === 0 && !selected) || !name.trim() || !email.trim()} className="py-5 bg-brand text-white rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-brand/20 hover:bg-brand-dark hover:-translate-y-1 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                                             {submitting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'CONCLUIR 🎁'}
                                         </button>
                                     ) : (

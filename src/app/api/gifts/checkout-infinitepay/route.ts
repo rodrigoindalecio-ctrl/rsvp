@@ -80,12 +80,22 @@ export async function POST(req: Request) {
         });
     }
 
+    const cleanGuestName = String(guestName || '').replace(/<[^>]*>/g, '').trim().slice(0, 150);
+    const cleanEmail = body.email ? String(body.email).replace(/<[^>]*>/g, '').trim().slice(0, 150) : '';
+
+    if (!cleanGuestName) {
+      return NextResponse.json({ error: 'Nome do convidado é obrigatório' }, { status: 400 });
+    }
+    if (!cleanEmail) {
+      return NextResponse.json({ error: 'E-mail do convidado é obrigatório' }, { status: 400 });
+    }
+
     // 1. Criar registro pendente no Banco de Dados (Supabase) - Usando supabaseAdmin para evitar bloqueios de RLS
     const { error: dbError } = await supabaseAdmin.from("gift_transactions").insert({
       id: transactionId,
       event_id: firstGift.event_id,
-      guest_name: String(guestName || 'Convidado').replace(/<[^>]*>/g, '').trim().slice(0, 150),
-      guest_email: body.email ? String(body.email).trim().slice(0, 150) : null,
+      guest_name: cleanGuestName,
+      guest_email: cleanEmail,
       message: String(message || '').replace(/<[^>]*>/g, '').trim().slice(0, 1000),
       amount_bruto: totalAmountBruto,
       amount_gross: totalAmountBruto,
@@ -104,20 +114,26 @@ export async function POST(req: Request) {
 
     // 2. Preparar itens para o formato InfinitePay (preço em centavos) já feito acima
 
-    // 3. Chamar a API Pública da InfinitePay para gerar o link
+    // 3. Chamar a API Pública da InfinitePay para gerar o link com os dados do cliente pré-preenchidos
+    const infinitePayPayload: any = {
+      handle: handle,
+      order_nsu: transactionId,
+      redirect_url: `${baseUrl}/${slug}/presentes/sucesso?t=${transactionId}`,
+      webhook_url: `${baseUrl}/api/webhook/infinitepay`,
+      items: infinitePayItems,
+      customer: {
+        name: cleanGuestName,
+        email: cleanEmail
+      }
+    };
+
     const response = await fetch("https://api.infinitepay.io/invoices/public/checkout/links", {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
         "Accept": "application/json"
       },
-      body: JSON.stringify({
-        handle: handle,
-        order_nsu: transactionId,
-        redirect_url: `${baseUrl}/${slug}/presentes/sucesso?t=${transactionId}`,
-        webhook_url: `${baseUrl}/api/webhook/infinitepay`,
-        items: infinitePayItems
-      })
+      body: JSON.stringify(infinitePayPayload)
     });
 
     const data = await response.json();
