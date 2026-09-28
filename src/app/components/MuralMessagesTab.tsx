@@ -1,18 +1,23 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { MessageSquare, Heart, Star, Quote, Search, Trash2, X, CheckSquare } from 'lucide-react'
+import { MessageSquare, Heart, Star, Quote, Search, Trash2, X, CheckSquare, Download, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/app/components/confirm-dialog'
+import { generateMuralPdf } from '@/utils/exportMuralPdf'
 
 interface Props {
     eventId: string
+    coupleName?: string
+    eventDate?: string | Date
+    slug?: string
 }
 
-export default function MuralMessagesTab({ eventId }: Props) {
+export default function MuralMessagesTab({ eventId, coupleName, eventDate, slug }: Props) {
     const [messages, setMessages] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+    const [isExportingPdf, setIsExportingPdf] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
     const [isSelectionMode, setIsSelectionMode] = useState(false)
     const [selectedItems, setSelectedItems] = useState<{id: string, type: string}[]>([])
@@ -109,6 +114,34 @@ export default function MuralMessagesTab({ eventId }: Props) {
         )
     )
 
+    const handleExportPdf = async () => {
+        const msgsToExport = filteredMessages.length > 0 ? filteredMessages : messages
+        const validMsgs = msgsToExport.filter(m => m.message && m.message.trim().length > 0)
+
+        if (validMsgs.length === 0) {
+            toast.error('Nenhum recado disponível para exportar.')
+            return
+        }
+
+        setIsExportingPdf(true)
+        const toastId = toast.loading('Gerando livro de memórias em PDF...')
+
+        try {
+            await generateMuralPdf({
+                coupleName: coupleName || 'Mural de Carinho',
+                eventDate: eventDate,
+                slug: slug,
+                messages: validMsgs
+            })
+            toast.success('Mural exportado com sucesso! Arquivo baixado.', { id: toastId })
+        } catch (error) {
+            console.error('Erro ao gerar PDF do mural:', error)
+            toast.error('Não foi possível gerar o PDF. Tente novamente.', { id: toastId })
+        } finally {
+            setIsExportingPdf(false)
+        }
+    }
+
     if (loading) {
         return (
             <div className="py-24 text-center">
@@ -144,7 +177,24 @@ export default function MuralMessagesTab({ eventId }: Props) {
                     />
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 w-full md:w-auto justify-end">
+                    <button
+                        onClick={handleExportPdf}
+                        disabled={isExportingPdf || messages.length === 0}
+                        className="px-5 py-3.5 bg-brand text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-brand/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
+                        title="Baixar mural completo em PDF formatado"
+                    >
+                        {isExportingPdf ? (
+                            <>
+                                <Loader2 size={14} className="animate-spin" /> Gerando PDF...
+                            </>
+                        ) : (
+                            <>
+                                <Download size={14} /> Exportar PDF
+                            </>
+                        )}
+                    </button>
+
                     {isSelectionMode ? (
                         <>
                             <button

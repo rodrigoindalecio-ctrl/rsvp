@@ -929,7 +929,14 @@ export default function DashboardPage() {
       ) : activeTab === 'gifts' ? (
         eventId && <GiftManagementTab eventId={eventId as string} />
       ) : (
-        eventId && <MuralMessagesTab eventId={eventId as string} />
+        eventId && (
+          <MuralMessagesTab
+            eventId={eventId as string}
+            coupleName={eventSettings?.title || user?.name || 'Mural de Carinho'}
+            eventDate={eventSettings?.eventDate}
+            slug={eventSettings?.slug}
+          />
+        )
       )}
       </div>
       {/* Diálogo de Confirmação para WhatsApp sem Telefone */}
