@@ -40,16 +40,24 @@ async function getBase64ImageFromUrl(imageUrl: string): Promise<{ base64: string
     }
 }
 
+// Parseia datas de forma segura sem deslocamento de fuso (UTC midnight → local day)
+function safeParseDate(d: string | Date): Date {
+    if (d instanceof Date) return d
+    // "2026-11-20" sem hora → forçar meio-dia local para evitar shift de fuso
+    if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        return new Date(d + 'T12:00:00')
+    }
+    return new Date(d)
+}
+
 export async function generateMuralPdf({
     coupleName = 'Casal',
     eventDate,
     slug,
     messages
 }: ExportPdfOptions) {
-    // Filtrar mensagens válidas
     const validMessages = messages.filter(m => m.message && m.message.trim().length > 0)
-    
-    // Dimensões A4 em mm: 210 x 297
+
     const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -58,198 +66,169 @@ export async function generateMuralPdf({
 
     const pageWidth = 210
     const pageHeight = 297
-    const margin = 16
+    const margin = 14
     const contentWidth = pageWidth - (margin * 2)
 
-    // Paleta de Cores Editorial Premium
-    const MARSALA = { r: 139, g: 45, b: 79 } // #8B2D4F
-    const MARSALA_LIGHT = { r: 253, g: 242, b: 244 } // #FDF2F4
-    const GOLD = { r: 191, g: 155, b: 98 } // #BF9B62 Ouro sofisticado
-    const GOLD_LIGHT = { r: 248, g: 244, b: 236 }
-    const BG_OFFWHITE = { r: 253, g: 252, b: 250 } // #FDFCF8
-    const TEXT_DARK = { r: 44, g: 36, b: 40 } // #2C2428
-    const TEXT_MUTED = { r: 140, g: 130, b: 135 } // #8C8287
-    const CARD_BORDER = { r: 232, g: 224, b: 220 } // #E8E0DC
-    const GIFT_GREEN = { r: 45, g: 122, b: 72 } // #2D7A48
-    const GIFT_BG = { r: 240, g: 248, b: 242 }
+    // ── Paleta Editorial ──
+    const MARSALA    = { r: 139, g: 45,  b: 79  }
+    const MARSALA_L  = { r: 253, g: 242, b: 244 }
+    const GOLD       = { r: 191, g: 155, b: 98  }
+    const GOLD_L     = { r: 248, g: 244, b: 236 }
+    const OFFWHITE   = { r: 253, g: 252, b: 250 }
+    const TEXT_DARK  = { r: 44,  g: 36,  b: 40  }
+    const TEXT_MUTED = { r: 140, g: 130, b: 135 }
+    const BORDER     = { r: 232, g: 224, b: 220 }
+    const GIFT_G     = { r: 45,  g: 122, b: 72  }
+    const GIFT_BG    = { r: 240, g: 248, b: 242 }
 
-    // Carregar logo da marca com proporção natural
+    const FOOTER_TEXT = 'RSVP · Vanessa Bidinotti · Inteligência em Eventos'
+
+    // ── Logo ──
     const logoData = await getBase64ImageFromUrl('/logo_marsala.png')
 
-    // Função para pintar o fundo suave
-    const drawPageBackground = (isCover = false) => {
-        doc.setFillColor(BG_OFFWHITE.r, BG_OFFWHITE.g, BG_OFFWHITE.b)
+    // ── Fundo de Página ──
+    const drawBg = (isCover = false) => {
+        doc.setFillColor(OFFWHITE.r, OFFWHITE.g, OFFWHITE.b)
         doc.rect(0, 0, pageWidth, pageHeight, 'F')
-        
+
         if (isCover) {
-            // Moldura externa elegante da capa
             doc.setDrawColor(GOLD.r, GOLD.g, GOLD.b)
             doc.setLineWidth(0.4)
             doc.rect(10, 10, pageWidth - 20, pageHeight - 20, 'S')
-
             doc.setDrawColor(MARSALA.r, MARSALA.g, MARSALA.b)
             doc.setLineWidth(0.6)
             doc.rect(12, 12, pageWidth - 24, pageHeight - 24, 'S')
 
-            // Cantoneiras ornamentais clássicas nos 4 cantos
-            const cornerSize = 6
-            const cLeft = 14
-            const cRight = pageWidth - 14
-            const cTop = 14
-            const cBottom = pageHeight - 14
-
+            // Cantoneiras douradas
+            const s = 6, cL = 14, cR = pageWidth - 14, cT = 14, cB = pageHeight - 14
             doc.setDrawColor(GOLD.r, GOLD.g, GOLD.b)
             doc.setLineWidth(0.3)
-            // Top-Left
-            doc.line(cLeft, cTop, cLeft + cornerSize, cTop)
-            doc.line(cLeft, cTop, cLeft, cTop + cornerSize)
-            // Top-Right
-            doc.line(cRight, cTop, cRight - cornerSize, cTop)
-            doc.line(cRight, cTop, cRight, cTop + cornerSize)
-            // Bottom-Left
-            doc.line(cLeft, cBottom, cLeft + cornerSize, cBottom)
-            doc.line(cLeft, cBottom, cLeft, cBottom - cornerSize)
-            // Bottom-Right
-            doc.line(cRight, cBottom, cRight - cornerSize, cBottom)
-            doc.line(cRight, cBottom, cRight, cBottom - cornerSize)
+            doc.line(cL, cT, cL + s, cT); doc.line(cL, cT, cL, cT + s)
+            doc.line(cR, cT, cR - s, cT); doc.line(cR, cT, cR, cT + s)
+            doc.line(cL, cB, cL + s, cB); doc.line(cL, cB, cL, cB - s)
+            doc.line(cR, cB, cR - s, cB); doc.line(cR, cB, cR, cB - s)
         } else {
-            // Borda suave interna nas páginas de conteúdo
-            doc.setDrawColor(CARD_BORDER.r, CARD_BORDER.g, CARD_BORDER.b)
+            doc.setDrawColor(BORDER.r, BORDER.g, BORDER.b)
             doc.setLineWidth(0.2)
             doc.rect(8, 8, pageWidth - 16, pageHeight - 16, 'S')
         }
     }
 
-    // ==========================================
-    // 1. CAPA ELEGANTE & BALANCEADA
-    // ==========================================
-    drawPageBackground(true)
+    // ══════════════════════════════════════
+    //  1. CAPA
+    // ══════════════════════════════════════
+    drawBg(true)
 
-    // Logo Proporcional (sem distorção)
+    // Logo com proporção natural
     if (logoData) {
         try {
-            const aspect = logoData.aspect || 1
-            const maxDimension = 32
-            let logoW = maxDimension
-            let logoH = maxDimension
-            if (aspect > 1) {
-                logoH = maxDimension / aspect
-            } else {
-                logoW = maxDimension * aspect
-            }
+            const asp = logoData.aspect || 1
+            const maxDim = 30
+            const logoW = asp >= 1 ? maxDim : maxDim * asp
+            const logoH = asp >= 1 ? maxDim / asp : maxDim
             doc.addImage(logoData.base64, 'PNG', (pageWidth - logoW) / 2, 34, logoW, logoH)
-        } catch {
-            // Fallback se erro ao desenhar imagem
-        }
+        } catch { /* silencia */ }
     }
 
-    // Tag Superior
-    let currentY = 74
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(GOLD.r, GOLD.g, GOLD.b)
-    doc.text('LIVRO DE RECADOS & MEMÓRIAS', pageWidth / 2, currentY, { align: 'center', charSpace: 1.5 })
+    let y = 74
 
-    // Título Principal
-    currentY += 12
+    // Tag — sem charSpace para evitar desalinhamento com outros elementos
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(GOLD.r, GOLD.g, GOLD.b)
+    doc.text('LIVRO DE RECADOS & MEMÓRIAS', pageWidth / 2, y, { align: 'center' })
+
+    // Título
+    y += 13
     doc.setFont('times', 'italic')
     doc.setFontSize(36)
     doc.setTextColor(MARSALA.r, MARSALA.g, MARSALA.b)
-    doc.text('Mural de Carinho', pageWidth / 2, currentY, { align: 'center' })
+    doc.text('Mural de Carinho', pageWidth / 2, y, { align: 'center' })
 
-    // Divisor com losango geométrico vetorial dourado
-    currentY += 8
+    // Divisor vetorial (losango + linhas)
+    y += 8
     doc.setDrawColor(GOLD.r, GOLD.g, GOLD.b)
     doc.setLineWidth(0.4)
-    doc.line((pageWidth / 2) - 35, currentY, (pageWidth / 2) - 6, currentY)
-    doc.line((pageWidth / 2) + 6, currentY, (pageWidth / 2) + 35, currentY)
-    
-    // Losango central
+    doc.line(pageWidth / 2 - 36, y, pageWidth / 2 - 5.5, y)
+    doc.line(pageWidth / 2 + 5.5, y, pageWidth / 2 + 36, y)
     doc.setFillColor(GOLD.r, GOLD.g, GOLD.b)
-    const midX = pageWidth / 2
-    doc.triangle(midX, currentY - 1.8, midX + 2.2, currentY, midX - 2.2, currentY, 'F')
-    doc.triangle(midX, currentY + 1.8, midX + 2.2, currentY, midX - 2.2, currentY, 'F')
+    const mx = pageWidth / 2
+    doc.triangle(mx, y - 1.8, mx + 2.2, y, mx - 2.2, y, 'F')
+    doc.triangle(mx, y + 1.8, mx + 2.2, y, mx - 2.2, y, 'F')
 
-    // Nomes do Casal / Título do Evento
-    currentY += 22
+    // Nome do Casal
+    y += 22
     doc.setFont('times', 'bold')
     doc.setFontSize(24)
     doc.setTextColor(TEXT_DARK.r, TEXT_DARK.g, TEXT_DARK.b)
-    doc.text(coupleName, pageWidth / 2, currentY, { align: 'center' })
+    doc.text(coupleName, pageWidth / 2, y, { align: 'center' })
 
-    // Data do Evento
+    // Data — sem charSpace
     if (eventDate) {
-        currentY += 9
-        const formattedDate = new Intl.DateTimeFormat('pt-BR', {
-            day: '2-digit',
-            month: 'long',
-            year: 'numeric'
-        }).format(new Date(eventDate))
-        
+        y += 9
+        const formatted = new Intl.DateTimeFormat('pt-BR', {
+            day: '2-digit', month: 'long', year: 'numeric'
+        }).format(safeParseDate(eventDate))
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(9)
         doc.setTextColor(GOLD.r, GOLD.g, GOLD.b)
-        doc.text(formattedDate.toUpperCase(), pageWidth / 2, currentY, { align: 'center', charSpace: 1.2 })
+        doc.text(formatted.toUpperCase(), pageWidth / 2, y, { align: 'center' })
     }
 
-    // Caixa Editorial da Citação
-    currentY += 26
-    const quoteBoxW = 144
-    const quoteBoxH = 46
-    const quoteBoxX = (pageWidth - quoteBoxW) / 2
-
-    // Fundo da Citação suave com moldura dupla delicada
-    doc.setFillColor(GOLD_LIGHT.r, GOLD_LIGHT.g, GOLD_LIGHT.b)
-    doc.roundedRect(quoteBoxX, currentY, quoteBoxW, quoteBoxH, 3, 3, 'F')
-    doc.setDrawColor(CARD_BORDER.r, CARD_BORDER.g, CARD_BORDER.b)
+    // Caixa de Citação
+    y += 26
+    const qW = 148, qH = 46, qX = (pageWidth - qW) / 2
+    doc.setFillColor(GOLD_L.r, GOLD_L.g, GOLD_L.b)
+    doc.roundedRect(qX, y, qW, qH, 3, 3, 'F')
+    doc.setDrawColor(BORDER.r, BORDER.g, BORDER.b)
     doc.setLineWidth(0.3)
-    doc.roundedRect(quoteBoxX, currentY, quoteBoxW, quoteBoxH, 3, 3, 'S')
-
-    // Moldura dourada interna
+    doc.roundedRect(qX, y, qW, qH, 3, 3, 'S')
     doc.setDrawColor(GOLD.r, GOLD.g, GOLD.b)
     doc.setLineWidth(0.15)
-    doc.roundedRect(quoteBoxX + 2, currentY + 2, quoteBoxW - 4, quoteBoxH - 4, 2, 2, 'S')
+    doc.roundedRect(qX + 2, y + 2, qW - 4, qH - 4, 2, 2, 'S')
 
-    // Aspas elegantes no topo da caixa
     doc.setFont('times', 'italic')
     doc.setFontSize(26)
     doc.setTextColor(GOLD.r, GOLD.g, GOLD.b)
-    doc.text('“', pageWidth / 2, currentY + 11, { align: 'center' })
+    doc.text('"', pageWidth / 2, y + 11, { align: 'center' })
 
-    // Texto da citação
     doc.setFont('times', 'italic')
     doc.setFontSize(11)
     doc.setTextColor(TEXT_DARK.r, TEXT_DARK.g, TEXT_DARK.b)
-    const quoteText = 'Cada presente é um gesto de carinho, mas cada palavra é um tesouro que guardaremos para sempre.'
-    const splitQuote = doc.splitTextToSize(quoteText, quoteBoxW - 24)
-    doc.text(splitQuote, pageWidth / 2, currentY + 19, { align: 'center', lineHeightFactor: 1.35 })
+    const quoteLines = doc.splitTextToSize(
+        'Cada presente é um gesto de carinho, mas cada palavra é um tesouro que guardaremos para sempre.',
+        qW - 24
+    )
+    doc.text(quoteLines, pageWidth / 2, y + 20, { align: 'center', lineHeightFactor: 1.35 })
 
-    // Contador de Mensagens
-    currentY += quoteBoxH + 26
+    // Contador — sem charSpace
+    y += qH + 26
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8)
     doc.setTextColor(TEXT_MUTED.r, TEXT_MUTED.g, TEXT_MUTED.b)
-    const countLabel = validMessages.length === 1 ? '1 RECADO ESPECIAL' : `${validMessages.length} RECADOS ESPECIAIS`
-    doc.text(`COLEÇÃO DE ${countLabel}`, pageWidth / 2, currentY, { align: 'center', charSpace: 1.2 })
+    const countTxt = `COLEÇÃO DE ${validMessages.length} ${validMessages.length === 1 ? 'RECADO ESPECIAL' : 'RECADOS ESPECIAIS'}`
+    doc.text(countTxt, pageWidth / 2, y, { align: 'center' })
 
-    // Rodapé da Capa
+    // Rodapé da capa
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(TEXT_MUTED.r, TEXT_MUTED.g, TEXT_MUTED.b)
-    doc.text('RSVP · Inteligência em Eventos', pageWidth / 2, pageHeight - 18, { align: 'center' })
+    doc.text(FOOTER_TEXT, pageWidth / 2, pageHeight - 18, { align: 'center' })
 
-    // ==========================================
-    // 2. PÁGINAS DE RECADOS
-    // ==========================================
-    let currentPage = 1
+    // ══════════════════════════════════════
+    //  2. PÁGINAS DE RECADOS — 2 colunas
+    // ══════════════════════════════════════
+    const colGap = 5
+    const colW = (contentWidth - colGap) / 2
+    const cardPad = 6
+
     let yPos = 24
+    let col = 0 // 0 = esquerda, 1 = direita
 
     const startNewPage = () => {
         doc.addPage()
-        currentPage++
-        drawPageBackground(false)
+        drawBg(false)
 
-        // Cabeçalho da página de recados
         doc.setFont('times', 'italic')
         doc.setFontSize(11)
         doc.setTextColor(MARSALA.r, MARSALA.g, MARSALA.b)
@@ -260,160 +239,180 @@ export async function generateMuralPdf({
         doc.setTextColor(TEXT_MUTED.r, TEXT_MUTED.g, TEXT_MUTED.b)
         doc.text(coupleName, pageWidth - margin, 15, { align: 'right' })
 
-        doc.setDrawColor(CARD_BORDER.r, CARD_BORDER.g, CARD_BORDER.b)
+        doc.setDrawColor(BORDER.r, BORDER.g, BORDER.b)
         doc.setLineWidth(0.2)
         doc.line(margin, 18, pageWidth - margin, 18)
 
         yPos = 24
+        col = 0
     }
 
     if (validMessages.length > 0) {
         startNewPage()
 
-        validMessages.forEach((msg) => {
-            const cardPadding = 7
-            const textWidth = contentWidth - (cardPadding * 2) - 10
-
+        // Calcula altura de cada card antes de posicionar
+        const calcCardHeight = (msg: MuralMessage): number => {
             doc.setFont('times', 'italic')
-            doc.setFontSize(11)
-            const cleanMessage = (msg.message || '').trim()
-            const splitMsg = doc.splitTextToSize(cleanMessage, textWidth)
-            const textHeight = Math.max(splitMsg.length * 5, 8)
+            doc.setFontSize(10)
+            const textW = colW - (cardPad * 2) - 4
+            const lines = doc.splitTextToSize((msg.message || '').trim(), textW)
+            const textH = Math.max(lines.length * 4.8, 6)
+            // header badge (8) + texto + footer avatar (13) + padding (16)
+            return Math.max(8 + textH + 13 + 8, 38)
+        }
 
-            // Altura compacta e proporcional
-            const cardHeight = Math.max(9 + textHeight + 14 + 10, 36)
+        validMessages.forEach((msg) => {
+            const cardH = calcCardHeight(msg)
 
-            // Se não couber na página atual (reserva 22mm para rodapé), cria nova página
-            if (yPos + cardHeight > pageHeight - 22) {
-                startNewPage()
+            // Decide se passa para nova linha ou nova página
+            if (col === 0) {
+                // Verifica se novo par cabe na página
+                if (yPos + cardH > pageHeight - 22) {
+                    startNewPage()
+                }
+            } else {
+                // col 1: mesma linha já existe, não precisa verificar de novo
             }
 
-            const cardX = margin
+            const cardX = margin + col * (colW + colGap)
             const cardY = yPos
 
-            // Fundo do Card
+            // ── Fundo e Borda do Card ──
             doc.setFillColor(255, 255, 255)
-            doc.roundedRect(cardX, cardY, contentWidth, cardHeight, 3, 3, 'F')
-            doc.setDrawColor(CARD_BORDER.r, CARD_BORDER.g, CARD_BORDER.b)
+            doc.roundedRect(cardX, cardY, colW, cardH, 3, 3, 'F')
+            doc.setDrawColor(BORDER.r, BORDER.g, BORDER.b)
             doc.setLineWidth(0.3)
-            doc.roundedRect(cardX, cardY, contentWidth, cardHeight, 3, 3, 'S')
+            doc.roundedRect(cardX, cardY, colW, cardH, 3, 3, 'S')
 
-            // Barra decorativa lateral esquerda no card
+            // ── Barra lateral decorativa ──
             const isGift = msg.type === 'gift'
             if (isGift) {
-                doc.setFillColor(GIFT_GREEN.r, GIFT_GREEN.g, GIFT_GREEN.b)
+                doc.setFillColor(GIFT_G.r, GIFT_G.g, GIFT_G.b)
             } else {
                 doc.setFillColor(MARSALA.r, MARSALA.g, MARSALA.b)
             }
-            doc.roundedRect(cardX, cardY, 2, cardHeight, 1, 1, 'F')
+            doc.roundedRect(cardX, cardY, 2, cardH, 1, 1, 'F')
 
-            // Badge de Tipo
-            const badgeW = isGift ? 38 : 36
-            const badgeH = 5.2
-            const badgeX = cardX + cardPadding + 2
-            const badgeY = cardY + cardPadding
+            // ── Badge de Tipo ──
+            const badgeH = 5
+            const badgeX = cardX + cardPad + 2
+            const badgeY = cardY + cardPad
 
             if (isGift) {
                 doc.setFillColor(GIFT_BG.r, GIFT_BG.g, GIFT_BG.b)
-                doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.2, 1.2, 'F')
-                
-                // Ponto decorativo verde
-                doc.setFillColor(GIFT_GREEN.r, GIFT_GREEN.g, GIFT_GREEN.b)
-                doc.circle(badgeX + 3.2, badgeY + 2.6, 1.1, 'F')
-
+                doc.roundedRect(badgeX, badgeY, 36, badgeH, 1.2, 1.2, 'F')
+                doc.setFillColor(GIFT_G.r, GIFT_G.g, GIFT_G.b)
+                doc.circle(badgeX + 3, badgeY + 2.5, 1, 'F')
                 doc.setFont('helvetica', 'bold')
-                doc.setFontSize(6.5)
-                doc.setTextColor(GIFT_GREEN.r, GIFT_GREEN.g, GIFT_GREEN.b)
-                doc.text('PRESENTE RECEBIDO', badgeX + 6.2, badgeY + 3.7)
+                doc.setFontSize(6)
+                doc.setTextColor(GIFT_G.r, GIFT_G.g, GIFT_G.b)
+                doc.text('PRESENTE RECEBIDO', badgeX + 5.8, badgeY + 3.5)
             } else {
-                doc.setFillColor(MARSALA_LIGHT.r, MARSALA_LIGHT.g, MARSALA_LIGHT.b)
-                doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.2, 1.2, 'F')
-
-                // Ponto decorativo marsala
+                doc.setFillColor(MARSALA_L.r, MARSALA_L.g, MARSALA_L.b)
+                doc.roundedRect(badgeX, badgeY, 34, badgeH, 1.2, 1.2, 'F')
                 doc.setFillColor(MARSALA.r, MARSALA.g, MARSALA.b)
-                doc.circle(badgeX + 3.2, badgeY + 2.6, 1.1, 'F')
+                doc.circle(badgeX + 3, badgeY + 2.5, 1, 'F')
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(6)
+                doc.setTextColor(MARSALA.r, MARSALA.g, MARSALA.b)
+                doc.text('RECADO NO RSVP', badgeX + 5.8, badgeY + 3.5)
+            }
 
+            // ── Data ──
+            if (msg.createdAt) {
+                const d = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' })
+                    .format(safeParseDate(msg.createdAt))
                 doc.setFont('helvetica', 'bold')
                 doc.setFontSize(6.5)
-                doc.setTextColor(MARSALA.r, MARSALA.g, MARSALA.b)
-                doc.text('RECADO NO RSVP', badgeX + 6.2, badgeY + 3.7)
-            }
-
-            // Data à direita
-            if (msg.createdAt) {
-                const msgDate = new Intl.DateTimeFormat('pt-BR', {
-                    day: '2-digit',
-                    month: 'short'
-                }).format(new Date(msg.createdAt))
-                doc.setFont('helvetica', 'bold')
-                doc.setFontSize(7)
                 doc.setTextColor(TEXT_MUTED.r, TEXT_MUTED.g, TEXT_MUTED.b)
-                doc.text(msgDate.toUpperCase(), cardX + contentWidth - cardPadding, badgeY + 3.7, { align: 'right' })
+                doc.text(d.toUpperCase(), cardX + colW - cardPad, badgeY + 3.5, { align: 'right' })
             }
 
-            // Texto da Mensagem
-            const textY = badgeY + badgeH + 5
+            // ── Texto da Mensagem ──
             doc.setFont('times', 'italic')
-            doc.setFontSize(10.5)
+            doc.setFontSize(10)
             doc.setTextColor(TEXT_DARK.r, TEXT_DARK.g, TEXT_DARK.b)
-            doc.text(splitMsg, cardX + cardPadding + 3, textY, { lineHeightFactor: 1.3 })
+            const textW = colW - (cardPad * 2) - 4
+            const splitMsg = doc.splitTextToSize((msg.message || '').trim(), textW)
+            const textY = badgeY + badgeH + 4.5
+            doc.text(splitMsg, cardX + cardPad + 3, textY, { lineHeightFactor: 1.3 })
 
-            // Linha divisória antes do autor
-            const footerY = cardY + cardHeight - 11
+            // ── Linha Divisória ──
+            const footerY = cardY + cardH - 11
             doc.setDrawColor(244, 238, 235)
             doc.setLineWidth(0.2)
-            doc.line(cardX + cardPadding + 2, footerY, cardX + contentWidth - cardPadding, footerY)
+            doc.line(cardX + cardPad + 2, footerY, cardX + colW - cardPad, footerY)
 
-            // Avatar circular do autor
-            const avatarX = cardX + cardPadding + 6
-            const avatarY = footerY + 5.5
-            const avatarR = 3.5
-
-            doc.setFillColor(MARSALA_LIGHT.r, MARSALA_LIGHT.g, MARSALA_LIGHT.b)
-            doc.circle(avatarX, avatarY, avatarR, 'F')
-            doc.setDrawColor(CARD_BORDER.r, CARD_BORDER.g, CARD_BORDER.b)
+            // ── Avatar + Nome ──
+            const avX = cardX + cardPad + 5
+            const avY = footerY + 5
+            doc.setFillColor(MARSALA_L.r, MARSALA_L.g, MARSALA_L.b)
+            doc.circle(avX, avY, 3.2, 'F')
+            doc.setDrawColor(BORDER.r, BORDER.g, BORDER.b)
             doc.setLineWidth(0.15)
-            doc.circle(avatarX, avatarY, avatarR, 'S')
+            doc.circle(avX, avY, 3.2, 'S')
 
-            const initial = (msg.guestName || 'C').charAt(0).toUpperCase()
             doc.setFont('helvetica', 'bold')
-            doc.setFontSize(7)
+            doc.setFontSize(6.5)
             doc.setTextColor(MARSALA.r, MARSALA.g, MARSALA.b)
-            doc.text(initial, avatarX, avatarY + 2.2, { align: 'center' })
+            doc.text((msg.guestName || 'C').charAt(0).toUpperCase(), avX, avY + 2, { align: 'center' })
 
-            // Nome do Convidado
+            // Trunca nome se muito longo para coluna
+            const maxNameW = colW - cardPad - 5 - 8
             doc.setFont('helvetica', 'bold')
-            doc.setFontSize(8)
+            doc.setFontSize(7.5)
             doc.setTextColor(TEXT_DARK.r, TEXT_DARK.g, TEXT_DARK.b)
-            doc.text(msg.guestName || 'Convidado Especial', avatarX + 6.5, avatarY + 1)
+            const nameLine = doc.splitTextToSize(msg.guestName || 'Convidado', maxNameW)
+            doc.text(nameLine[0], avX + 5.8, avY + 0.8)
 
-            // Subtítulo Convidado
             doc.setFont('helvetica', 'normal')
-            doc.setFontSize(6)
+            doc.setFontSize(5.5)
             doc.setTextColor(TEXT_MUTED.r, TEXT_MUTED.g, TEXT_MUTED.b)
-            doc.text('CONVIDADO(A)', avatarX + 6.5, avatarY + 3.8)
+            doc.text('CONVIDADO(A)', avX + 5.8, avY + 3.8)
 
-            // Avançar Y para o próximo card com respiro
-            yPos += cardHeight + 5
+            // ── Avançar coluna / linha ──
+            if (col === 0) {
+                col = 1
+                // Não avança yPos ainda — aguarda col 1 para saber a altura máxima da linha
+            } else {
+                // Fim da linha: calcula a altura máxima das duas colunas
+                // (card já desenhado, yPos foi mantido)
+                yPos += cardH + 5
+                col = 0
+            }
         })
+
+        // Se terminou em coluna ímpar (só col 0 preenchido), avança yPos
+        if (col === 1) {
+            const lastMsg = validMessages[validMessages.length - 1]
+            yPos += calcCardHeight(lastMsg) + 5
+        }
     }
 
-    // ==========================================
-    // 3. NUMERAÇÃO DE PÁGINAS E RODAPÉ
-    // ==========================================
+    // ══════════════════════════════════════
+    //  3. NUMERAÇÃO E RODAPÉ EM TODAS AS PÁGINAS
+    // ══════════════════════════════════════
     const totalPages = doc.getNumberOfPages()
     for (let i = 2; i <= totalPages; i++) {
         doc.setPage(i)
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(7.5)
         doc.setTextColor(TEXT_MUTED.r, TEXT_MUTED.g, TEXT_MUTED.b)
-        
-        // Rodapé elegante
-        doc.text('RSVP · Inteligência em Eventos', margin, pageHeight - 12)
+        doc.text(FOOTER_TEXT, margin, pageHeight - 12)
         doc.text(`Página ${i} de ${totalPages}`, pageWidth - margin, pageHeight - 12, { align: 'right' })
     }
 
-    // Salvar o arquivo PDF
-    const cleanFileName = `Mural de Carinho - ${coupleName.replace(/[^a-zA-Z0-9À-ÿ\s]/g, '')}.pdf`
-    doc.save(cleanFileName)
+    // ── Download ──
+    const cleanName = coupleName.replace(/[^a-zA-Z0-9À-ÿ\s&]/g, '').trim()
+    doc.save(`Mural de Carinho - ${cleanName}.pdf`)
+}
+
+// Auxiliar para calcular altura de card fora do closure (reutilizado no forEach)
+function calcCardHeight(doc: jsPDF, msg: MuralMessage, colW: number, cardPad: number): number {
+    doc.setFont('times', 'italic')
+    doc.setFontSize(10)
+    const textW = colW - (cardPad * 2) - 4
+    const lines = doc.splitTextToSize((msg.message || '').trim(), textW)
+    const textH = Math.max(lines.length * 4.8, 6)
+    return Math.max(8 + textH + 13 + 8, 38)
 }

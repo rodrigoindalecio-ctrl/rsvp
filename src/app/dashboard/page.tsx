@@ -932,7 +932,7 @@ export default function DashboardPage() {
         eventId && (
           <MuralMessagesTab
             eventId={eventId as string}
-            coupleName={eventSettings?.title || user?.name || 'Mural de Carinho'}
+            coupleName={(eventSettings as any)?.coupleNames || eventSettings?.title || user?.name || 'Mural de Carinho'}
             eventDate={eventSettings?.eventDate}
             slug={eventSettings?.slug}
           />
