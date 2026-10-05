@@ -286,6 +286,33 @@ export default function GiftManagementTab({ eventId }: Props) {
         );
     };
 
+    const handleDeleteGiftsByCategory = (category: string, categoryLabel: string) => {
+        const count = gifts.filter(g => (g.category || 'Outros') === category).length;
+        showConfirm(
+            `Excluir "${categoryLabel}"`,
+            `Tem certeza que deseja apagar os ${count} presente${count === 1 ? '' : 's'} da categoria "${categoryLabel}"? Esta ação não pode ser desfeita.`,
+            async () => {
+                setConfirmModal(null);
+                try {
+                    const res = await fetch(
+                        `/api/events/${eventId}/gifts?category=${encodeURIComponent(category)}`,
+                        { method: 'DELETE' }
+                    );
+                    if (res.ok) {
+                        setGifts(prev => prev.filter(g => (g.category || 'Outros') !== category));
+                        showToast(`Presentes de "${categoryLabel}" removidos.`, 'info');
+                    } else {
+                        const data = await res.json();
+                        showToast(data.error || 'Erro ao excluir a categoria.', 'error');
+                    }
+                } catch {
+                    showToast('Erro ao excluir a categoria.', 'error');
+                }
+            },
+            true // danger
+        );
+    };
+
     const handleRequestWithdrawal = () => {
         if (!settings.bankPixKey) {
             showToast('Por favor, configure sua chave Pix antes de solicitar o saque.', 'error');
@@ -884,40 +911,98 @@ export default function GiftManagementTab({ eventId }: Props) {
                                 </div>
                             </div>
                         ) : (
-                            <div className="space-y-4">
-                                {gifts.map(gift => (
-                                    <div key={gift.id} className="group flex items-center p-4 rounded-[1.5rem] border border-border-soft bg-surface hover:bg-bg-light hover:border-brand/30 hover:shadow-md transition-all gap-4">
-                                        <div className="w-16 h-16 rounded-xl bg-bg-light flex items-center justify-center overflow-hidden flex-shrink-0 border border-border-soft shadow-inner relative">
-                                            {gift.image_url ? (
-                                                <Image 
-                                                    src={gift.image_url} 
-                                                    alt={gift.name} 
-                                                    fill 
-                                                    className="object-cover" 
-                                                />
-                                            ) : (
-                                                <Gift className="text-text-muted" />
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="font-black text-sm text-text-primary tracking-tight truncate">{gift.name}</h4>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-brand drop-shadow-sm">
-                                                    R$ {Number(gift.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                </p>
-                                                {gift.quantity && Number(gift.quantity) > 1 && (
-                                                    <span className="px-2 py-0.5 rounded-full bg-brand/10 text-brand text-[9px] font-black uppercase tracking-wider">
-                                                        {gift.quantity} {gift.is_quota ? 'cotas' : 'unidades'}
-                                                    </span>
-                                                )}
+                            <div className="space-y-8">
+                                {(() => {
+                                    // Labels legíveis para cada categoria
+                                    const CATEGORY_LABELS: Record<string, string> = {
+                                        HONEYMOON: '🌴 Lua de Mel',
+                                        CASA: '🏠 Casa',
+                                        ELETRO: '📺 Eletrodomésticos',
+                                        COZINHA: '🍳 Cozinha',
+                                        DECORACAO: '🌿 Decoração',
+                                        CONFORTO: '🛋️ Conforto & Bem-estar',
+                                        TECH: '💡 Tecnologia',
+                                        CUSTOM: '✏️ Personalizados',
+                                        Outros: '📦 Outros',
+                                    };
+
+                                    // Agrupar por categoria
+                                    const groups: Record<string, typeof gifts> = {};
+                                    gifts.forEach(gift => {
+                                        const cat = gift.category || 'Outros';
+                                        if (!groups[cat]) groups[cat] = [];
+                                        groups[cat].push(gift);
+                                    });
+
+                                    const categoryOrder = ['HONEYMOON', 'CASA', 'ELETRO', 'COZINHA', 'DECORACAO', 'CONFORTO', 'TECH', 'CUSTOM', 'Outros'];
+                                    const sortedEntries = Object.entries(groups).sort(([a], [b]) => {
+                                        const ia = categoryOrder.indexOf(a);
+                                        const ib = categoryOrder.indexOf(b);
+                                        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+                                    });
+
+                                    return sortedEntries.map(([category, categoryGifts]) => {
+                                        const label = CATEGORY_LABELS[category] || category;
+                                        return (
+                                            <div key={category}>
+                                                {/* Cabeçalho de categoria */}
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-black uppercase tracking-widest text-text-secondary">{label}</span>
+                                                        <span className="px-2 py-0.5 rounded-full bg-brand/10 text-brand text-[9px] font-black uppercase tracking-wider">{categoryGifts.length}</span>
+                                                    </div>
+                                                    {sortedEntries.length > 1 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteGiftsByCategory(category, label)}
+                                                            title={`Excluir todos os presentes de "${label}"`}
+                                                            className="flex items-center gap-1 px-2.5 py-1.5 text-rose-500 hover:bg-rose-50 border border-rose-200/60 hover:border-rose-300 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                                        >
+                                                            <Trash2 size={11} />
+                                                            <span>Excluir Categoria</span>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {/* Itens da categoria */}
+                                                <div className="space-y-3">
+                                                    {categoryGifts.map(gift => (
+                                                        <div key={gift.id} className="group flex items-center p-4 rounded-[1.5rem] border border-border-soft bg-surface hover:bg-bg-light hover:border-brand/30 hover:shadow-md transition-all gap-4">
+                                                            <div className="w-16 h-16 rounded-xl bg-bg-light flex items-center justify-center overflow-hidden flex-shrink-0 border border-border-soft shadow-inner relative">
+                                                                {gift.image_url ? (
+                                                                    <Image
+                                                                        src={gift.image_url}
+                                                                        alt={gift.name}
+                                                                        fill
+                                                                        className="object-cover"
+                                                                    />
+                                                                ) : (
+                                                                    <Gift className="text-text-muted" />
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <h4 className="font-black text-sm text-text-primary tracking-tight truncate">{gift.name}</h4>
+                                                                <div className="flex items-center gap-2 mt-1">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand drop-shadow-sm">
+                                                                        R$ {Number(gift.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                    </p>
+                                                                    {gift.quantity && Number(gift.quantity) > 1 && (
+                                                                        <span className="px-2 py-0.5 rounded-full bg-brand/10 text-brand text-[9px] font-black uppercase tracking-wider">
+                                                                            {gift.quantity} {gift.is_quota ? 'cotas' : 'unidades'}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button onClick={() => handleOpenEditGift(gift)} className="w-9 h-9 rounded-xl bg-surface border border-border-soft shadow-sm flex items-center justify-center text-text-muted hover:text-brand hover:border-brand/30 hover:bg-brand-pale transition-all"><Edit2 size={14} /></button>
+                                                                <button onClick={() => handleDeleteGift(gift.id)} className="w-9 h-9 rounded-xl bg-surface border border-border-soft shadow-sm flex items-center justify-center text-text-muted hover:text-danger hover:border-danger/30 hover:bg-danger-light transition-all"><Trash2 size={14} /></button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => handleOpenEditGift(gift)} className="w-9 h-9 rounded-xl bg-surface border border-border-soft shadow-sm flex items-center justify-center text-text-muted hover:text-brand hover:border-brand/30 hover:bg-brand-pale transition-all"><Edit2 size={14} /></button>
-                                            <button onClick={() => handleDeleteGift(gift.id)} className="w-9 h-9 rounded-xl bg-surface border border-border-soft shadow-sm flex items-center justify-center text-text-muted hover:text-danger hover:border-danger/30 hover:bg-danger-light transition-all"><Trash2 size={14} /></button>
-                                        </div>
-                                    </div>
-                                ))}
+                                        );
+                                    });
+                                })()}
                             </div>
                         )}
                     </div>

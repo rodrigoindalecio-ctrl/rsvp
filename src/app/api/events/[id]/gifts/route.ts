@@ -212,10 +212,18 @@ export async function DELETE(
         const ownership = await verifyEventOwnership(req, eventId);
         if (!ownership.authorized) return ownership.response;
 
-        const { error } = await supabaseAdmin
+        const category = req.nextUrl.searchParams.get('category');
+
+        let query = supabaseAdmin
             .from('gifts')
             .delete()
             .eq('event_id', eventId);
+
+        if (category) {
+            query = (query as any).eq('category', category);
+        }
+
+        const { error } = await query;
 
         if (error) throw error;
 
