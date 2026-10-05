@@ -13,7 +13,7 @@ export async function GET(
         // Primeiro tenta pela coluna direta (novo formato)
         let { data: event } = await supabaseAdmin
             .from('events')
-            .select('id, gift_list_enabled, tax_payer')
+            .select('id, gift_list_enabled, tax_payer, event_settings')
             .eq('slug', slug)
             .maybeSingle();
 
@@ -21,7 +21,7 @@ export async function GET(
         if (!event) {
             const { data: events } = await supabaseAdmin
                 .from('events')
-                .select('id, gift_list_enabled, tax_payer, eventSettings')
+                .select('id, gift_list_enabled, tax_payer, event_settings, eventSettings')
                 .not('eventSettings', 'is', null);
 
             if (events && events.length > 0) {
@@ -29,7 +29,7 @@ export async function GET(
                     try {
                         const settings = typeof e.eventSettings === 'string'
                             ? JSON.parse(e.eventSettings)
-                            : e.eventSettings;
+                            : (e.eventSettings || e.event_settings);
                         return settings?.slug?.toLowerCase() === slug.toLowerCase();
                     } catch { return false; }
                 });
@@ -37,15 +37,22 @@ export async function GET(
                     event = {
                         id: found.id,
                         gift_list_enabled: found.gift_list_enabled,
-                        tax_payer: found.tax_payer || 'COUPLE'
+                        tax_payer: found.tax_payer || 'COUPLE',
+                        event_settings: found.event_settings || found.eventSettings
                     };
                 }
             }
         }
 
         if (!event) {
-            return NextResponse.json({ gifts: [] });
+            return NextResponse.json({ gifts: [], giftListLinks: [], isGiftListEnabled: false });
         }
+
+        // Extrai configurações de lojas externas
+        const rawSettings = (event as any).event_settings || (event as any).eventSettings;
+        const parsedSettings = typeof rawSettings === 'string' ? JSON.parse(rawSettings) : (rawSettings || {});
+        const giftListLinks = Array.isArray(parsedSettings.giftListLinks) ? parsedSettings.giftListLinks : [];
+        const isGiftListEnabled = parsedSettings.isGiftListEnabled !== false;
 
         // Busca os presentes ativos (independente de gift_list_enabled para não bloquear o dev)
         const { data: gifts, error } = await supabaseAdmin
@@ -57,18 +64,22 @@ export async function GET(
 
         if (error) {
             console.error('[PUBLIC GIFTS]', error);
-            return NextResponse.json({ gifts: [] });
+            return NextResponse.json({ gifts: [], giftListLinks, isGiftListEnabled });
         }
 
         return NextResponse.json({
             gifts: gifts || [],
             eventId: event.id,
             settings: {
-                taxPayer: event.tax_payer || 'COUPLE'
-            }
+                taxPayer: event.tax_payer || 'COUPLE',
+                isGiftListEnabled,
+                giftListLinks
+            },
+            giftListLinks,
+            isGiftListEnabled
         }, {
             headers: {
-                'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' // Cache de 5min, serve cache por 10min enquanto valida
+                'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
             }
         });
 

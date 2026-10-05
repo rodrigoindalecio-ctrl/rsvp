@@ -13,6 +13,7 @@ interface Props { slug: string }
 export default function PresentsContent({ slug }: Props) {
     const { eventSettings, loading: contextLoading } = useEvent()
     const [gifts, setGifts] = useState<any[]>([])
+    const [apiStoreLinks, setApiStoreLinks] = useState<{ name: string; url: string }[]>([])
     const [taxPayer, setTaxPayer] = useState('COUPLE')
     const [serviceTax, setServiceTax] = useState(5.49)
     const [loading, setLoading] = useState(true)
@@ -41,6 +42,7 @@ export default function PresentsContent({ slug }: Props) {
                 if (d.eventId) setEventId(d.eventId)
                 if (d.settings?.taxPayer) setTaxPayer(d.settings.taxPayer)
                 if (d.settings?.serviceTax) setServiceTax(Number(d.settings.serviceTax))
+                if (Array.isArray(d.giftListLinks)) setApiStoreLinks(d.giftListLinks)
             })
             .finally(() => setLoading(false))
 
@@ -238,7 +240,16 @@ export default function PresentsContent({ slug }: Props) {
         </div>
     )
 
-    if (!eventSettings.isGiftListEnabled && !eventSettings.giftListInternalEnabled) {
+    const externalStores = useMemo(() => {
+        const fromContext = Array.isArray(eventSettings.giftListLinks) ? eventSettings.giftListLinks : []
+        const combined = fromContext.length > 0 ? fromContext : apiStoreLinks
+        return combined.filter(link => link && (link.name?.trim() || link.url?.trim()))
+    }, [eventSettings.giftListLinks, apiStoreLinks])
+
+    const hasExternalStores = externalStores.length > 0
+    const isPageActive = eventSettings.isGiftListEnabled !== false || eventSettings.giftListInternalEnabled || hasExternalStores
+
+    if (!isPageActive) {
         return (
             <div className="min-h-screen bg-bg-light flex flex-col items-center justify-center p-6 text-center">
                 <div className="w-20 h-20 bg-brand-pale rounded-full flex items-center justify-center mb-6 text-brand/40">
@@ -294,11 +305,15 @@ export default function PresentsContent({ slug }: Props) {
                         className="text-text-secondary text-lg leading-relaxed max-w-2xl mx-auto font-serif italic opacity-80">
                         "Nossa maior alegria é ter vocês conosco. Se desejarem nos presentear, sintam-se à vontade para escolher algo que tenha a nossa cara."
                     </motion.p>
-                    {!loading && gifts.length > 0 && (
+                    {!loading && (gifts.length > 0 || hasExternalStores) && (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
                             className="mt-8 inline-flex items-center gap-2 px-6 py-3 bg-brand-pale rounded-full border border-brand/10">
                             <span className="text-[11px] font-black uppercase tracking-widest text-brand">
-                                {gifts.length} {gifts.length === 1 ? 'presente disponível' : 'presentes disponíveis'}
+                                {hasExternalStores && gifts.length > 0 
+                                    ? `${gifts.length} ${gifts.length === 1 ? 'cota virtual' : 'cotas virtuais'} + ${externalStores.length} loja(s) parceira(s)`
+                                    : hasExternalStores 
+                                        ? `${externalStores.length} ${externalStores.length === 1 ? 'loja parceira disponível' : 'lojas parceiras disponíveis'}`
+                                        : `${gifts.length} ${gifts.length === 1 ? 'presente disponível' : 'presentes disponíveis'}`}
                             </span>
                         </motion.div>
                     )}
@@ -312,15 +327,104 @@ export default function PresentsContent({ slug }: Props) {
                         <div className="w-12 h-12 border-4 border-brand/10 border-t-brand rounded-full animate-spin" />
                         <p className="text-[11px] font-black uppercase tracking-[0.3em] text-brand">Carregando...</p>
                     </div>
-                ) : gifts.length === 0 ? (
-                    <div className="text-center py-32 bg-surface rounded-[4rem] border-2 border-dashed border-border-soft">
-                        <div className="w-20 h-20 bg-bg-light rounded-[3rem] flex items-center justify-center mx-auto mb-6 text-text-muted/30">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16" /></svg>
-                        </div>
-                        <p className="text-text-muted font-serif italic text-lg">A lista de presentes ainda está sendo preparada.</p>
-                        <p className="text-text-muted/60 font-serif italic text-sm mt-2">Volte em breve! 💝</p>
-                    </div>
                 ) : (
+                    <div className="space-y-16">
+                        {/* Seção de Lojas Externas (Camicado, etc.) */}
+                        {hasExternalStores && (
+                            <section className="animate-in fade-in slide-in-from-bottom-6 duration-700">
+                                <div className="text-center max-w-xl mx-auto mb-10">
+                                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-brand-pale rounded-full border border-brand/10 mb-4">
+                                        <span className="w-2 h-2 rounded-full bg-brand animate-pulse" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-brand">
+                                            {externalStores.length === 1 ? 'Loja Parceira' : 'Lojas Parceiras'}
+                                        </span>
+                                    </div>
+                                    <h2 className="text-3xl font-serif text-text-primary mb-3">
+                                        Nossas Listas de Presentes
+                                    </h2>
+                                    <p className="text-sm text-text-secondary leading-relaxed font-serif italic">
+                                        Para sua comodidade, criamos nossa lista de presentes oficial. Clique abaixo para acessar a loja e escolher seu presente:
+                                    </p>
+                                </div>
+
+                                <div className={`grid grid-cols-1 ${externalStores.length > 1 ? 'md:grid-cols-2' : 'max-w-2xl mx-auto'} gap-6`}>
+                                    {externalStores.map((store, idx) => {
+                                        const rawUrl = (store.url || '').trim()
+                                        const validUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`
+                                        const storeName = store.name?.trim() || 'Loja Parceira'
+
+                                        return (
+                                            <a
+                                                key={idx}
+                                                href={validUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="group relative bg-surface border border-border-soft hover:border-brand/40 rounded-[2.5rem] p-8 shadow-sm hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col sm:flex-row items-center justify-between gap-6 overflow-hidden"
+                                            >
+                                                <div className="flex items-center gap-5 text-center sm:text-left flex-col sm:flex-row">
+                                                    <div className="w-16 h-16 rounded-[1.8rem] bg-brand-pale text-brand flex items-center justify-center flex-shrink-0 shadow-inner group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+                                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+                                                            <path d="M3 6h18" />
+                                                            <path d="M16 10a4 4 0 0 1-8 0" />
+                                                        </svg>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[9px] font-black uppercase tracking-[0.25em] text-brand/60 block mb-1">
+                                                            Lista Externa Oficial
+                                                        </span>
+                                                        <h3 className="font-serif text-2xl font-bold text-text-primary group-hover:text-brand transition-colors">
+                                                            {storeName}
+                                                        </h3>
+                                                        <p className="text-xs text-text-muted mt-1 font-medium">
+                                                            Clique para abrir a lista no site da {storeName}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-2 px-7 py-4 bg-brand text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-brand/20 group-hover:bg-brand-dark group-hover:shadow-brand/30 transition-all flex-shrink-0">
+                                                    <span>Acessar Loja</span>
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                                        <polyline points="15 3 21 3 21 9" />
+                                                        <line x1="10" y1="14" x2="21" y2="3" />
+                                                    </svg>
+                                                </div>
+                                            </a>
+                                        )
+                                    })}
+                                </div>
+
+                                {gifts.length > 0 && (
+                                    <div className="flex items-center gap-6 pt-16 overflow-hidden">
+                                        <div className="h-px bg-border-soft flex-1" />
+                                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-text-muted bg-bg-light px-6 py-2 rounded-full border border-border-soft">
+                                            Ou presenteie com cotas virtuais
+                                        </span>
+                                        <div className="h-px bg-border-soft flex-1" />
+                                    </div>
+                                )}
+                            </section>
+                        )}
+
+                        {/* Catálogo de Presentes Virtuais ou Mensagem de Espera */}
+                        {gifts.length === 0 ? (
+                            hasExternalStores ? (
+                                <div className="text-center py-10 bg-surface rounded-[2.5rem] border border-border-soft/60 p-8 max-w-xl mx-auto">
+                                    <p className="text-text-muted font-serif italic text-sm">
+                                        Nossa lista principal está disponível na loja indicada acima. Se preferir nos presentear com uma cota virtual via Pix, novas opções estarão disponíveis em breve. 💝
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="text-center py-32 bg-surface rounded-[4rem] border-2 border-dashed border-border-soft">
+                                    <div className="w-20 h-20 bg-bg-light rounded-[3rem] flex items-center justify-center mx-auto mb-6 text-text-muted/30">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16" /></svg>
+                                    </div>
+                                    <p className="text-text-muted font-serif italic text-lg">A lista de presentes ainda está sendo preparada.</p>
+                                    <p className="text-text-muted/60 font-serif italic text-sm mt-2">Volte em breve! 💝</p>
+                                </div>
+                            )
+                        ) : (
                     <div className="space-y-20">
                         {Object.entries(groupedGifts).map(([sub, subGifts]) => (
                             <section key={sub} className="animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -413,6 +517,8 @@ export default function PresentsContent({ slug }: Props) {
                                 </div>
                             </section>
                         ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </main>

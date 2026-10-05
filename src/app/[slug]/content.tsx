@@ -110,12 +110,14 @@ export default function EventContent({ slug }: EventContentProps) {
             ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(eventSettings.ceremonyLocation)}`
             : null)
 
+    const hasGifts = eventSettings.isGiftListEnabled || (eventSettings.giftListLinks && eventSettings.giftListLinks.length > 0)
+
     const navItems = [
         { id: 'inicio', label: 'Início' },
         { id: 'historia', label: 'Nossa História' },
         ...(eventSettings.galleryImages && eventSettings.galleryImages.length > 0 ? [{ id: 'galeria', label: 'Galeria' }] : []),
         { id: 'local', label: 'Local' },
-        ...(eventSettings.isGiftListEnabled ? [{ id: 'presentes-link', label: 'Presentes' }] : []),
+        ...(hasGifts ? [{ id: 'presentes-link', label: 'Presentes' }] : []),
     ]
 
     if (isLoading) return (
@@ -680,7 +682,7 @@ export default function EventContent({ slug }: EventContentProps) {
                         </Link>
 
                         {/* Presentes Card */}
-                        {eventSettings.isGiftListEnabled && (
+                        {hasGifts && (
                             <Link href={`/${slug}/presentes`}
                                 className="group block bg-surface border border-border-soft rounded-[2.5rem] p-10 overflow-hidden relative shadow-sm hover:shadow-xl hover:-translate-y-2 hover:border-brand/30 transition-all duration-300">
                                 <div className="absolute top-0 right-0 p-8 text-brand/10 group-hover:rotate-12 group-hover:scale-110 transition-all duration-500">
@@ -691,9 +693,18 @@ export default function EventContent({ slug }: EventContentProps) {
                                         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-brand"><path d="M20 12V8H4v4M2 4h20v4H2zM12 4v16M7 12v8h10v-8" /></svg>
                                     </div>
                                     <h3 className="text-2xl font-serif text-text-primary mb-3">Lista de Presentes</h3>
-                                    <p className="text-text-muted text-sm leading-relaxed mb-8">
-                                        "Ter você ao nosso lado já é um presente. Mas, se quiser nos presentear, preparamos esta lista com muito carinho."
+                                    <p className="text-text-muted text-sm leading-relaxed mb-6">
+                                        "Ter você ao nosso lado já é um presente. Mas, se quiser nos presentear, preparamos nossa lista com muito carinho."
                                     </p>
+                                    {eventSettings.giftListLinks && eventSettings.giftListLinks.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 mb-6">
+                                            {eventSettings.giftListLinks.map((store, i) => store.name ? (
+                                                <span key={i} className="px-3 py-1 bg-brand-pale text-brand text-[9px] font-black uppercase tracking-wider rounded-full border border-brand/10">
+                                                    Loja {store.name}
+                                                </span>
+                                            ) : null)}
+                                        </div>
+                                    )}
                                     <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand group-hover:gap-4 transition-all">
                                         Ver Presentes
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
