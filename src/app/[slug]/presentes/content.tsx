@@ -31,10 +31,10 @@ export default function PresentsContent({ slug }: Props) {
     const [pendingTx, setPendingTx] = useState<{ id: string; giftIds: string[] } | null>(null)
     const pollingRef = useRef<NodeJS.Timeout | null>(null)
 
-    const isCorrectEvent = eventSettings.slug === slug
+    const isCorrectEvent = contextLoading || !eventSettings.slug || eventSettings.slug.toLowerCase() === slug.toLowerCase()
 
     useEffect(() => {
-        if (!isCorrectEvent) return
+        if (!slug) return
         fetch(`/api/events/by-slug/${slug}/gifts`)
             .then(r => r.json())
             .then(d => {
@@ -150,6 +150,15 @@ export default function PresentsContent({ slug }: Props) {
         return cart.reduce((acc, item) => acc + getDisplayPrice(item.price) * (item.quantity || 1), 0);
     }, [cart, taxPayer, serviceTax]);
 
+    const externalStores = useMemo(() => {
+        const fromContext = Array.isArray(eventSettings?.giftListLinks) ? eventSettings.giftListLinks : []
+        const combined = fromContext.length > 0 ? fromContext : apiStoreLinks
+        return combined.filter(link => link && (link.name?.trim() || link.url?.trim()))
+    }, [eventSettings?.giftListLinks, apiStoreLinks])
+
+    const hasExternalStores = externalStores.length > 0
+    const isPageActive = eventSettings?.isGiftListEnabled !== false || eventSettings?.giftListInternalEnabled || hasExternalStores
+
     const handleCheckout = async (e: React.FormEvent) => {
         e.preventDefault()
 
@@ -239,15 +248,6 @@ export default function PresentsContent({ slug }: Props) {
             <p className="text-text-secondary font-serif italic">Evento não encontrado.</p>
         </div>
     )
-
-    const externalStores = useMemo(() => {
-        const fromContext = Array.isArray(eventSettings.giftListLinks) ? eventSettings.giftListLinks : []
-        const combined = fromContext.length > 0 ? fromContext : apiStoreLinks
-        return combined.filter(link => link && (link.name?.trim() || link.url?.trim()))
-    }, [eventSettings.giftListLinks, apiStoreLinks])
-
-    const hasExternalStores = externalStores.length > 0
-    const isPageActive = eventSettings.isGiftListEnabled !== false || eventSettings.giftListInternalEnabled || hasExternalStores
 
     if (!isPageActive) {
         return (
