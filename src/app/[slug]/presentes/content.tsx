@@ -410,9 +410,11 @@ export default function PresentsContent({ slug }: Props) {
                         {/* Catálogo de Presentes Virtuais ou Mensagem de Espera */}
                         {gifts.length === 0 ? (
                             hasExternalStores ? (
-                                <div className="text-center py-10 bg-surface rounded-[2.5rem] border border-border-soft/60 p-8 max-w-xl mx-auto">
+                                <div className="text-center py-8 bg-surface rounded-[2rem] border border-border-soft/60 px-8 max-w-md mx-auto">
                                     <p className="text-text-muted font-serif italic text-sm">
-                                        Nossa lista principal está disponível na loja indicada acima. Se preferir nos presentear com uma cota virtual via Pix, novas opções estarão disponíveis em breve. 💝
+                                        {externalStores.length > 1 
+                                            ? 'Nossa lista principal está disponível nas lojas indicadas acima.' 
+                                            : 'Nossa lista principal está disponível na loja indicada acima.'}
                                     </p>
                                 </div>
                             ) : (
