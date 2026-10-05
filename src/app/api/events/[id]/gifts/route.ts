@@ -202,3 +202,25 @@ export async function POST(
         return NextResponse.json({ error: 'Erro interno ao salvar o presente. A imagem pode ser muito grande.' }, { status: 500 });
     }
 }
+
+export async function DELETE(
+    req: NextRequest,
+    { params }: { params: { id: string } }
+) {
+    try {
+        const eventId = params.id;
+        const ownership = await verifyEventOwnership(req, eventId);
+        if (!ownership.authorized) return ownership.response;
+
+        const { error } = await supabaseAdmin
+            .from('gifts')
+            .delete()
+            .eq('event_id', eventId);
+
+        if (error) throw error;
+
+        return NextResponse.json({ ok: true });
+    } catch (e: any) {
+        return NextResponse.json({ error: 'Erro ao limpar a lista de presentes.' }, { status: 500 });
+    }
+}
