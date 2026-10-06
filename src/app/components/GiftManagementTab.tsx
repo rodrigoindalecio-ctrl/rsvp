@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Gift, Heart, Plus, Trash2, Edit2, Wallet, ArrowUpRight, CheckCircle2, AlertCircle, Sparkles, MessageSquare, ShieldCheck, X, Check, Info, Mail, Send, Upload, Camera, Image as ImageIcon, Clock } from 'lucide-react';
+import { Gift, Heart, Plus, Trash2, Edit2, Wallet, ArrowUpRight, CheckCircle2, AlertCircle, Sparkles, MessageSquare, ShieldCheck, X, Check, Info, Mail, Send, Upload, Camera, Image as ImageIcon, Clock, ChevronDown } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/storage-upload';
 import Image from 'next/image';
@@ -76,6 +76,22 @@ export default function GiftManagementTab({ eventId }: Props) {
     const [thankedIds, setThankedIds] = useState<string[]>([]);
     const [dismissedRejectionIds, setDismissedRejectionIds] = useState<string[]>([]);
     const [uploadingImage, setUploadingImage] = useState(false);
+    const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+
+    const toggleCategory = (category: string) => {
+        setExpandedCategories(prev => ({
+            ...prev,
+            [category]: !prev[category]
+        }));
+    };
+
+    const handleToggleAllCategories = (expand: boolean, allKeys: string[]) => {
+        const next: Record<string, boolean> = {};
+        allKeys.forEach(k => {
+            next[k] = expand;
+        });
+        setExpandedCategories(next);
+    };
 
     useEffect(() => {
         if (typeof window !== 'undefined' && eventId) {
@@ -941,67 +957,122 @@ export default function GiftManagementTab({ eventId }: Props) {
                                         return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
                                     });
 
-                                    return sortedEntries.map(([category, categoryGifts]) => {
-                                        const label = CATEGORY_LABELS[category] || category;
-                                        return (
-                                            <div key={category}>
-                                                {/* Cabeçalho de categoria */}
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-xs font-black uppercase tracking-widest text-text-secondary">{label}</span>
-                                                        <span className="px-2 py-0.5 rounded-full bg-brand/10 text-brand text-[9px] font-black uppercase tracking-wider">{categoryGifts.length}</span>
-                                                    </div>
-                                                    {sortedEntries.length > 1 && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleDeleteGiftsByCategory(category, label)}
-                                                            title={`Excluir todos os presentes de "${label}"`}
-                                                            className="flex items-center gap-1 px-2.5 py-1.5 text-rose-500 hover:bg-rose-50 border border-rose-200/60 hover:border-rose-300 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                    const allExpanded = sortedEntries.length > 0 && sortedEntries.every(([cat]) => !!expandedCategories[cat]);
+
+                                    return (
+                                        <div className="space-y-4">
+                                            {/* Subheader com dica e botão expandir/recolher tudo */}
+                                            <div className="flex items-center justify-between px-1 text-text-muted">
+                                                <span className="text-[11px] font-semibold text-text-muted">
+                                                    Clique na categoria para abrir ou fechar os itens:
+                                                </span>
+                                                {sortedEntries.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleToggleAllCategories(!allExpanded, sortedEntries.map(([k]) => k))}
+                                                        className="text-[10px] font-black uppercase tracking-wider text-brand hover:underline cursor-pointer"
+                                                    >
+                                                        {allExpanded ? 'Recolher todos' : 'Expandir todos'}
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {sortedEntries.map(([category, categoryGifts]) => {
+                                                const label = CATEGORY_LABELS[category] || category;
+                                                const isExpanded = !!expandedCategories[category];
+
+                                                return (
+                                                    <div 
+                                                        key={category} 
+                                                        className="border border-border-soft rounded-[1.8rem] overflow-hidden bg-surface transition-all shadow-xs"
+                                                    >
+                                                        {/* Cabeçalho Dropdown / Accordion da Categoria */}
+                                                        <div
+                                                            onClick={() => toggleCategory(category)}
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCategory(category); } }}
+                                                            className="w-full flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 bg-bg-light/60 hover:bg-bg-light transition-all cursor-pointer select-none gap-3 group"
                                                         >
-                                                            <Trash2 size={11} />
-                                                            <span>Excluir Categoria</span>
-                                                        </button>
-                                                    )}
-                                                </div>
-                                                {/* Itens da categoria */}
-                                                <div className="space-y-3">
-                                                    {categoryGifts.map(gift => (
-                                                        <div key={gift.id} className="group flex items-center p-4 rounded-[1.5rem] border border-border-soft bg-surface hover:bg-bg-light hover:border-brand/30 hover:shadow-md transition-all gap-4">
-                                                            <div className="w-16 h-16 rounded-xl bg-bg-light flex items-center justify-center overflow-hidden flex-shrink-0 border border-border-soft shadow-inner relative">
-                                                                {gift.image_url ? (
-                                                                    <Image
-                                                                        src={gift.image_url}
-                                                                        alt={gift.name}
-                                                                        fill
-                                                                        className="object-cover"
-                                                                    />
-                                                                ) : (
-                                                                    <Gift className="text-text-muted" />
-                                                                )}
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <h4 className="font-black text-sm text-text-primary tracking-tight truncate">{gift.name}</h4>
-                                                                <div className="flex items-center gap-2 mt-1">
-                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand drop-shadow-sm">
-                                                                        R$ {Number(gift.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                                    </p>
-                                                                    {gift.quantity && Number(gift.quantity) > 1 && (
-                                                                        <span className="px-2 py-0.5 rounded-full bg-brand/10 text-brand text-[9px] font-black uppercase tracking-wider">
-                                                                            {gift.quantity} {gift.is_quota ? 'cotas' : 'unidades'}
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={`w-8 h-8 rounded-xl bg-white border border-border-soft shadow-xs flex items-center justify-center text-text-secondary group-hover:text-brand group-hover:border-brand/30 transition-all duration-200 ${isExpanded ? 'rotate-180 bg-brand/10 text-brand border-brand/30' : ''}`}>
+                                                                    <ChevronDown size={16} />
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        <span className="text-xs font-black uppercase tracking-widest text-text-primary group-hover:text-brand transition-colors">
+                                                                            {label}
                                                                         </span>
-                                                                    )}
+                                                                        <span className="px-2 py-0.5 rounded-full bg-brand/10 text-brand text-[9px] font-black uppercase tracking-wider">
+                                                                            {categoryGifts.length} {categoryGifts.length === 1 ? 'item' : 'itens'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <p className="text-[10px] text-text-muted font-bold mt-0.5">
+                                                                        <span className="text-brand font-bold">
+                                                                            {isExpanded ? '▲ Clique para recolher' : '▼ Clique para abrir a listagem'}
+                                                                        </span>
+                                                                    </p>
                                                                 </div>
                                                             </div>
-                                                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <button onClick={() => handleOpenEditGift(gift)} className="w-9 h-9 rounded-xl bg-surface border border-border-soft shadow-sm flex items-center justify-center text-text-muted hover:text-brand hover:border-brand/30 hover:bg-brand-pale transition-all"><Edit2 size={14} /></button>
-                                                                <button onClick={() => handleDeleteGift(gift.id)} className="w-9 h-9 rounded-xl bg-surface border border-border-soft shadow-sm flex items-center justify-center text-text-muted hover:text-danger hover:border-danger/30 hover:bg-danger-light transition-all"><Trash2 size={14} /></button>
+
+                                                            <div className="flex items-center gap-2 self-end sm:self-center" onClick={e => e.stopPropagation()}>
+                                                                {sortedEntries.length > 1 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleDeleteGiftsByCategory(category, label)}
+                                                                        title={`Excluir todos os presentes de "${label}"`}
+                                                                        className="flex items-center gap-1.5 px-3 py-1.5 text-rose-500 hover:bg-rose-50 border border-rose-200/70 hover:border-rose-300 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-2xs"
+                                                                    >
+                                                                        <Trash2 size={12} />
+                                                                        <span>Excluir Categoria</span>
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        );
-                                    });
+
+                                                        {/* Listagem de itens da categoria (Aberta quando clicado) */}
+                                                        {isExpanded && (
+                                                            <div className="p-4 sm:p-5 pt-1 sm:pt-2 border-t border-border-soft space-y-3 bg-bg-light/30 animate-in fade-in duration-200">
+                                                                {categoryGifts.map(gift => (
+                                                                    <div key={gift.id} className="group/item flex items-center p-4 rounded-[1.5rem] border border-border-soft bg-surface hover:bg-white hover:border-brand/30 hover:shadow-md transition-all gap-4">
+                                                                        <div className="w-16 h-16 rounded-xl bg-bg-light flex items-center justify-center overflow-hidden flex-shrink-0 border border-border-soft shadow-inner relative">
+                                                                            {gift.image_url ? (
+                                                                                <Image
+                                                                                    src={gift.image_url}
+                                                                                    alt={gift.name}
+                                                                                    fill
+                                                                                    className="object-cover"
+                                                                                />
+                                                                            ) : (
+                                                                                <Gift className="text-text-muted" />
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <h4 className="font-black text-sm text-text-primary tracking-tight truncate">{gift.name}</h4>
+                                                                            <div className="flex items-center gap-2 mt-1">
+                                                                                <p className="text-[10px] font-black uppercase tracking-widest text-brand drop-shadow-sm">
+                                                                                    R$ {Number(gift.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                                </p>
+                                                                                {gift.quantity && Number(gift.quantity) > 1 && (
+                                                                                    <span className="px-2 py-0.5 rounded-full bg-brand/10 text-brand text-[9px] font-black uppercase tracking-wider">
+                                                                                        {gift.quantity} {gift.is_quota ? 'cotas' : 'unidades'}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-2 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                                                            <button onClick={() => handleOpenEditGift(gift)} className="w-9 h-9 rounded-xl bg-surface border border-border-soft shadow-sm flex items-center justify-center text-text-muted hover:text-brand hover:border-brand/30 hover:bg-brand-pale transition-all"><Edit2 size={14} /></button>
+                                                                            <button onClick={() => handleDeleteGift(gift.id)} className="w-9 h-9 rounded-xl bg-surface border border-border-soft shadow-sm flex items-center justify-center text-text-muted hover:text-danger hover:border-danger/30 hover:bg-danger-light transition-all"><Trash2 size={14} /></button>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    );
                                 })()}
                             </div>
                         )}
