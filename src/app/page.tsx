@@ -57,26 +57,28 @@ export default function Home() {
     <div className="min-h-screen bg-[#fcfafa] selection:bg-brand selection:text-white">
       
       {/* ── TOP HEADER (Minimalist & Clean) ────────────────────────────── */}
-      <header className="absolute top-0 left-0 right-0 h-24 px-6 md:px-12 flex items-center justify-between z-20 max-w-7xl mx-auto">
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-brand animate-pulse" />
-          <span className="text-[11px] font-black uppercase tracking-[0.35em] text-text-primary">
+      <header className="absolute top-0 left-0 right-0 h-20 md:h-24 px-4 sm:px-6 md:px-12 flex items-center justify-between z-20 max-w-7xl mx-auto">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="w-2 h-2 rounded-full bg-brand animate-pulse flex-shrink-0" />
+          <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.25em] sm:tracking-[0.35em] text-text-primary whitespace-nowrap">
             VB Assessoria & Cerimonial
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
           <Link
             href="/login"
-            className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted hover:text-text-primary transition-colors px-3 py-2"
+            className="text-[10px] font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] text-text-muted hover:text-text-primary transition-colors px-2.5 sm:px-3 py-2 whitespace-nowrap"
           >
             Entrar
           </Link>
           <Link
             href="/register"
-            className="text-[10px] font-black uppercase tracking-[0.25em] text-white bg-brand hover:bg-brand-dark transition-all px-4 py-2 rounded-full shadow-md shadow-brand/20"
+            className="text-[10px] font-black uppercase tracking-[0.15em] sm:tracking-[0.25em] text-white bg-brand hover:bg-brand-dark transition-all px-3 sm:px-4 py-2 rounded-full shadow-md shadow-brand/20 whitespace-nowrap flex items-center gap-1"
           >
-            Criar Conta Grátis →
+            <span>Criar Conta</span>
+            <span className="hidden sm:inline">Grátis</span>
+            <span className="text-xs">→</span>
           </Link>
         </div>
       </header>
