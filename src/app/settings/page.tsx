@@ -895,7 +895,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                         onChange={(e) => setCoupleStyle(e.target.value as 'casal' | 'noivos' | 'noivas')}
                                         className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary appearance-none cursor-pointer"
                                     >
-                                        <option value="casal">🤍 O Casal (Neutro / Inclusivo)</option>
+                                        <option value="casal">🤍 O Casal</option>
                                         <option value="noivos">🤵‍♂️ Os Noivos</option>
                                         <option value="noivas">👰‍♀️ As Noivas</option>
                                     </select>

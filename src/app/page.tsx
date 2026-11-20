@@ -272,7 +272,7 @@ export default function Home() {
                 <div className="space-y-3">
                   <label className="text-[10px] font-black uppercase tracking-wider text-text-muted">Busca por nome na lista</label>
                   <div className="p-3.5 rounded-xl bg-white border border-brand/30 shadow-inner text-sm font-bold text-text-primary flex items-center justify-between">
-                    <span>Hayalla Andrade</span>
+                    <span>Mariana Silveira</span>
                     <CheckCircle2 size={16} className="text-emerald-600" />
                   </div>
                 </div>
@@ -281,12 +281,12 @@ export default function Home() {
                   <p className="text-[10px] font-black uppercase tracking-widest text-brand">Acompanhantes autorizados pelo casal:</p>
                   
                   <div className="flex items-center justify-between p-2.5 rounded-lg bg-bg-light text-xs font-bold text-text-primary">
-                    <span>👰 Hayalla (Titular)</span>
+                    <span>👤 Mariana (Titular)</span>
                     <span className="text-emerald-600 text-[10px] font-black uppercase">Confirmada ✓</span>
                   </div>
                   
                   <div className="flex items-center justify-between p-2.5 rounded-lg bg-bg-light text-xs font-bold text-text-primary">
-                    <span>🤵 Gian (Esposo)</span>
+                    <span>👤 Lucas (Acompanhante)</span>
                     <span className="text-emerald-600 text-[10px] font-black uppercase">Confirmado ✓</span>
                   </div>
 

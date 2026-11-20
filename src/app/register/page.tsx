@@ -175,7 +175,7 @@ export default function RegisterPage() {
                   onChange={e => setCoupleStyle(e.target.value as any)}
                   className="w-full px-4 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-xs font-bold focus:ring-2 focus:ring-brand/20 outline-none text-text-primary cursor-pointer appearance-none"
                 >
-                  <option value="casal">🤍 O Casal (Inclusivo)</option>
+                  <option value="casal">🤍 O Casal</option>
                   <option value="noivos">🤵‍♂️ Os Noivos</option>
                   <option value="noivas">👰‍♀️ As Noivas</option>
                 </select>
