@@ -65,12 +65,20 @@ export default function Home() {
           </span>
         </div>
 
-        <Link
-          href="/login"
-          className="text-[10px] font-black uppercase tracking-[0.25em] text-brand hover:text-brand-dark transition-colors px-4 py-2 rounded-full border border-brand/20 hover:border-brand/50 bg-white/60 backdrop-blur-sm"
-        >
-          Área do Casal →
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/login"
+            className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted hover:text-text-primary transition-colors px-3 py-2"
+          >
+            Entrar
+          </Link>
+          <Link
+            href="/register"
+            className="text-[10px] font-black uppercase tracking-[0.25em] text-white bg-brand hover:bg-brand-dark transition-all px-4 py-2 rounded-full shadow-md shadow-brand/20"
+          >
+            Criar Conta Grátis →
+          </Link>
+        </div>
       </header>
 
       {/* 🥇 SEÇÃO 1: HERO PRINCIPAL */}
@@ -135,19 +143,19 @@ export default function Home() {
             className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
           >
             <Link
-              href="/login"
+              href="/register"
               className="group relative inline-flex items-center justify-center gap-3 w-full sm:w-auto px-10 py-4.5 bg-brand text-white rounded-full text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-brand/20 transition-all hover:bg-brand-dark hover:-translate-y-0.5 active:translate-y-0"
             >
-              Acessar Painel do Casal
+              Criar Meu Evento Grátis
               <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
             </Link>
 
-            <a
-              href="#lista-trancada"
+            <Link
+              href="/login"
               className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-4.5 bg-white text-text-primary rounded-full text-[11px] font-black uppercase tracking-[0.2em] border border-border-soft hover:bg-bg-light transition-all"
             >
-              Conhecer detalhes
-            </a>
+              Já tenho conta
+            </Link>
           </motion.div>
         </div>
       </section>
@@ -562,13 +570,19 @@ export default function Home() {
           <p className="text-sm text-text-secondary max-w-xl mx-auto">
             Pronto para transformar a organização do seu evento com lista trancada e presentes inteligentes?
           </p>
-          <div className="pt-4">
+          <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link 
-              href="/login" 
+              href="/register" 
               className="inline-flex items-center gap-3 px-10 py-5 bg-brand text-white rounded-full text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-brand/20 hover:bg-brand-dark transition-all hover:-translate-y-1"
             >
-              Acessar Painel do Casal
+              Criar Conta e Meu Evento
               <ArrowRight size={16} />
+            </Link>
+            <Link 
+              href="/login" 
+              className="inline-flex items-center gap-3 px-8 py-5 bg-white text-text-primary rounded-full text-[11px] font-black uppercase tracking-[0.2em] border border-border-soft hover:bg-bg-light transition-all"
+            >
+              Já tenho conta (Entrar)
             </Link>
           </div>
         </div>
