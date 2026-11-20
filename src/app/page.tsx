@@ -69,7 +69,7 @@ export default function Home() {
           href="/login"
           className="text-[10px] font-black uppercase tracking-[0.25em] text-brand hover:text-brand-dark transition-colors px-4 py-2 rounded-full border border-brand/20 hover:border-brand/50 bg-white/60 backdrop-blur-sm"
         >
-          Área dos Noivos →
+          Área do Casal →
         </Link>
       </header>
 
@@ -138,7 +138,7 @@ export default function Home() {
               href="/login"
               className="group relative inline-flex items-center justify-center gap-3 w-full sm:w-auto px-10 py-4.5 bg-brand text-white rounded-full text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-brand/20 transition-all hover:bg-brand-dark hover:-translate-y-0.5 active:translate-y-0"
             >
-              Acessar Painel dos Noivos
+              Acessar Painel do Casal
               <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
             </Link>
 
@@ -567,7 +567,7 @@ export default function Home() {
               href="/login" 
               className="inline-flex items-center gap-3 px-10 py-5 bg-brand text-white rounded-full text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-brand/20 hover:bg-brand-dark transition-all hover:-translate-y-1"
             >
-              Acessar Painel dos Noivos
+              Acessar Painel do Casal
               <ArrowRight size={16} />
             </Link>
           </div>

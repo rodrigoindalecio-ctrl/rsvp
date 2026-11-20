@@ -4,6 +4,8 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as htmlToImage from 'html-to-image';
 import { Check, Image as ImageIcon, Sparkles, Loader2 } from 'lucide-react';
+import { useEvent } from '@/lib/event-context';
+import { getEventLabels } from '@/lib/event-labels';
 
 export type CardThemeId = 'classic' | 'dark' | 'minimal' | 'floral' | 'party';
 
@@ -62,6 +64,8 @@ interface GiftCardEditorProps {
 }
 
 export function GiftCardEditor({ giftName, giftPrice, onConfirm, onCancel }: GiftCardEditorProps) {
+  const { eventSettings } = useEvent();
+  const labels = getEventLabels(eventSettings);
   const [senderName, setSenderName] = useState('');
   const [message, setMessage] = useState('');
   const [selectedThemeId, setSelectedThemeId] = useState<CardThemeId>('classic');
@@ -100,7 +104,7 @@ export function GiftCardEditor({ giftName, giftPrice, onConfirm, onCancel }: Gif
         <div className="sticky top-6">
           <div className="mb-4">
             <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Preview do Cartão</h3>
-            <p className="text-xs text-gray-400">É assim que os noivos verão sua mensagem.</p>
+            <p className="text-xs text-gray-400">É assim que {labels.targetLower} verá sua mensagem.</p>
           </div>
 
           <div className="aspect-[4/3] w-full" style={{ perspective: '1000px' }}>
@@ -139,7 +143,7 @@ export function GiftCardEditor({ giftName, giftPrice, onConfirm, onCancel }: Gif
 
                     <div className="flex-[2] flex items-center justify-center text-center mt-4">
                       <p className="text-lg md:text-xl italic leading-relaxed break-words line-clamp-4">
-                        {message || "Digite uma mensagem linda para os noivos celebrando este momento especial."}
+                        {message || `Digite uma mensagem linda ${labels.forTarget} celebrando este momento especial.`}
                       </p>
                     </div>
 
@@ -159,7 +163,7 @@ export function GiftCardEditor({ giftName, giftPrice, onConfirm, onCancel }: Gif
       <div className="w-full lg:w-7/12 flex flex-col gap-8 lg:border-l lg:border-gray-200 lg:pl-8 py-2">
         <div>
           <h2 className="text-2xl font-semibold text-gray-800 mb-1">Personalize seu Cartão</h2>
-          <p className="text-gray-500 text-sm">Este cartão será entregue digitalmente aos noivos com o seu presente.</p>
+          <p className="text-gray-500 text-sm">Este cartão será entregue digitalmente {labels.forTarget} com o seu presente.</p>
         </div>
 
         {/* Form Inputs */}
@@ -175,7 +179,7 @@ export function GiftCardEditor({ giftName, giftPrice, onConfirm, onCancel }: Gif
               value={senderName}
               onChange={(e) => setSenderName(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-black outline-none transition-all"
-              placeholder="Como os noivos te conhecem?"
+              placeholder={`Como ${labels.targetLower} te conhece?`}
             />
           </div>
 

@@ -33,6 +33,7 @@ export type Guest = {
 
 export type EventSettings = {
     eventType: 'casamento' | 'debutante'
+    coupleStyle?: 'casal' | 'noivos' | 'noivas'
     coupleNames: string
     slug: string
     eventDate: string
@@ -119,6 +120,7 @@ type EventContextType = {
 
 const DEFAULT_EVENT_SETTINGS: EventSettings = {
     eventType: 'casamento',
+    coupleStyle: 'casal',
     coupleNames: 'Nome do Casal',
     slug: 'meu-evento',
     eventDate: new Date().toISOString().split('T')[0],

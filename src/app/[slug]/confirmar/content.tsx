@@ -1,6 +1,7 @@
 'use client'
 
 import { useEvent, Guest, GuestCategory } from '@/lib/event-context'
+import { getEventLabels } from '@/lib/event-labels'
 import { useState } from 'react'
 import Link from 'next/link'
 import { formatDate } from '@/lib/date-utils'
@@ -22,6 +23,7 @@ export default function RSVPContent({ slug }: Props) {
     const [groupConf, setGroupConf] = useState<{ [k: number]: boolean }>({})
     const [guestEmail, setGuestEmail] = useState('')
     const [message, setMessage] = useState('')
+    const labels = getEventLabels(eventSettings)
 
     const isLoading = loading || authLoading
     const isCorrectEvent = eventSettings.slug === slug && slug !== 'dashboard'
@@ -278,7 +280,7 @@ export default function RSVPContent({ slug }: Props) {
                                         </button>
                                     )) : (
                                         <div className="p-8 bg-surface rounded-3xl border border-dashed border-border-soft text-center">
-                                            <p className="text-sm text-text-muted italic mb-4">Não encontrou seu nome? Fale com os noivos.</p>
+                                            <p className="text-sm text-text-muted italic mb-4">Não encontrou seu nome? {labels.talkToTarget}.</p>
                                             <button onClick={() => { setSearchTerm(''); setStep('search') }} className="text-[10px] font-black uppercase tracking-widest text-brand">Tentar novamente</button>
                                         </div>
                                     )}
@@ -331,7 +333,7 @@ export default function RSVPContent({ slug }: Props) {
                             </div>
 
                             <div>
-                                <label className="block text-[10px] font-black text-brand uppercase tracking-widest mb-3 ml-1">Deixe um recado para os noivos (Opcional)</label>
+                                <label className="block text-[10px] font-black text-brand uppercase tracking-widest mb-3 ml-1">Deixe um recado {labels.forTarget} (Opcional)</label>
                                 <textarea 
                                     value={message} 
                                     onChange={e => setMessage(e.target.value)} 
@@ -340,7 +342,7 @@ export default function RSVPContent({ slug }: Props) {
                                     className="w-full px-6 py-4 bg-surface border border-border-soft rounded-2xl text-sm focus:ring-4 focus:ring-brand/10 focus:border-brand transition-all outline-none shadow-sm placeholder:text-text-muted/50 text-text-primary resize-none"
                                     style={{ fontFamily: 'Manrope, ui-sans-serif, system-ui, -apple-system, sans-serif', fontStyle: 'normal' }}
                                 />
-                                <p className="text-[10px] text-text-muted font-medium mt-2 ml-1">Sua mensagem aparecerá no mural dos noivos!</p>
+                                <p className="text-[10px] text-text-muted font-medium mt-2 ml-1">Sua mensagem aparecerá no mural!</p>
                             </div>
 
                             <div className="flex gap-3 pt-2">

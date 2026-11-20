@@ -37,6 +37,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
     
     // Form states - Initialize from context
     const [eventType, setEventType] = useState<'casamento' | 'debutante'>(eventSettings.eventType)
+    const [coupleStyle, setCoupleStyle] = useState<'casal' | 'noivos' | 'noivas'>(eventSettings.coupleStyle || 'casal')
     const [coupleNames, setCoupleNames] = useState(eventSettings.coupleNames)
     const [slug, setSlug] = useState(eventSettings.slug)
     const [eventDate, setEventDate] = useState(eventSettings.eventDate)
@@ -235,6 +236,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
     useEffect(() => {
         if (!isDirty && eventSettings) {
             setEventType(eventSettings.eventType)
+            setCoupleStyle(eventSettings.coupleStyle || 'casal')
             setCoupleNames(eventSettings.coupleNames)
             setSlug(eventSettings.slug)
             setEventDate(eventSettings.eventDate)
@@ -608,7 +610,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
         if (!eventSettings) return false;
         
         const current: any = {
-            eventType, coupleNames, slug, eventDate, eventTime, 
+            eventType, coupleStyle, coupleNames, slug, eventDate, eventTime, 
             confirmationDeadline, eventLocation, wazeLocation, 
             giftListLinks, coverImage, coverImagePosition, 
             coverImageScale, customMessage, notifyOwnerOnRSVP,
@@ -750,6 +752,7 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
 
             await updateEventSettings({
                 eventType,
+                coupleStyle,
                 coupleNames,
                 slug,
                 eventDate,
@@ -869,8 +872,8 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                     </div>
 
                     <form onSubmit={handleSave} className="relative space-y-10">
-                        {/* Tipo de Evento */}
-                        <div className={activeTab === 'geral' ? 'grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-300' : 'hidden'}>
+                        {/* Tipo de Evento e Tratamento */}
+                        <div className={activeTab === 'geral' ? 'grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-300' : 'hidden'}>
                             <div>
                                 <label htmlFor="eventType" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Tipo de Evento</label>
                                 <select
@@ -883,16 +886,37 @@ function SettingsContent({ user, authLoading, eventSettings, updateEventSettings
                                     <option value="debutante">💃 Debutante</option>
                                 </select>
                             </div>
-                            <div>
+                            {eventType === 'casamento' && (
+                                <div>
+                                    <label htmlFor="coupleStyle" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">Tratamento do Casal</label>
+                                    <select
+                                        id="coupleStyle"
+                                        value={coupleStyle}
+                                        onChange={(e) => setCoupleStyle(e.target.value as 'casal' | 'noivos' | 'noivas')}
+                                        className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary appearance-none cursor-pointer"
+                                    >
+                                        <option value="casal">🤍 O Casal (Neutro / Inclusivo)</option>
+                                        <option value="noivos">🤵‍♂️ Os Noivos</option>
+                                        <option value="noivas">👰‍♀️ As Noivas</option>
+                                    </select>
+                                </div>
+                            )}
+                            <div className={eventType === 'debutante' ? 'md:col-span-2' : ''}>
                                 <label htmlFor="coupleNames" className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-3 ml-1">
-                                    {eventType === 'casamento' ? 'Nomes do Casal' : 'Nome da Debutante'}
+                                    {eventType === 'casamento' 
+                                        ? (coupleStyle === 'noivas' ? 'Nome das Noivas' : coupleStyle === 'noivos' ? 'Nome dos Noivos' : 'Nomes do Casal') 
+                                        : 'Nome da Debutante'}
                                 </label>
                                 <input
                                     type="text"
                                     id="coupleNames"
                                     value={coupleNames}
                                     onChange={(e) => handleNamesChange(e.target.value)}
-                                    placeholder={eventType === 'casamento' ? 'Ex: Vanessa e Rodrigo' : 'Ex: Maria Clara'}
+                                    placeholder={
+                                        eventType === 'casamento'
+                                            ? (coupleStyle === 'noivas' ? 'Ex: Marina e Clara' : coupleStyle === 'noivos' ? 'Ex: Lucas e Gabriel' : 'Ex: Vanessa e Rodrigo')
+                                            : 'Ex: Maria Clara'
+                                    }
                                     className="w-full px-5 py-3.5 bg-bg-light border border-border-soft rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand/20 transition-all shadow-inner outline-none text-text-primary placeholder:text-text-muted"
                                 />
                             </div>
