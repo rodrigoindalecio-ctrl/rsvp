@@ -235,7 +235,13 @@ export default function LoginPage() {
             </div>
           </form>
 
-          <div className="pt-8 text-center border-t border-border-soft space-y-2">
+          <div className="pt-8 text-center border-t border-border-soft space-y-4">
+            <p className="text-xs text-text-secondary">
+              Ainda não tem uma conta?{' '}
+              <a href="/register" className="font-bold text-brand hover:underline">
+                Criar conta gratuitamente →
+              </a>
+            </p>
             <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">
               RSVP • Gestão de Eventos
             </p>
