@@ -43,7 +43,7 @@ export async function GET(req: Request) {
             // Verificar com a API da InfinitePay se o pagamento realmente foi aprovado
             if (transactionNsu && ipSlug) {
                 try {
-                    const checkRes = await fetch('https://api.infinitepay.io/invoices/public/checkout/payment_check', {
+                    const checkRes = await fetch('https://api.checkout.infinitepay.io/payment_check', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
